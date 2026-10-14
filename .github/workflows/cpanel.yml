@@ -30,7 +30,7 @@ jobs:
           set -euo pipefail
           archive="$(find . -maxdepth 1 -name 'OpenRoad-Transport-Server-v*-upgrade.zip' -printf '%f\n' | sort -V | tail -1)"
           test -n "$archive"
-          [[ "$archive" == OpenRoad-Transport-Server-v0.2.3-upgrade.zip ]] || { echo 'Phase 1 v0.2.3 upgrade must be uploaded before first deployment' >&2; exit 1; }
+          [[ "$archive" =~ ^OpenRoad-Transport-Server-v[0-9]+\.[0-9]+\.[0-9]+-upgrade\.zip$ ]] || { echo 'No valid versioned server upgrade ZIP found' >&2; exit 1; }
           echo "archive=$archive" >> "$GITHUB_OUTPUT"
           mkdir -p staging
           unzip -q "$archive" -d staging
