@@ -81,7 +81,7 @@ jobs:
           scp -i ~/.ssh/id_openroad_deploy -P "$SSH_PORT" -o StrictHostKeyChecking=yes -o BatchMode=yes "$archive" "$SSH_USER@$SSH_HOST:openroad-upgrade.zip"
           # Directories are passed as positional arguments, not interpolated in remote shell code.
           ssh "${ssh_opts[@]}" "$SSH_USER@$SSH_HOST" bash -s -- "$PRIVATE_DIR" "$PUBLIC_DIR" <<'REMOTE'
-          set -euo pipefail
+          set -Eeuo pipefail
           priv="$1";pub="$2"
           [[ "$priv" == /* && "$pub" == /* ]] || exit 1
           tmp="$(mktemp -d "${HOME}/openroad-deploy.XXXXXX")"
@@ -91,27 +91,38 @@ jobs:
           test -n "$src"
           backup="$HOME/openroad-backups/$(date -u +%Y%m%dT%H%M%SZ)"
           mkdir -p "$backup/private/lib" "$backup/public/api/v1"
-          while read -r relative destination; do
-            test -f "$src/$relative" && test -f "$destination"
-            php -l "$src/$relative" >/dev/null
-            mkdir -p "$backup/$(dirname "$relative")"
-            cp -p "$destination" "$backup/$relative"
-          done <<FILES
-          private/lib/bootstrap.php $priv/lib/bootstrap.php
-          private/lib/router.php $priv/lib/router.php
-          public/api/v1/journeys.php $pub/api/v1/journeys.php
-          public/api/v1/status.php $pub/api/v1/status.php
-          FILES
-          while read -r relative destination; do
-            cp "$src/$relative" "${destination}.new"
-            chmod --reference="$destination" "${destination}.new"
-            mv -f "${destination}.new" "$destination"
-            php -l "$destination" >/dev/null
-          done <<FILES
-          private/lib/bootstrap.php $priv/lib/bootstrap.php
-          private/lib/router.php $priv/lib/router.php
-          public/api/v1/journeys.php $pub/api/v1/journeys.php
-          public/api/v1/status.php $pub/api/v1/status.php
-          FILES
-          printf 'Deployed to cPanel; previous files backed up under %s\n' "$backup"
+          relative=(private/lib/bootstrap.php private/lib/router.php public/api/v1/journeys.php public/api/v1/status.php)
+          target=("$priv/lib/bootstrap.php" "$priv/lib/router.php" "$pub/api/v1/journeys.php" "$pub/api/v1/status.php")
+          test -f "$src/SHA256SUMS.txt"
+          (cd "$src" && sha256sum -c SHA256SUMS.txt)
+          [[ -d "$priv/lib" && -d "$pub/api/v1" ]] || { echo 'Target directory missing; refusing deploy' >&2; exit 1; }
+          backup="$HOME/openroad-backups/$(date -u +%Y%m%dT%H%M%SZ)-$$"
+          for i in "${!relative[@]}"; do
+            test -f "$src/${relative[$i]}" && test -f "${target[$i]}"
+            php -l "$src/${relative[$i]}" >/dev/null
+            mkdir -p "$backup/$(dirname "${relative[$i]}")"
+            cp -p "${target[$i]}" "$backup/${relative[$i]}"
+          done
+          rollback() {
+            rc="$?"
+            trap - ERR
+            for i in "${!relative[@]}"; do
+              if [ -f "$backup/${relative[$i]}" ]; then
+                cp -p "$backup/${relative[$i]}" "${target[$i]}.rollback" &&
+                  mv -f "${target[$i]}.rollback" "${target[$i]}" || true
+              fi
+            done
+            echo 'Deployment failed; attempted restoration of backed-up PHP files.' >&2
+            exit "$rc"
+          }
+          trap rollback ERR
+          for i in "${!relative[@]}"; do
+            cp "$src/${relative[$i]}" "${target[$i]}.new"
+            chmod --reference="${target[$i]}" "${target[$i]}.new"
+            mv -f "${target[$i]}.new" "${target[$i]}"
+            php -l "${target[$i]}" >/dev/null
+          done
+          php -r 'require $argv[1]; $db=openroad_db(); if ($db->query("SELECT 1")->fetchColumn() != 1) exit(1);' "$priv/lib/bootstrap.php"
+          trap - ERR
+          printf 'Validated, deployed and backed up under %s\n' "$backup"
           REMOTE
