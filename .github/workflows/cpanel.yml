@@ -1,0 +1,117 @@
+name: OpenRoad transport server — verify and deploy
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'OpenRoad-Transport-Server-v*-upgrade.zip'
+      - '.github/workflows/cpanel.yml'
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Type DEPLOY to publish the latest checked upgrade to cPanel'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: openroad-production-server
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    outputs:
+      archive: ${{ steps.select.outputs.archive }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: select
+        name: Select upgrade package
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$(find . -maxdepth 1 -name 'OpenRoad-Transport-Server-v*-upgrade.zip' -printf '%f\n' | sort -V | tail -1)"
+          test -n "$archive"
+          [[ "$archive" == OpenRoad-Transport-Server-v0.2.3-upgrade.zip ]] || { echo 'Phase 1 v0.2.3 upgrade must be uploaded before first deployment' >&2; exit 1; }
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+          mkdir -p staging
+          unzip -q "$archive" -d staging
+          find staging -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Upload verified server archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-server-upgrade
+          path: ${{ steps.select.outputs.archive }}
+  deploy:
+    needs: verify
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy == 'DEPLOY'
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-server-upgrade
+      - name: Configure SSH with pinned host key
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_openroad_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Deploy only four allowlisted PHP files
+        env:
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+          PRIVATE_DIR: ${{ vars.CPANEL_OPENROAD_PRIVATE_DIR }}
+          PUBLIC_DIR: ${{ vars.CPANEL_OPENROAD_PUBLIC_DIR }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${SSH_HOST:?Missing CPANEL_SSH_HOST secret}"
+          : "${SSH_USER:?Missing CPANEL_SSH_USER secret}"
+          : "${PRIVATE_DIR:?Missing CPANEL_OPENROAD_PRIVATE_DIR variable}"
+          : "${PUBLIC_DIR:?Missing CPANEL_OPENROAD_PUBLIC_DIR variable}"
+          case "$PRIVATE_DIR $PUBLIC_DIR" in *[!a-zA-Z0-9_./\ \-]* ) echo 'Unexpected deploy directory character'; exit 1;; esac
+          archive="${{ needs.verify.outputs.archive }}"
+          ssh_opts=(-i ~/.ssh/id_openroad_deploy -p "$SSH_PORT" -o StrictHostKeyChecking=yes -o BatchMode=yes)
+          scp -i ~/.ssh/id_openroad_deploy -P "$SSH_PORT" -o StrictHostKeyChecking=yes -o BatchMode=yes "$archive" "$SSH_USER@$SSH_HOST:openroad-upgrade.zip"
+          # Directories are passed as positional arguments, not interpolated in remote shell code.
+          ssh "${ssh_opts[@]}" "$SSH_USER@$SSH_HOST" bash -s -- "$PRIVATE_DIR" "$PUBLIC_DIR" <<'REMOTE'
+          set -euo pipefail
+          priv="$1";pub="$2"
+          [[ "$priv" == /* && "$pub" == /* ]] || exit 1
+          tmp="$(mktemp -d "${HOME}/openroad-deploy.XXXXXX")"
+          trap 'rm -rf "$tmp"; rm -f "${HOME}/openroad-upgrade.zip"' EXIT
+          unzip -q "${HOME}/openroad-upgrade.zip" -d "$tmp"
+          src="$(find "$tmp" -maxdepth 1 -mindepth 1 -type d | head -1)"
+          test -n "$src"
+          backup="$HOME/openroad-backups/$(date -u +%Y%m%dT%H%M%SZ)"
+          mkdir -p "$backup/private/lib" "$backup/public/api/v1"
+          while read -r relative destination; do
+            test -f "$src/$relative" && test -f "$destination"
+            php -l "$src/$relative" >/dev/null
+            mkdir -p "$backup/$(dirname "$relative")"
+            cp -p "$destination" "$backup/$relative"
+          done <<FILES
+          private/lib/bootstrap.php $priv/lib/bootstrap.php
+          private/lib/router.php $priv/lib/router.php
+          public/api/v1/journeys.php $pub/api/v1/journeys.php
+          public/api/v1/status.php $pub/api/v1/status.php
+          FILES
+          while read -r relative destination; do
+            cp "$src/$relative" "${destination}.new"
+            chmod --reference="$destination" "${destination}.new"
+            mv -f "${destination}.new" "$destination"
+            php -l "$destination" >/dev/null
+          done <<FILES
+          private/lib/bootstrap.php $priv/lib/bootstrap.php
+          private/lib/router.php $priv/lib/router.php
+          public/api/v1/journeys.php $pub/api/v1/journeys.php
+          public/api/v1/status.php $pub/api/v1/status.php
+          FILES
+          printf 'Deployed to cPanel; previous files backed up under %s\n' "$backup"
+          REMOTE
