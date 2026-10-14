@@ -1,0 +1,154 @@
+name: OpenRoad Android — build and release
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'OpenRoad-v*-source.zip'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: android-main
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install SDK
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Select newest Android source
+        shell: bash
+        run: |
+          set -euo pipefail
+          file="$(find . -maxdepth 1 -name 'OpenRoad-v*-source.zip' -printf '%f\n' | sort -V | tail -1)"
+          test -n "$file" || { echo 'No Android source zip in repository' >&2; exit 1; }
+          mkdir -p extracted
+          unzip -q "$file" -d extracted
+          project="$(find extracted -mindepth 1 -maxdepth 1 -type d | head -1)"
+          test -f "$project/app/build.gradle"
+          mv "$project" android-src
+          echo "PROJECT=android-src" >> "$GITHUB_ENV"
+      - name: Verify source
+        run: |
+          bash android-src/validate.sh
+          grep -q "versionName '0.6.26'" android-src/app/build.gradle || { echo 'Upload v0.6.26 or newer before publishing'; exit 1; }
+      - name: Inject optional build settings
+        env:
+          TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
+          BODS_API_KEY: ${{ secrets.BODS_API_KEY }}
+          TFL_API_KEY: ${{ secrets.TFL_API_KEY }}
+          TFL_SECONDARY_API_KEY: ${{ secrets.TFL_SECONDARY_API_KEY }}
+          RAILDATA_API_KEY: ${{ secrets.RAILDATA_API_KEY }}
+          TRANSPORTAPI_APP_ID: ${{ secrets.TRANSPORTAPI_APP_ID }}
+          TRANSPORTAPI_APP_KEY: ${{ secrets.TRANSPORTAPI_APP_KEY }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          names = {
+              'TOMTOM_API_KEY':'openroad.tomtomKey',
+              'BODS_API_KEY':'openroad.bodsKey',
+              'TFL_API_KEY':'openroad.tflPrimaryKey',
+              'TFL_SECONDARY_API_KEY':'openroad.tflSecondaryKey',
+              'RAILDATA_API_KEY':'openroad.railDataApiKey',
+              'TRANSPORTAPI_APP_ID':'openroad.transportApiAppId',
+              'TRANSPORTAPI_APP_KEY':'openroad.transportApiAppKey',
+          }
+          lines=[]
+          for key, prop in names.items():
+              value=os.environ.get(key, '')
+              if value:
+                  # Java property escapes; never print credentials to the build log.
+                  value=value.replace('\\','\\\\').replace('\n','\\n').replace('\r','')
+                  lines.append(f'{prop}={value}')
+          lines.append('openroad.serverUrl=https://openroad.bengoodman.co.uk')
+          Path('android-src/local.properties').write_text('\n'.join(lines)+'\n')
+          PY
+      - name: Build debug APK and validate dependency resolution
+        working-directory: android-src
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenRoad-debug-test
+          path: android-src/app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+      - name: Check release signing inputs
+        id: signing
+        if: github.ref == 'refs/heads/main'
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ] && [ -n "$STORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo 'Signed release skipped: configure all four ANDROID_* repository secrets.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Prepare signing configuration
+        if: steps.signing.outputs.ready == 'true'
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > android-src/release-key.jks
+          {
+            echo 'storeFile=release-key.jks'
+            printf 'storePassword=%s\n' "$STORE_PASSWORD"
+            printf 'keyAlias=%s\n' "$KEY_ALIAS"
+            printf 'keyPassword=%s\n' "$KEY_PASSWORD"
+          } > android-src/release-signing.properties
+      - name: Build signed release APK
+        if: steps.signing.outputs.ready == 'true'
+        working-directory: android-src
+        run: gradle --no-daemon :app:assembleRelease
+      - name: Publish GitHub Release and update manifest
+        if: steps.signing.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" android-src/app/build.gradle | head -1)"
+          code="$(sed -n 's/.*versionCode \([0-9][0-9]*\).*/\1/p' android-src/app/build.gradle | head -1)"
+          [[ "$name" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && [[ "$code" =~ ^[0-9]+$ ]]
+          tag="android-v${name}"
+          out="OpenRoad-${name}-release.apk"
+          cp android-src/app/build/outputs/apk/release/app-release.apk "$out"
+          python3 - "$out" "$tag" "$code" "$name" "$REPOSITORY" <<'PY'
+          import hashlib,json,sys
+          apk,tag,code,name,repo=sys.argv[1:]
+          data={'versionCode':int(code),'versionName':name,'applicationId':'uk.co.bengoodman.clearroute',
+                'apkUrl':f'https://github.com/{repo}/releases/download/{tag}/{apk}',
+                'sha256':hashlib.sha256(open(apk,'rb').read()).hexdigest()}
+          with open('update.json','w') as f:json.dump(data,f,indent=2)
+          PY
+          sha256sum "$out" > "${out}.sha256"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release ${tag} already exists; refusing to overwrite a published version." >&2
+            exit 1
+          fi
+          gh release create "$tag" "$out" "${out}.sha256" update.json --title "OpenRoad ${name}" --notes "Signed OpenRoad Android release ${name}. Includes in-app verified updates."
+          rm -f android-src/release-key.jks android-src/release-signing.properties
