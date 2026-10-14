@@ -29,8 +29,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo 'y' | sdkmanager --licenses > /dev/null || true
-          sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          sdkmanager="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$sdkmanager" || { echo 'Android SDK command-line tools not found' >&2; exit 1; }
+          yes | "$sdkmanager" --licenses > /dev/null || true
+          "$sdkmanager" --install 'platforms;android-35' 'build-tools;35.0.0'
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
