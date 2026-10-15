@@ -58,10 +58,8 @@ jobs:
       - name: Inject optional build settings
         env:
           TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
-          BODS_API_KEY: ${{ secrets.BODS_API_KEY }}
           TFL_API_KEY: ${{ secrets.TFL_API_KEY }}
           TFL_SECONDARY_API_KEY: ${{ secrets.TFL_SECONDARY_API_KEY }}
-          RAILDATA_API_KEY: ${{ secrets.RAILDATA_API_KEY }}
           TRANSPORTAPI_APP_ID: ${{ secrets.TRANSPORTAPI_APP_ID }}
           TRANSPORTAPI_APP_KEY: ${{ secrets.TRANSPORTAPI_APP_KEY }}
         shell: bash
@@ -71,10 +69,8 @@ jobs:
           from pathlib import Path
           names = {
               'TOMTOM_API_KEY':'openroad.tomtomKey',
-              'BODS_API_KEY':'openroad.bodsKey',
               'TFL_API_KEY':'openroad.tflPrimaryKey',
               'TFL_SECONDARY_API_KEY':'openroad.tflSecondaryKey',
-              'RAILDATA_API_KEY':'openroad.railDataApiKey',
               'TRANSPORTAPI_APP_ID':'openroad.transportApiAppId',
               'TRANSPORTAPI_APP_KEY':'openroad.transportApiAppKey',
           }
