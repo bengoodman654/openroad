@@ -111,7 +111,7 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/id_openroad_deploy
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-      - name: Deploy six allowlisted PHP files (including rail gateway)
+      - name: Deploy eight allowlisted PHP files (rail and BODS gateways)
         env:
           SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
           SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
@@ -141,8 +141,8 @@ jobs:
           test -n "$src"
           backup="$HOME/openroad-backups/$(date -u +%Y%m%dT%H%M%SZ)"
           mkdir -p "$backup/private/lib" "$backup/public/api/v1"
-          relative=(private/lib/bootstrap.php private/lib/router.php public/api/v1/journeys.php public/api/v1/status.php private/lib/rail_gateway.php public/api/v1/rail.php)
-          target=("$priv/lib/bootstrap.php" "$priv/lib/router.php" "$pub/api/v1/journeys.php" "$pub/api/v1/status.php" "$priv/lib/rail_gateway.php" "$pub/api/v1/rail.php")
+          relative=(private/lib/bootstrap.php private/lib/router.php public/api/v1/journeys.php public/api/v1/status.php private/lib/rail_gateway.php public/api/v1/rail.php private/lib/bods_gateway.php public/api/v1/bods.php)
+          target=("$priv/lib/bootstrap.php" "$priv/lib/router.php" "$pub/api/v1/journeys.php" "$pub/api/v1/status.php" "$priv/lib/rail_gateway.php" "$pub/api/v1/rail.php" "$priv/lib/bods_gateway.php" "$pub/api/v1/bods.php")
           test -f "$src/SHA256SUMS.txt"
           (cd "$src" && sha256sum -c SHA256SUMS.txt)
           [[ -d "$priv/lib" && -d "$pub/api/v1" ]] || { echo 'Target directory missing; refusing deploy' >&2; exit 1; }
@@ -173,13 +173,14 @@ jobs:
             cp "$src/${relative[$i]}" "${target[$i]}.new"
             if [ -f "${target[$i]}" ]; then
               chmod --reference="${target[$i]}" "${target[$i]}.new"
-            elif (( i == 4 )); then chmod 0640 "${target[$i]}.new"
+            elif (( i == 4 || i == 6 )); then chmod 0640 "${target[$i]}.new"
             else chmod 0644 "${target[$i]}.new"; fi
             mv -f "${target[$i]}.new" "${target[$i]}"
             php -l "${target[$i]}" >/dev/null
           done
           php -r 'require $argv[1]; $db=openroad_db(); if ($db->query("SELECT 1")->fetchColumn() != 1) exit(1);' "$priv/lib/bootstrap.php"
           php -r 'require $argv[1]; if (!function_exists("openroad_rail_board")) exit(1);' "$priv/lib/rail_gateway.php"
+          php -r 'require $argv[1]; if (!function_exists("openroad_bods_live")) exit(1);' "$priv/lib/bods_gateway.php"
           trap - ERR
           printf 'Validated, deployed and backed up under %s\n' "$backup"
           REMOTE
