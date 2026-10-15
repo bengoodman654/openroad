@@ -89,6 +89,14 @@ jobs:
             php -l "$file" >/dev/null
           done
           echo "SSH authentication and four target PHP checks passed. No files changed."
+          echo "OpenRoad-only resource baseline (read-only):"
+          for folder in "$priv/cache" "$priv/logs" "$HOME/openroad-backups"; do
+            if [ -d "$folder" ]; then
+              du -sk "$folder" | awk '{print "  directory size (KiB): "$1}'
+            fi
+          done
+          jobs="$( (crontab -l 2>/dev/null || true) | grep -Eic 'openroad|update_gtfs|process_preload_queue' || true )"
+          echo "  OpenRoad-related cron entries: ${jobs:-0}"
           REMOTE
   deploy:
     needs: verify
