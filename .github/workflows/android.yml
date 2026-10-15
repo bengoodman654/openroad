@@ -52,7 +52,9 @@ jobs:
       - name: Verify source
         run: |
           bash android-src/validate.sh
-          grep -q "versionName '0.6.26'" android-src/app/build.gradle || { echo 'Upload v0.6.26 or newer before publishing'; exit 1; }
+          name="$(sed -n "s/.*versionName '\\([^']*\\)'.*/\\1/p" android-src/app/build.gradle | head -1)"
+          [[ "$name" =~ ^[0-9]+\\.[0-9]+\\.[0-9]+$ ]] || { echo 'Invalid Android version'; exit 1; }
+          test -f "OpenRoad-v${name}-source.zip" || { echo "Source ZIP version does not match Gradle version $name"; exit 1; }
       - name: Inject optional build settings
         env:
           TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
@@ -155,8 +157,8 @@ jobs:
           PY
           sha256sum "$out" > "${out}.sha256"
           if gh release view "$tag" >/dev/null 2>&1; then
-            echo "Release ${tag} already exists; refusing to overwrite a published version." >&2
-            exit 1
+            echo "Release ${tag} already exists; will not overwrite a published version."
+          else
+            gh release create "$tag" "$out" "${out}.sha256" update.json --title "OpenRoad ${name}" --notes "Signed OpenRoad Android release ${name}. Includes in-app verified updates."
           fi
-          gh release create "$tag" "$out" "${out}.sha256" update.json --title "OpenRoad ${name}" --notes "Signed OpenRoad Android release ${name}. Includes in-app verified updates."
           rm -f android-src/release-key.jks android-src/release-signing.properties
