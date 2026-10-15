@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       deploy:
-        description: 'Type DEPLOY to publish the latest checked upgrade to cPanel'
+        description: 'Type TEST to check SSH and files without changes, or DEPLOY to publish'
         required: true
         type: string
 permissions:
@@ -40,6 +40,56 @@ jobs:
         with:
           name: verified-server-upgrade
           path: ${{ steps.select.outputs.archive }}
+  test_connection:
+    needs: verify
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy == 'TEST'
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    steps:
+      - name: Configure SSH with verified host key
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_openroad_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Read-only SSH and target-file checks
+        env:
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+          PRIVATE_DIR: ${{ vars.CPANEL_OPENROAD_PRIVATE_DIR }}
+          PUBLIC_DIR: ${{ vars.CPANEL_OPENROAD_PUBLIC_DIR }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${SSH_HOST:?Missing CPANEL_SSH_HOST secret}"
+          : "${SSH_USER:?Missing CPANEL_SSH_USER secret}"
+          : "${PRIVATE_DIR:?Missing CPANEL_OPENROAD_PRIVATE_DIR variable}"
+          : "${PUBLIC_DIR:?Missing CPANEL_OPENROAD_PUBLIC_DIR variable}"
+          [[ "$PRIVATE_DIR" == /* && "$PUBLIC_DIR" == /* ]] || exit 1
+          ssh -i ~/.ssh/id_openroad_deploy -p "$SSH_PORT" \
+            -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            "$SSH_USER@$SSH_HOST" bash -s -- "$PRIVATE_DIR" "$PUBLIC_DIR" <<'REMOTE'
+          set -euo pipefail
+          priv="$1"; pub="$2"
+          for file in \
+            "$priv/lib/bootstrap.php" "$priv/lib/router.php" \
+            "$pub/api/v1/journeys.php" "$pub/api/v1/status.php"
+          do
+            if [ ! -f "$file" ]; then
+              echo "Missing required server file: $file" >&2
+              exit 1
+            fi
+            php -l "$file" >/dev/null
+          done
+          echo "SSH authentication and four target PHP checks passed. No files changed."
+          REMOTE
   deploy:
     needs: verify
     if: github.event_name == 'workflow_dispatch' && inputs.deploy == 'DEPLOY'
