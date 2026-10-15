@@ -111,7 +111,7 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/id_openroad_deploy
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-      - name: Deploy only four allowlisted PHP files
+      - name: Deploy six allowlisted PHP files (including rail gateway)
         env:
           SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
           SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
@@ -141,17 +141,18 @@ jobs:
           test -n "$src"
           backup="$HOME/openroad-backups/$(date -u +%Y%m%dT%H%M%SZ)"
           mkdir -p "$backup/private/lib" "$backup/public/api/v1"
-          relative=(private/lib/bootstrap.php private/lib/router.php public/api/v1/journeys.php public/api/v1/status.php)
-          target=("$priv/lib/bootstrap.php" "$priv/lib/router.php" "$pub/api/v1/journeys.php" "$pub/api/v1/status.php")
+          relative=(private/lib/bootstrap.php private/lib/router.php public/api/v1/journeys.php public/api/v1/status.php private/lib/rail_gateway.php public/api/v1/rail.php)
+          target=("$priv/lib/bootstrap.php" "$priv/lib/router.php" "$pub/api/v1/journeys.php" "$pub/api/v1/status.php" "$priv/lib/rail_gateway.php" "$pub/api/v1/rail.php")
           test -f "$src/SHA256SUMS.txt"
           (cd "$src" && sha256sum -c SHA256SUMS.txt)
           [[ -d "$priv/lib" && -d "$pub/api/v1" ]] || { echo 'Target directory missing; refusing deploy' >&2; exit 1; }
           backup="$HOME/openroad-backups/$(date -u +%Y%m%dT%H%M%SZ)-$$"
           for i in "${!relative[@]}"; do
-            test -f "$src/${relative[$i]}" && test -f "${target[$i]}"
+            test -f "$src/${relative[$i]}"
+            if (( i < 4 )); then test -f "${target[$i]}"; fi
             php -l "$src/${relative[$i]}" >/dev/null
             mkdir -p "$backup/$(dirname "${relative[$i]}")"
-            cp -p "${target[$i]}" "$backup/${relative[$i]}"
+            if [ -f "${target[$i]}" ]; then cp -p "${target[$i]}" "$backup/${relative[$i]}"; fi
           done
           rollback() {
             rc="$?"
@@ -160,6 +161,8 @@ jobs:
               if [ -f "$backup/${relative[$i]}" ]; then
                 cp -p "$backup/${relative[$i]}" "${target[$i]}.rollback" &&
                   mv -f "${target[$i]}.rollback" "${target[$i]}" || true
+              else
+                rm -f "${target[$i]}" "${target[$i]}.new" || true
               fi
             done
             echo 'Deployment failed; attempted restoration of backed-up PHP files.' >&2
@@ -168,11 +171,15 @@ jobs:
           trap rollback ERR
           for i in "${!relative[@]}"; do
             cp "$src/${relative[$i]}" "${target[$i]}.new"
-            chmod --reference="${target[$i]}" "${target[$i]}.new"
+            if [ -f "${target[$i]}" ]; then
+              chmod --reference="${target[$i]}" "${target[$i]}.new"
+            elif (( i == 4 )); then chmod 0640 "${target[$i]}.new"
+            else chmod 0644 "${target[$i]}.new"; fi
             mv -f "${target[$i]}.new" "${target[$i]}"
             php -l "${target[$i]}" >/dev/null
           done
           php -r 'require $argv[1]; $db=openroad_db(); if ($db->query("SELECT 1")->fetchColumn() != 1) exit(1);' "$priv/lib/bootstrap.php"
+          php -r 'require $argv[1]; if (!function_exists("openroad_rail_board")) exit(1);' "$priv/lib/rail_gateway.php"
           trap - ERR
           printf 'Validated, deployed and backed up under %s\n' "$backup"
           REMOTE
