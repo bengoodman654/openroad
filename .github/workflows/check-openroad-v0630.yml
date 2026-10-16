@@ -37,7 +37,6 @@ jobs:
             echo 'v0.6.30 is already in main; no replacement'
             exit 0
           fi
-          cp extracted/../OpenRoad-v0.6.30-source.zip ./OpenRoad-v0.6.30-source.zip
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add OpenRoad-v0.6.30-source.zip
