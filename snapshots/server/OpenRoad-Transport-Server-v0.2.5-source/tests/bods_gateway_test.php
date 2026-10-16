@@ -21,7 +21,7 @@ $blocked=function(string $url):array{return [406,'detail'];};
 [$http,$reply]=openroad_bods_live('75',51.46,-2.59,$blocked,$failureDir,1234567890,'testvalidkey');
 check($http===503 && str_contains($reply['error'],'HTTP 406'),'406 status must remain actionable');
 $other=function(string $url):array{return [301,''];};
-[$http,$reply]=openroad_bods_live('76',51.46,-2.59,$other,$failureDir,1234567890,'testvalidkey');
+[$http,$reply]=openroad_bods_live('76',51.58,-2.59,$other,$failureDir,1234567890,'testvalidkey');
 check($http===503 && str_contains($reply['error'],'redirected'),'301 status must identify bad canonical URL');
 foreach(glob($failureDir.'/*') as $p)unlink($p);rmdir($failureDir);
 foreach(glob($dir.'/*') as $p)unlink($p);rmdir($dir);
