@@ -102,7 +102,10 @@ replacement="""    private static String parseBodsBusVehicles(String xml, String
 s=s[:begin]+replacement+s[end:]
 p.write_text(s,encoding="utf-8")
 edit("app/build.gradle","versionCode 90","versionCode 91")
-edit("app/build.gradle","0.6.30","0.6.31")
+p=root/"app/build.gradle"
+txt=p.read_text(encoding="utf-8")
+if txt.count("0.6.30")!=2: raise SystemExit("Unexpected Android build.gradle version count")
+p.write_text(txt.replace("0.6.30","0.6.31"),encoding="utf-8")
 edit("app/src/main/assets/index.html","0.6.30","0.6.31")
 edit("app/src/main/java/uk/co/bengoodman/clearroute/ApiClient.java","0.6.30","0.6.31")
 edit("validate.sh","0.6.30","0.6.31")
