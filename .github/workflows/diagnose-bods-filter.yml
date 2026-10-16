@@ -1,0 +1,116 @@
+name: OpenRoad BODS route-filter isolation (one budgeted request)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-bods-filter.yml'
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type PROBE to allow one budgeted live-bus lookup'
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    if: github.event_name == 'push' || inputs.confirm == 'PROBE'
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: diagnostics/live-buses-20261016
+      - name: Run offline PHP gateway fixtures before live request
+        shell: bash
+        run: |
+          set -euo pipefail
+          src="snapshots/server/OpenRoad-Transport-Server-v0.2.5-source"
+          php -l "$src/private/lib/bods_gateway.php"
+          php -l "$src/tests/bods_gateway_test.php"
+          php "$src/tests/bods_gateway_test.php"
+      - name: Configure pinned SSH host key
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_openroad_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Isolate lineRef parameter on BODS slash endpoint with one bounded request
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+          PRIVATE_DIR: ${{ vars.CPANEL_OPENROAD_PRIVATE_DIR }}
+          PUBLIC_DIR: ${{ vars.CPANEL_OPENROAD_PUBLIC_DIR }}
+        run: |
+          set -euo pipefail
+          : "${SSH_HOST:?}" "${SSH_USER:?}" "${PRIVATE_DIR:?}" "${PUBLIC_DIR:?}"
+          ssh -i ~/.ssh/id_openroad_deploy -p "$SSH_PORT" -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            "$SSH_USER@$SSH_HOST" bash -s -- "$PRIVATE_DIR" "$PUBLIC_DIR" <<'REMOTE'
+          set -euo pipefail
+          priv="$1"; pub="$2"
+          test -f "$priv/lib/bods_gateway.php"
+          test -f "$pub/api/v1/bods.php"
+          php -l "$priv/lib/bods_gateway.php" >/dev/null
+          php -l "$pub/api/v1/bods.php" >/dev/null
+          php -r '
+            require $argv[1];
+            echo "Gateway: installed / PHP syntax OK\n";
+            $configured=openroad_bods_key() !== "";
+            echo "BODS credential: ".($configured?"configured":"missing or invalid format")."\n";
+            if (!$configured) exit(0);
+            $key=openroad_bods_key();
+            echo "BODS key format: ".(preg_match("/^[a-fA-F0-9]{40}$/D",$key)?"40-character hexadecimal":"other length/format")."\\n";
+            // A different cache tile makes this a single new, rate-limited request.
+            $fetch=static function(string $url):array{
+              $parsed=parse_url($url);
+              $valid=is_array($parsed)&&($parsed["scheme"]??"")==="https"&&($parsed["host"]??"")==="data.bus-data.dft.gov.uk"&&($parsed["path"]??"")==="/api/v1/datafeed";
+              if(!$valid){echo "Unexpected gateway URL, no upstream request.\\n";return [0,""];}
+              $url=str_replace("/api/v1/datafeed?","/api/v1/datafeed/?",$url);
+              $filtered=preg_replace("/&lineRef=[^&]*/","",$url,1);
+              if(!is_string($filtered)||$filtered===$url){echo "Filter substitution failed, no upstream request.\\n";return [0,""];}
+              $url=$filtered;
+              echo "Request variant: slash endpoint with bounding box and credential only (no lineRef).\\n";
+              $ctx=stream_context_create([
+                "http"=>["method"=>"GET","header"=>"Accept: */*\r\nUser-Agent: OpenRoad/0.2.6-route-filter-test\r\n","timeout"=>2.5,"ignore_errors"=>true,"follow_location"=>0],
+                "ssl"=>["verify_peer"=>true,"verify_peer_name"=>true]
+              ]);
+              $fp=@fopen($url,"rb",false,$ctx);
+              $upstreamStatus=0; $payload="";
+              if($fp!==false){
+                stream_set_timeout($fp,2,500000);
+                $payload=(string)stream_get_contents($fp,262145);
+                $meta=stream_get_meta_data($fp);fclose($fp);
+                foreach(($meta["wrapper_data"]??[]) as $header){
+                  if(preg_match("/^HTTP\\/\\S+\\s+(\\d{3})\\b/",$header,$m))$upstreamStatus=(int)$m[1];
+                  if(preg_match("/^(content-type|server):\\s*([^;\r\n]{1,60})/i",$header,$m)) echo "Upstream ".strtolower($m[1]).": ".$m[2]."\\n";
+                  if(str_starts_with(strtolower($header),"location:")){
+                    $p=parse_url(trim(substr($header,9)));
+                    $dest=is_array($p)?($p["path"]??""):"";
+                    $target=is_array($p)?($p["host"]??""):"";
+                    echo "Redirect target path: ".(in_array($dest,["/api/v1/datafeed/","/api/v1/datafeed","/avl/datafeed/"],true)?$dest:"other")."\\n";
+                    echo "Redirect target host: ".($target==="data.bus-data.dft.gov.uk"?"BODS":"other or relative")."\\n";
+                    echo "Redirect carries query: ".(is_array($p)&&isset($p["query"])?"yes":"no")."\\n";
+                  }
+                }
+              }
+              if(strlen($payload)>262144)$payload="";
+              echo "BODS upstream HTTP: ".$upstreamStatus."\\n";
+              echo "Upstream response: ".(str_contains($payload,"VehicleMonitoringDelivery")?"SIRI-VM XML":(str_contains($payload,"<html")||str_contains($payload,"<HTML")?"HTML":"other or empty"))."\\n";
+              echo "Response bytes: ".strlen($payload)."\\n";
+              if(strlen($payload)<=24)echo "Response diagnostic hex: ".bin2hex($payload)."\\n";
+              return [$upstreamStatus,$payload];
+            };
+            [$status,$data] = openroad_bods_live("BODSTEST", 51.54, -2.59, $fetch);
+            echo "Budgeted BODS probe HTTP: ".$status."\n";
+            echo "Outcome: ".(($data["ok"]??false) ? "valid SIRI-VM" : ($data["error"]??"unclassified"))."\n";
+            echo "Cache: ".($data["cache"]??"not supplied")."\n";
+          ' "$priv/lib/bods_gateway.php"
+          REMOTE
