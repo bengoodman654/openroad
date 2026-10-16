@@ -1,4 +1,4 @@
-name: OpenRoad BODS v0.2.6 — protected single-file gateway deployment
+name: OpenRoad BODS v0.2.6 — public bus line matching hotfix deployment
 on:
   push:
     branches: [main]
