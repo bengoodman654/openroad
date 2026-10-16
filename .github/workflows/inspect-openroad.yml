@@ -1,0 +1,34 @@
+name: OpenRoad source inspection (no deployment)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-openroad.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  unpack-source:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Extract existing source archives for review
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p snapshots/android snapshots/server
+          unzip -q OpenRoad-v0.6.29-source.zip -d snapshots/android
+          unzip -q OpenRoad-Transport-Server-v0.2.5-source.zip -d snapshots/server
+          find snapshots -type f | sort | head -100
+      - name: Publish source files to a diagnostic branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -b diagnostics/live-buses-20261016
+          git add snapshots
+          git commit -m 'Diagnostic source snapshot for live-bus troubleshooting'
+          git push origin HEAD:refs/heads/diagnostics/live-buses-20261016
