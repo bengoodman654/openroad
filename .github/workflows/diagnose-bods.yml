@@ -1,0 +1,56 @@
+name: OpenRoad BODS one-shot diagnostic (read-only except bounded gateway request)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-bods.yml'
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    steps:
+      - name: Configure pinned SSH host key
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_openroad_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Check deployed BODS gateway and perform at most one budgeted live lookup
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+          PRIVATE_DIR: ${{ vars.CPANEL_OPENROAD_PRIVATE_DIR }}
+          PUBLIC_DIR: ${{ vars.CPANEL_OPENROAD_PUBLIC_DIR }}
+        run: |
+          set -euo pipefail
+          : "${SSH_HOST:?}" "${SSH_USER:?}" "${PRIVATE_DIR:?}" "${PUBLIC_DIR:?}"
+          ssh -i ~/.ssh/id_openroad_deploy -p "$SSH_PORT" -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            "$SSH_USER@$SSH_HOST" bash -s -- "$PRIVATE_DIR" "$PUBLIC_DIR" <<'REMOTE'
+          set -euo pipefail
+          priv="$1"; pub="$2"
+          test -f "$priv/lib/bods_gateway.php"
+          test -f "$pub/api/v1/bods.php"
+          php -l "$priv/lib/bods_gateway.php" >/dev/null
+          php -l "$pub/api/v1/bods.php" >/dev/null
+          php -r '
+            require $argv[1];
+            echo "Gateway: installed / PHP syntax OK\n";
+            $configured=openroad_bods_key() !== "";
+            echo "BODS credential: ".($configured?"configured":"missing or invalid format")."\n";
+            if (!$configured) exit(0);
+            [$status,$data] = openroad_bods_live("75", 51.46, -2.59);
+            echo "Budgeted BODS probe HTTP: ".$status."\n";
+            echo "Outcome: ".(($data["ok"]??false) ? "valid SIRI-VM" : ($data["error"]??"unclassified"))."\n";
+            echo "Cache: ".($data["cache"]??"not supplied")."\n";
+          ' "$priv/lib/bods_gateway.php"
+          REMOTE
