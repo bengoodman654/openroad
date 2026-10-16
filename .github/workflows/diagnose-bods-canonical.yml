@@ -92,6 +92,14 @@ jobs:
                 foreach(($meta["wrapper_data"]??[]) as $header){
                   if(preg_match("/^HTTP\\/\\S+\\s+(\\d{3})\\b/",$header,$m))$upstreamStatus=(int)$m[1];
                   if(preg_match("/^(content-type|server):\\s*([^;\r\n]{1,60})/i",$header,$m)) echo "Upstream ".strtolower($m[1]).": ".$m[2]."\\n";
+                  if(str_starts_with(strtolower($header),"location:")){
+                    $p=parse_url(trim(substr($header,9)));
+                    $dest=is_array($p)?($p["path"]??""):"";
+                    $target=is_array($p)?($p["host"]??""):"";
+                    echo "Redirect target path: ".(in_array($dest,["/api/v1/datafeed/","/api/v1/datafeed","/avl/datafeed/"],true)?$dest:"other")."\\n";
+                    echo "Redirect target host: ".($target==="data.bus-data.dft.gov.uk"?"BODS":"other or relative")."\\n";
+                    echo "Redirect carries query: ".(is_array($p)&&isset($p["query"])?"yes":"no")."\\n";
+                  }
                 }
               }
               if(strlen($payload)>262144)$payload="";
