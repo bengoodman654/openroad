@@ -1,0 +1,34 @@
+name: OpenRoad Android 0.6.30 — live bus route-switch tests
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/check-openroad-v0630.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Repackage unchanged base source with tested live-bus patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -q OpenRoad-v0.6.29-source.zip -d extracted
+          project="$(find extracted -mindepth 1 -maxdepth 1 -type d | head -1)"
+          test -f "$project/app/build.gradle"
+          python3 maintenance/android-v0.6.30/patch.py "$project"
+          node --check "$project/app/src/main/assets/app.js"
+          node maintenance/android-v0.6.30/live-bus-test.js "$project/app/src/main/assets/app.js"
+          (cd "$project" && bash validate.sh && node tests/watchdog_test.js)
+          mv "$project" extracted/OpenRoad-v0.6.30-source
+          cd extracted
+          zip -qr ../OpenRoad-v0.6.30-source.zip OpenRoad-v0.6.30-source
+          unzip -t ../OpenRoad-v0.6.30-source.zip | tail -1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenRoad-v0.6.30-verified-source
+          path: OpenRoad-v0.6.30-source.zip
+          retention-days: 14
