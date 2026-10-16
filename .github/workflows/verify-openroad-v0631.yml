@@ -1,0 +1,27 @@
+name: OpenRoad v0.6.31 offline live-bus safeguards
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/verify-openroad-v0631.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch and validate current signed source without upstream calls
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p unpack
+          unzip -q OpenRoad-v0.6.30-source.zip -d unpack
+          project="$(find unpack -mindepth 1 -maxdepth 1 -type d | head -1)"
+          python3 maintenance/android-v0.6.31/patch.py "$project"
+          node --check "$project/app/src/main/assets/app.js"
+          node maintenance/android-v0.6.30/live-bus-test.js "$project/app/src/main/assets/app.js"
+          (cd "$project" && bash validate.sh && node tests/watchdog_test.js)
+          grep -q 'BODS_LAST_KNOWN_MS' "$project/app/src/main/java/uk/co/bengoodman/clearroute/TransitClient.java"
+          grep -q 'busLiveGlobalRetryUntil' "$project/app/src/main/assets/app.js"
+          grep -q 'lastKnown' "$project/app/src/main/assets/app.js"
+          echo 'OpenRoad 0.6.31 live and last-known client regression checks: PASS'
