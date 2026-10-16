@@ -1,0 +1,9 @@
+<?php
+$private=dirname($_SERVER['DOCUMENT_ROOT'],2).'/openroad-private';
+if(!is_file($private.'/lib/auth.php')||!is_file($private.'/lib/router.php')){http_response_code(404);exit;}
+require_once $private.'/lib/router.php';require_once $private.'/lib/auth.php';
+try{
+    $body=openroad_require_post_json();$db=openroad_db();openroad_require_signed($db,$body);$data=json_decode($body,true);if(!is_array($data))openroad_json(['ok'=>false,'error'=>'Invalid request'],400);
+    $line=trim((string)($data['line']??''));$lat=(float)($data['lat']??NAN);$lon=(float)($data['lon']??NAN);if($line===''||!is_finite($lat)||!is_finite($lon)||abs($lat)>90||abs($lon)>180)openroad_json(['ok'=>false,'error'=>'Invalid request'],400);
+    $result=openroad_bus_service($db,$line,$lat,$lon);$result['ok']=true;openroad_json($result);
+}catch(RuntimeException $e){openroad_json(['ok'=>false,'error'=>$e->getMessage()],422);}catch(Throwable $e){openroad_log_error($e);openroad_json(['ok'=>false,'error'=>'Service unavailable'],503);}

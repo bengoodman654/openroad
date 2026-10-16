@@ -1,0 +1,4 @@
+Options -Indexes
+<LimitExcept POST>
+  Require all denied
+</LimitExcept>

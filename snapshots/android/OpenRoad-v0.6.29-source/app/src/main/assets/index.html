@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <title>OpenRoad</title>
+  <link rel="stylesheet" href="maplibre-gl.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- Map-first home UI: deliberately familiar, but OpenRoad-owned and ad-free. -->
+  <div id="topUi" class="top-ui">
+    <div class="search-pill surface">
+      <button id="menuBtn" class="icon-btn" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <input id="searchInput" type="search" autocomplete="off" placeholder="Where to?" aria-label="Search for a destination">
+      <button id="routeSearchClearBtn" class="route-search-clear hidden" type="button" aria-label="Cancel directions" title="Cancel directions">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+      <button id="starBtn" class="star-button" aria-label="Home and starred places" title="Home and starred places">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z"/></svg>
+      </button>
+    </div>
+    <div id="routePlannerDropdown" class="route-planner-dropdown surface hidden" aria-label="Current route">
+      <div id="routePointList" class="planner-point-list" aria-label="Route points"></div>
+      <button id="addTransitStopBtn" class="planner-row planner-add" type="button"><span class="planner-plus">+</span><span>Add stop</span></button>
+      <div id="routePlannerSelection" class="route-planner-selection hidden"><span class="route-planner-selection-icon" aria-hidden="true">↝</span><span><strong>Selected route</strong><small id="routePlannerSelectionSummary"></small></span></div>
+    </div>
+    <div id="searchSuggestionsDropdown" class="search-dropdown surface hidden" aria-label="Search suggestions">
+      <div id="searchSuggestions" class="search-suggestions"></div>
+    </div>
+    <div id="starMenuDropdown" class="star-menu surface hidden" aria-label="Home and starred places">
+      <div id="starMenuItems" class="star-menu-items"></div>
+    </div>
+  </div>
+
+
+  <div id="networkBanner" class="network-banner hidden" role="status" aria-live="polite"></div>
+
+  <div id="mapActions" class="map-actions">
+    <button id="layersBtn" class="map-fab" title="Map layers" aria-label="Map layers">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 4-8 4 8 4 8-4-8-4Z"/><path d="m4 12 8 4 8-4M4 16l8 4 8-4"/></svg>
+    </button>
+    <button id="viewToggleBtn" class="map-fab text-fab" title="Switch to angled view" aria-label="Switch to angled view">3D</button>
+    <button id="locateBtn" class="map-fab locate-button" title="Centre on my location" aria-label="Centre on my location"><span class="locate-dot-icon" aria-hidden="true"></span></button>
+  </div>
+
+  <!-- Destination/place sheet. -->
+  <div id="destinationCard" class="bottom-sheet place-sheet hidden">
+    <div class="sheet-handle"></div>
+    <div class="place-heading-row">
+      <div class="place-copy">
+        <div id="selectedDestinationName" class="place-title"></div>
+        <div id="selectedDestinationAddress" class="place-address"></div>
+        <div id="selectedDestinationMeta" class="place-meta hidden"></div>
+      </div>
+      <button id="cancelDestinationBtn" class="small-icon-btn nav-glyph-btn" aria-label="Close place details"><svg class="nav-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div class="place-actions">
+      <button id="directionsBtn" class="action-button primary-action">
+        <svg class="directions-glyph" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2"/><path d="M6 16V9.5A3.5 3.5 0 0 1 9.5 6H18"/><path d="m14 2 4 4-4 4"/></svg>
+        <span>Directions</span>
+      </button>
+      <button id="saveDestinationBtn" class="action-button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z"/></svg>
+        <span>Star</span>
+      </button>
+      <button id="renameDestinationBtn" class="action-button hidden" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m14 8 3 3"/></svg>
+        <span>Rename</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Route preview sheet. -->
+  <div id="routeCard" class="bottom-sheet route-sheet hidden">
+    <div class="sheet-handle"></div>
+    <div class="route-sheet-header">
+      <button id="clearRouteBtn" class="small-icon-btn nav-glyph-btn" aria-label="Back to destination"><svg class="nav-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></button>
+      <div class="route-heading-copy">
+        <div class="route-from">My location</div>
+        <div id="destinationName" class="route-to"></div>
+      </div>
+      <button id="routePreferencesBtn" class="small-icon-btn route-pref-btn" aria-label="Route options" title="Route options">⋮</button>
+    </div>
+
+    <div id="modeSwitch" class="mode-switch" aria-label="Travel mode">
+      <button id="driveBtn" class="mode mode-icon active" aria-label="Drive" title="Drive">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 16h14l-1.5-6.2A2 2 0 0 0 15.6 8H8.4a2 2 0 0 0-1.9 1.8L5 16Z"/><path d="M4 13.5h16v4.2H4z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></svg>
+        <span>Drive</span>
+      </button>
+      <button id="cycleBtn" class="mode mode-icon" aria-label="Cycle" title="Cycle">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.3" cy="16.8" r="3.5"/><circle cx="18.7" cy="16.8" r="3.5"/><path d="M5.3 16.8 9.1 9.5h4.4l-3.2 7.3h8.4l-4.4-9.4M9.1 9.5l3.1 7.3M7.8 7.1h3.2M14.3 7.4h3.1"/></svg>
+        <span>Cycle</span>
+      </button>
+      <button id="walkBtn" class="mode mode-icon" aria-label="Walk" title="Walk">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="13" cy="4.3" r="2"/><path d="M11.8 8 9.8 12.1l3 2.3-1.6 5.4M12 8.4l3.1 2.5 2.5-2.1M12.8 14.4l3.8 5.1M9.8 12.1l-2.9 3.2"/></svg>
+        <span>Walk</span>
+      </button>
+      <button id="transitBtn" class="mode mode-icon" aria-label="Public transport" title="Public transport">
+        <svg class="transit-glyph" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2.5" width="14" height="17" rx="3"/><path d="M7.5 6h9v5h-9zM7 14.5h10"/><circle cx="8.5" cy="16.5" r="1.2"/><circle cx="15.5" cy="16.5" r="1.2"/><path d="M8 19.5 6.5 22M16 19.5l1.5 2.5"/></svg>
+        <span>Transit</span>
+      </button>
+    </div>
+
+    <div id="transitResultsToolbar" class="transit-results-toolbar hidden">
+      <div class="transit-ranking" role="group" aria-label="Public transport route ranking">
+        <button type="button" data-rank="quickest">Quickest</button>
+        <button type="button" data-rank="balanced" class="active">Balanced</button>
+        <button type="button" data-rank="changes">Fewest changes</button>
+      </div>
+      <button id="transitSettingsBtn" class="transit-filter-btn" type="button" aria-label="Public transport settings" title="Public transport settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M8 5v4M8 15v4M16 5v4M16 15v4"/></svg>
+      </button>
+    </div>
+
+    <div id="routeOptions" class="route-options"></div>
+    <div class="route-actions route-primary-actions">
+      <button id="showStepsBtn" class="secondary route-steps-button">Steps</button>
+      <button id="startNavBtn" class="primary route-start-button">Start</button>
+    </div>
+  </div>
+
+  <!-- Map layer control. -->
+  <div id="layersSheet" class="modal sheet-modal hidden">
+    <div class="modal-card layers-card">
+      <div class="sheet-handle"></div>
+      <div class="modal-title">Map details</div>
+      <div class="layer-grid">
+        <button id="trafficLayerBtn" class="layer-tile active">
+          <span class="traffic-swatch" aria-hidden="true"></span><strong>Traffic</strong><small>Live road speeds</small>
+        </button>
+        <button id="cycleLayerBtn" class="layer-tile">
+          <span class="cycle-swatch" aria-hidden="true"></span><strong>Cycling</strong><small>Cycleways & paths</small>
+        </button>
+        <button id="placesLayerBtn" class="layer-tile active">
+          <span class="places-swatch" aria-hidden="true">●</span><strong>Places</strong><small>Choose map places</small>
+        </button>
+      </div>
+      <button id="closeLayersBtn" class="primary wide">Done</button>
+    </div>
+  </div>
+
+  <div id="placesSheet" class="modal sheet-modal hidden">
+    <div class="modal-card places-card">
+      <div class="sheet-handle"></div>
+      <div class="modal-title-row"><div><div class="modal-title">Places</div><div class="modal-subtitle">Choose what OpenRoad shows on the map.</div></div><button id="closePlacesBtn" class="small-icon-btn nav-glyph-btn" aria-label="Close places"><svg class="nav-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <div class="places-choice-list">
+        <div class="places-section-title">Personal</div>
+        <label class="places-choice"><span>★</span><strong>Starred places</strong><input type="checkbox" data-place-category="starred" checked></label>
+        <label class="places-choice"><span>👤</span><strong>My contacts</strong><input type="checkbox" data-place-category="contacts"></label>
+        <div class="places-section-title">Food & drink</div>
+        <label class="places-choice"><span>🍺</span><strong>Pubs / bars</strong><input type="checkbox" data-place-category="pubs"></label>
+        <label class="places-choice"><span>🍽</span><strong>Restaurants</strong><input type="checkbox" data-place-category="restaurants"></label>
+        <label class="places-choice"><span>☕</span><strong>Cafés</strong><input type="checkbox" data-place-category="cafes"></label>
+        <label class="places-choice"><span>🥖</span><strong>Bakeries</strong><input type="checkbox" data-place-category="bakeries"></label>
+        <label class="places-choice"><span>🥡</span><strong>Takeaways</strong><input type="checkbox" data-place-category="takeaways"></label>
+        <div class="places-section-title">Shopping & services</div>
+        <label class="places-choice"><span>🛒</span><strong>Supermarkets</strong><input type="checkbox" data-place-category="supermarkets"></label>
+        <label class="places-choice"><span>🛍</span><strong>Shopping centres</strong><input type="checkbox" data-place-category="shopping"></label>
+        <label class="places-choice"><span>🏧</span><strong>Cash machines</strong><input type="checkbox" data-place-category="atms"></label>
+        <label class="places-choice"><span>📮</span><strong>Post offices</strong><input type="checkbox" data-place-category="postoffices"></label>
+        <label class="places-choice"><span>💊</span><strong>Pharmacies</strong><input type="checkbox" data-place-category="pharmacies"></label>
+        <div class="places-section-title">Transport</div>
+        <label class="places-choice"><span>⛽</span><strong>Petrol stations</strong><input type="checkbox" data-place-category="petrol"></label>
+        <label class="places-choice"><span>🔌</span><strong>EV charging</strong><input type="checkbox" data-place-category="evcharging"></label>
+        <label class="places-choice"><span>🅿</span><strong>Parking</strong><input type="checkbox" data-place-category="parking"></label>
+        <label class="places-choice"><span>🚉</span><strong>Railway stations</strong><input type="checkbox" data-place-category="railstations"></label>
+        <label class="places-choice"><span>🚏</span><strong>Bus stops</strong><input type="checkbox" data-place-category="busstops"></label>
+        <div class="places-section-title">Useful nearby</div>
+        <label class="places-choice"><span>🚻</span><strong>Public toilets</strong><input type="checkbox" data-place-category="toilets"></label>
+        <label class="places-choice"><span>🏥</span><strong>Hospitals</strong><input type="checkbox" data-place-category="hospitals"></label>
+        <label class="places-choice"><span>🛏</span><strong>Hotels</strong><input type="checkbox" data-place-category="hotels"></label>
+        <label class="places-choice"><span>🌳</span><strong>Parks</strong><input type="checkbox" data-place-category="parks"></label>
+        <label class="places-choice"><span>🛝</span><strong>Playgrounds</strong><input type="checkbox" data-place-category="playgrounds"></label>
+        <label class="places-choice"><span>🏋</span><strong>Gyms</strong><input type="checkbox" data-place-category="gyms"></label>
+        <label class="places-choice"><span>📚</span><strong>Libraries</strong><input type="checkbox" data-place-category="libraries"></label>
+        <label class="places-choice"><span>🎬</span><strong>Cinemas</strong><input type="checkbox" data-place-category="cinemas"></label>
+      </div>
+      <div class="modal-subtitle places-note">Public place categories refresh for the visible map area. Your contact list stays local; addressed contacts are geocoded through TomTom only when Contacts is enabled.</div>
+      <button id="applyPlacesBtn" class="primary wide">Apply</button>
+    </div>
+  </div>
+
+  <!-- Saved places. -->
+  <div id="savedSheet" class="modal sheet-modal hidden">
+    <div class="modal-card saved-card">
+      <div class="sheet-handle"></div>
+      <div class="modal-title-row"><div class="modal-title">Starred places</div><button id="closeSavedBtn" class="small-icon-btn nav-glyph-btn" aria-label="Close starred places"><svg class="nav-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <div id="savedPlacesList" class="saved-list"></div>
+    </div>
+  </div>
+
+  <!-- Route steps preview. -->
+  <div id="stepsSheet" class="modal sheet-modal hidden">
+    <div class="modal-card steps-card">
+      <div class="sheet-handle"></div>
+      <div class="modal-title-row"><div class="modal-title">Directions</div><button id="closeStepsBtn" class="small-icon-btn nav-glyph-btn" aria-label="Close directions"><svg class="nav-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <div id="stepsSummary" class="steps-summary"></div>
+      <div id="stepsList" class="steps-list"></div>
+    </div>
+  </div>
+
+
+  <div id="transitPreferences" class="modal sheet-modal hidden">
+    <div class="modal-card transit-preferences-card">
+      <div class="sheet-handle"></div>
+      <div class="modal-title-row"><div><div class="modal-title">Public transport</div><div class="modal-subtitle">Choose what OpenRoad may use when planning a journey.</div></div><button id="closeTransitPreferencesBtn" class="small-icon-btn nav-glyph-btn" aria-label="Close public transport settings"><svg class="nav-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+
+      <div class="transit-settings-section first"><div class="transit-settings-heading">Allowed transport</div>
+        <div class="transit-mode-grid">
+          <label class="transit-mode-choice"><span class="mode-choice-icon">🚌</span><span>Bus</span><input type="checkbox" data-transit-mode="bus" checked></label>
+          <label class="transit-mode-choice"><span class="mode-choice-icon">🚍</span><span>Coach</span><input type="checkbox" data-transit-mode="coach" checked></label>
+          <label class="transit-mode-choice"><span class="mode-choice-icon">🚆</span><span>Train</span><input type="checkbox" data-transit-mode="train" checked></label>
+          <label class="transit-mode-choice"><span class="mode-choice-icon">Ⓜ</span><span>Underground</span><input type="checkbox" data-transit-mode="tube" checked></label>
+          <label class="transit-mode-choice"><span class="mode-choice-icon">🚊</span><span>Tram</span><input type="checkbox" data-transit-mode="tram" checked></label>
+          <label class="transit-mode-choice"><span class="mode-choice-icon">⛴</span><span>Ferry</span><input type="checkbox" data-transit-mode="ferry" checked></label>
+          <label class="transit-mode-choice"><span class="mode-choice-icon">🚠</span><span>Cable car</span><input type="checkbox" data-transit-mode="cablecar" checked></label>
+        </div>
+      </div>
+
+      <div class="transit-settings-section"><div class="transit-settings-heading">Walking</div>
+        <label class="setting-row stacked"><span><strong>Walking speed</strong><small>Used for stop access, interchange timing and route ranking</small></span><select id="transitWalkSpeed"><option value="slow">Slow</option><option value="normal" selected>Normal</option><option value="fast">Fast</option></select></label>
+      </div>
+
+      <div class="transit-settings-section"><div class="transit-settings-heading">Connections</div>
+        <label class="setting-row stacked"><span><strong>Connection margin</strong><small>Cautious avoids tight changes</small></span><select id="transitTransferBuffer"><option value="normal" selected>Normal</option><option value="cautious">Cautious</option></select></label>
+        <label class="setting-row stacked"><span><strong>Accessibility</strong><small>Applied where the data provider supports it</small></span><select id="transitAccessibility"><option value="none" selected>No requirement</option><option value="avoid-stairs">Avoid stairs</option><option value="platform">Step-free to platform</option><option value="full">Fully step-free</option></select></label>
+      </div>
+
+      <div class="transit-settings-section"><div class="transit-settings-heading">Prepared areas</div>
+        <div id="preparedAreasSummary" class="prepared-areas-summary">Bristol / South West · permanent</div>
+        <div class="setting-row stacked"><span><strong>Destination preparation</strong><small>When you choose a destination outside Bristol, OpenRoad asks your private server to prepare that destination region only.</small></span><span class="settings-fixed-state">Always on</span></div>
+        <label class="setting-row"><span><strong>Daily area check</strong><small>At about midday, prepare your current area if it is new. Skipped completely while navigation is active.</small></span><input id="dailyTransitPreloadToggle" type="checkbox" checked></label>
+        <div class="setting-row stacked"><span><strong>Preload an area</strong><small>Optional: prepare a town or postcode before a future trip.</small></span><div class="preload-area-row"><input id="transitPreloadAreaInput" type="text" placeholder="Town or postcode"><button id="transitPreloadAreaBtn" type="button" class="secondary">Preload</button></div></div>
+      </div>
+
+      <details class="transit-advanced"><summary>Advanced fallback</summary>
+        <label class="setting-row"><span><strong>TransportAPI fallback</strong><small>Only use if official routing cannot find a journey and your plan includes Journey Planner</small></span><input id="transportApiFallbackToggle" type="checkbox"></label>
+      </details>
+      <button id="applyTransitPreferencesBtn" class="primary wide">Apply settings</button>
+    </div>
+  </div>
+
+  <div id="transitDetailSheet" class="bottom-sheet transit-detail-sheet hidden">
+    <div class="sheet-handle" title="Minimise or restore"></div>
+    <div class="transit-detail-header">
+      <div><div id="transitDetailTitle" class="transit-detail-title">Journey details</div><div id="transitDetailMeta" class="transit-detail-meta"></div></div>
+      <button id="closeTransitDetailBtn" class="small-icon-btn nav-glyph-btn" aria-label="Close journey details"><svg class="nav-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div id="transitDetailLegs" class="transit-detail-legs"></div>
+  </div>
+
+  <div id="busServiceSheet" class="bottom-sheet bus-service-sheet hidden">
+    <div class="sheet-handle" title="Minimise or restore"></div>
+    <div class="bus-service-header">
+      <button id="backBusServiceBtn" class="small-icon-btn nav-glyph-btn" aria-label="Back to journey results"><svg class="nav-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></button>
+      <span class="bus-service-icon">🚌</span><span id="busServiceNumber" class="bus-service-number">Bus</span>
+      <div class="bus-service-heading"><strong id="busServiceTitle">Service</strong><small id="busServiceSource"></small></div>
+      <button id="loadBusLiveBtn" class="bus-live-load" type="button">Live buses</button><span id="busServiceLiveBadge" class="bus-service-live hidden">Live</span>
+    </div>
+    <div class="bus-service-tabs" role="tablist">
+      <button type="button" data-bus-tab="timetable" class="active">Timetable</button>
+      <button type="button" data-bus-tab="stops">Stops</button>
+      <button type="button" data-bus-tab="about">About</button>
+    </div>
+    <div id="busServiceContent" class="bus-service-content"></div>
+  </div>
+
+  <div id="busStopSheet" class="bottom-sheet bus-stop-sheet hidden">
+    <div class="sheet-handle" title="Minimise or restore"></div>
+    <div class="bus-stop-sheet-header"><div><strong id="busStopTitle">Bus stop</strong><small id="busStopSource"></small></div><button id="closeBusStopBtn" class="small-icon-btn nav-glyph-btn" aria-label="Close bus stop"><svg class="nav-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div id="busStopServices" class="bus-stop-services"></div>
+  </div>
+
+  <div id="routePreferences" class="modal sheet-modal hidden">
+    <div class="modal-card route-preferences-card">
+      <div class="sheet-handle"></div>
+      <div class="modal-title-row"><div><div class="modal-title">Driving route options</div><div class="modal-subtitle">Choose how OpenRoad should favour or avoid roads.</div></div></div>
+      <section class="settings-panel route-preferences-panel">
+        <label class="settings-item">
+          <span class="settings-item-icon" aria-hidden="true">⇢</span>
+          <span class="settings-item-copy"><strong>Prefer motorways</strong><small>Offer a motorway-heavy route where it is sensible</small></span>
+          <input id="preferMotorways" class="settings-switch" type="checkbox">
+        </label>
+        <label class="settings-item">
+          <span class="settings-item-icon" aria-hidden="true">M</span>
+          <span class="settings-item-copy"><strong>Avoid motorways</strong><small>Keep routes off motorways where practical</small></span>
+          <input id="avoidMotorways" class="settings-switch" type="checkbox">
+        </label>
+        <label class="settings-item">
+          <span class="settings-item-icon" aria-hidden="true">£</span>
+          <span class="settings-item-copy"><strong>Avoid toll roads</strong><small>Prefer routes without road tolls</small></span>
+          <input id="avoidTolls" class="settings-switch" type="checkbox">
+        </label>
+        <label class="settings-item">
+          <span class="settings-item-icon" aria-hidden="true">⛴</span>
+          <span class="settings-item-copy"><strong>Avoid ferries</strong><small>Do not route via vehicle ferries where alternatives exist</small></span>
+          <input id="avoidFerries" class="settings-switch" type="checkbox">
+        </label>
+      </section>
+      <div class="modal-subtitle route-options-note">These preferences stay on this phone and apply to new routes and automatic reroutes.</div>
+      <button id="closeRoutePreferencesBtn" class="primary wide">Apply</button>
+    </div>
+  </div>
+
+  <!-- Navigation UI -->
+  <div id="navMapActions" class="nav-map-actions hidden">
+    <button id="navLayersBtn" class="map-fab nav-control" title="Map layers and places" aria-label="Map layers and places">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 4-8 4 8 4 8-4-8-4Z"/><path d="m4 12 8 4 8-4M4 16l8 4 8-4"/></svg>
+    </button>
+    <button id="navSoundBtn" class="map-fab nav-control" title="Navigation alerts" aria-label="Navigation alerts">🔊</button>
+    <button id="navAlongRouteBtn" class="map-fab nav-control" title="Search along route" aria-label="Search along route">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9.5" cy="9.5" r="4.5"/><path d="m13 13 4 4M18 5v3M16.5 6.5h3"/></svg>
+    </button>
+    <button id="navOverviewBtn" class="map-fab nav-control" title="Route overview" aria-label="Route overview">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19 19 5M9 5h10v10"/></svg>
+    </button>
+    <button id="navViewToggleBtn" class="map-fab text-fab nav-control" title="Switch to straight-down view" aria-label="Switch to straight-down view">2D</button>
+  </div>
+
+  <div id="navUi" class="navigation-ui hidden">
+    <div class="nav-instruction">
+      <div id="navManeuverIcon" class="nav-maneuver-icon" aria-hidden="true">↑</div>
+      <div class="nav-instruction-copy">
+        <div id="instructionDistance" class="instruction-distance"></div>
+        <div id="instructionText" class="instruction-text">Continue</div>
+      </div>
+    </div>
+
+    <div id="navSpeedPanel" class="nav-speed-panel hidden" aria-label="Driving speed and speed limit">
+      <div class="actual-speed"><strong id="currentSpeed">0</strong><span>mph</span></div>
+      <div id="speedLimitSign" class="speed-limit-sign"><strong id="speedLimit">—</strong></div>
+    </div>
+
+    <div class="nav-bottom">
+      <div class="nav-bottom-main">
+        <div class="eta-block"><strong id="arrivalTime">—</strong><span>arrival</span></div>
+        <div class="nav-stat"><strong id="remainingTime">—</strong><span>remaining</span></div>
+        <div class="nav-stat"><strong id="remainingDistance">—</strong><span>distance</span></div>
+      </div>
+      <div class="nav-bottom-actions">
+        <button id="navOptionsBtn" class="secondary nav-options-button">⋮ Options</button>
+        <button id="stopNavBtn" class="danger">End</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="alongRouteSheet" class="modal sheet-modal hidden">
+    <div class="modal-card along-route-card">
+      <div class="sheet-handle"></div>
+      <div class="modal-title-row"><div class="modal-title">Along route</div><button id="closeAlongRouteBtn" class="small-icon-btn nav-glyph-btn" aria-label="Close along-route search"><svg class="nav-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <div id="alongRouteCategories" class="along-route-categories">
+        <button class="along-route-category" data-query="service station"><span>🛣</span><strong>Service stations</strong></button>
+        <button class="along-route-category" data-query="petrol station"><span>⛽</span><strong>Petrol</strong></button>
+        <button class="along-route-category" data-query="supermarket"><span>🛒</span><strong>Supermarkets</strong></button>
+        <button class="along-route-category" data-query="cafe restaurant"><span>☕</span><strong>Food & coffee</strong></button>
+        <button class="along-route-category" data-query="rest area"><span>🅿</span><strong>Rest stops</strong></button>
+        <button class="along-route-category" data-query="toilet"><span>🚻</span><strong>Toilets</strong></button>
+        <button class="along-route-category" data-query="parking"><span>Ⓟ</span><strong>Parking</strong></button>
+        <button id="shazamBtn" class="along-route-category shazam-category"><span>♫</span><strong>Shazam</strong></button>
+      </div>
+      <div id="alongRouteStatus" class="along-route-status">Choose something to find ahead on your current route.</div>
+      <div id="alongRouteResults" class="along-route-results"></div>
+    </div>
+  </div>
+
+  <div id="navOptions" class="modal sheet-modal hidden">
+    <div class="modal-card nav-options-card">
+      <div class="sheet-handle"></div>
+      <div class="modal-title">On-route options</div>
+      <button id="rerouteNowBtn" class="sheet-action">↻ <span><strong>Reroute now</strong><small>Ask for a completely fresh route</small></span></button>
+      <button id="avoidAheadBtn" class="sheet-action">⛔ <span><strong>Avoid road ahead</strong><small>Route around a closure or blocked access</small></span></button>
+      <button id="closeNavOptionsBtn" class="secondary wide">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div id="settings" class="modal hidden">
+    <div class="modal-card settings-card">
+      <div id="settingsScroll" class="settings-scroll">
+        <div class="settings-header">
+          <div class="modal-title">Settings</div>
+          <div class="settings-subtitle">Personal navigation, stored locally where possible.</div>
+        </div>
+
+        <div id="settingsHome" class="settings-home">
+          <button class="settings-nav-card" data-settings-open="places"><span class="settings-nav-icon">★</span><span><strong>Places & search</strong><small>Home, starred places and contacts</small></span><span class="settings-chevron">›</span></button>
+          <button class="settings-nav-card" data-settings-open="guidance"><span class="settings-nav-icon">↗</span><span><strong>Navigation guidance</strong><small>Voice, alerts and turn guidance</small></span><span class="settings-chevron">›</span></button>
+          <button class="settings-nav-card" data-settings-open="map"><span class="settings-nav-icon">⌖</span><span><strong>Map & location</strong><small>Traffic, search bias and location behaviour</small></span><span class="settings-chevron">›</span></button>
+          <button id="settingsPublicTransportBtn" class="settings-nav-card"><span class="settings-nav-icon">▣</span><span><strong>Public transport</strong><small>Allowed modes, walking, connections and prepared areas</small></span><span class="settings-chevron">›</span></button>
+          <button class="settings-nav-card" data-settings-open="routing"><span class="settings-nav-icon">◇</span><span><strong>Routing</strong><small>Walking, cycling and driving services</small></span><span class="settings-chevron">›</span></button>
+          <button class="settings-nav-card" data-settings-open="updates"><span class="settings-nav-icon">⇩</span><span><strong>App updates</strong><small id="updateHomeStatus">Check for a newer signed OpenRoad release</small></span><span class="settings-chevron">›</span></button>
+          <button class="settings-nav-card" data-settings-open="services"><span class="settings-nav-icon">⚿</span><span><strong>Services & API keys</strong><small>Private server and transport provider status</small></span><span class="settings-chevron">›</span></button>
+        </div>
+
+        <div class="settings-page hidden" data-settings-page="updates">
+          <div class="settings-page-header"><button class="settings-page-back" type="button" aria-label="Back to settings">‹</button><div><strong>App updates</strong></div></div>
+          <section class="settings-panel">
+            <div class="settings-section-title">GitHub Releases</div>
+            <div class="settings-info-row"><span class="settings-item-icon" aria-hidden="true">⇩</span><div class="settings-item-copy"><strong id="updateStatusTitle">OpenRoad 0.6.29</strong><small id="updateStatusDetail">The app checks once a day when opened. Updates are verified before installing.</small></div></div>
+            <div class="settings-item compact-setting-row"><button id="checkUpdatesBtn" type="button" class="settings-text-button">Check now</button><button id="installUpdateBtn" type="button" class="settings-text-button hidden">Install update</button></div>
+            <div class="settings-info-row"><div class="settings-item-copy"><small>Android will ask you to confirm installation. The first GitHub-signed version may require a one-off migration from your old Android Studio debug build.</small></div></div>
+          </section>
+        </div>
+
+        <div class="settings-page hidden" data-settings-page="places">
+          <div class="settings-page-header"><button class="settings-page-back" type="button" aria-label="Back to settings">‹</button><div><strong>Places & search</strong></div></div>
+<section class="settings-panel">
+          <div class="settings-section-title">Places</div>
+          <div class="settings-item">
+            <span class="settings-item-icon" aria-hidden="true">⌂</span>
+            <div class="settings-item-copy"><strong>Home</strong><small id="homeSummary">Not set</small></div>
+            <button id="setHomeBtn" class="settings-text-button">Set</button>
+          </div>
+          <div id="clearHomeRow" class="settings-item compact-setting-row hidden">
+            <span class="settings-item-icon subtle" aria-hidden="true">×</span>
+            <div class="settings-item-copy"><strong>Remove Home</strong><small>Clear the address stored on this phone</small></div>
+            <button id="clearHomeBtn" class="settings-text-button danger-text">Clear</button>
+          </div>
+          <button id="settingsSavedBtn" class="settings-item settings-item-button">
+            <span class="settings-item-icon" aria-hidden="true">★</span>
+            <span class="settings-item-copy"><strong>Starred places</strong><small>View or remove your favourite destinations</small></span>
+            <span class="settings-chevron" aria-hidden="true">›</span>
+          </button>
+          <button id="contactsSearchBtn" class="settings-item settings-item-button">
+            <span class="settings-item-icon" aria-hidden="true">☻</span>
+            <span class="settings-item-copy"><strong>Contacts in search</strong><small id="contactsSearchSummary">Show contacts with postal addresses above web results</small></span>
+            <span id="contactsSearchAction" class="settings-text-button">Allow</span>
+          </button>
+        </section>
+
+        
+        </div>
+
+        <div class="settings-page hidden" data-settings-page="guidance">
+          <div class="settings-page-header"><button class="settings-page-back" type="button" aria-label="Back to settings">‹</button><div><strong>Navigation guidance</strong></div></div>
+<section class="settings-panel">
+          <div class="settings-section-title">Guidance</div>
+          <label class="settings-item">
+            <span class="settings-item-icon" aria-hidden="true">↗</span>
+            <span class="settings-item-copy"><strong>Navigation alerts</strong><small>Voice, edge flash or silent</small></span>
+            <select id="navAlertMode" class="setting-select compact-select" aria-label="Navigation alerts">
+              <option value="voice">Voice</option>
+              <option value="flash">Edge flash</option>
+              <option value="silent">Silent</option>
+            </select>
+          </label>
+          <button id="chooseVoiceBtn" class="settings-item settings-item-button">
+            <span class="settings-item-icon" aria-hidden="true">◖</span>
+            <span class="settings-item-copy"><strong>Navigation voice</strong><small id="voiceSummary">System default</small></span>
+            <span class="settings-chevron" aria-hidden="true">›</span>
+          </button>
+          <button id="testFlashBtn" class="settings-item settings-item-button">
+            <span class="settings-item-icon" aria-hidden="true">◫</span>
+            <span class="settings-item-copy"><strong>Test edge flash</strong><small>Preview the visual turn alert</small></span>
+            <span class="settings-chevron" aria-hidden="true">›</span>
+          </button>
+          <button id="voiceSettingsBtn" class="settings-item settings-item-button">
+            <span class="settings-item-icon" aria-hidden="true">⚙</span>
+            <span class="settings-item-copy"><strong>Android speech settings</strong><small>Manage installed TTS engines and voices</small></span>
+            <span class="settings-chevron" aria-hidden="true">›</span>
+          </button>
+        </section>
+
+        
+        </div>
+
+        <div class="settings-page hidden" data-settings-page="map">
+          <div class="settings-page-header"><button class="settings-page-back" type="button" aria-label="Back to settings">‹</button><div><strong>Map & location</strong></div></div>
+<section class="settings-panel">
+          <div class="settings-section-title">Map & location</div>
+          <label class="settings-item">
+            <span class="settings-item-icon" aria-hidden="true">⌖</span>
+            <span class="settings-item-copy"><strong>Search near me</strong><small>Bias suggestions towards your current location</small></span>
+            <input id="searchBias" class="settings-switch" type="checkbox">
+          </label>
+          <label class="settings-item">
+            <span class="settings-item-icon" aria-hidden="true">≋</span>
+            <span class="settings-item-copy"><strong>Live traffic</strong><small>Show current road speeds while driving</small></span>
+            <input id="trafficToggle" class="settings-switch" type="checkbox" checked>
+          </label>
+          <label class="settings-item">
+            <span class="settings-item-icon" aria-hidden="true">●</span>
+            <span class="settings-item-copy"><strong>Enhanced location</strong><small>Use GPS, Wi‑Fi and mobile signals for steadier fixes</small></span>
+            <input id="enhancedLocationToggle" class="settings-switch" type="checkbox" checked>
+          </label>
+        </section>
+
+        
+        </div>
+
+        <div class="settings-page hidden" data-settings-page="routing">
+          <div class="settings-page-header"><button class="settings-page-back" type="button" aria-label="Back to settings">‹</button><div><strong>Routing</strong></div></div>
+<section class="settings-panel">
+          <div class="settings-section-title">Routing & services</div>
+          <div class="settings-info-row">
+            <span class="settings-item-icon" aria-hidden="true">♢</span>
+            <div class="settings-item-copy"><strong>Walking & cycling</strong><small>OSM/Valhalla favours dedicated paths, cycleways, pavements and quieter streets.</small></div>
+          </div>
+          <div class="settings-info-row">
+            <span class="settings-item-icon" aria-hidden="true">▰</span>
+            <div class="settings-item-copy"><strong>Driving</strong><small>TomTom provides routing, live traffic and speed-limit sections where available.</small></div>
+          </div>
+          <div class="settings-info-row provider-settings tomtom-provider">
+            <span class="settings-item-icon" aria-hidden="true">⌁</span>
+            <div class="settings-item-copy provider-copy">
+              <strong>TomTom</strong>
+              <small>Search, driving routes, live road traffic and incidents.</small>
+              <div class="credential-status-row"><code id="tomTomMaskedKey">Checking…</code><button id="revealTomTomBtn" class="tiny-action eye-action" type="button" aria-label="Reveal TomTom key">👁</button><button id="changeKeyBtn" class="tiny-action" type="button">Change</button></div>
+            </div>
+          </div>
+        </section>
+
+        </div>
+
+        <div class="settings-page hidden" data-settings-page="services">
+          <div class="settings-page-header"><button class="settings-page-back" type="button" aria-label="Back to settings">‹</button><div><strong>Services & API keys</strong></div></div>
+        <section class="settings-panel">
+          <div class="settings-subsection-title">Public transport · official data first</div>
+          <div class="settings-source-explainer">OpenRoad uses authoritative feeds directly: TfL in London and a local DfT/BODS timetable router for English buses. TransportAPI is optional fallback only and is off by default. Live and scheduled times are labelled separately.</div>
+
+
+          <div class="settings-info-row provider-settings">
+            <span class="settings-item-icon" aria-hidden="true">S</span>
+            <div class="settings-item-copy provider-copy">
+              <strong>OpenRoad private transport server</strong>
+              <small>Pre-indexed DfT/BODS timetable routing on your own hosting. Requests are signed by a device-specific Android Keystore key; no reusable server password is stored in the APK.</small>
+              <div class="credential-status-row"><span class="credential-label">URL</span><code id="openRoadServerUrl">Not configured</code></div>
+              <div class="credential-status-row"><span class="credential-label">Device</span><code id="openRoadServerDeviceId">Not paired</code></div>
+              <div id="openRoadServerPairControls">
+                <input id="openRoadPairingCode" class="key-input compact-key" type="text" autocomplete="off" autocapitalize="characters" placeholder="One-time pairing code">
+                <div class="provider-actions"><button id="pairOpenRoadServerBtn" class="secondary compact-button" type="button">Pair this phone</button></div>
+              </div>
+              <div class="provider-actions"><button id="checkOpenRoadServerBtn" class="secondary compact-button" type="button">Check server</button><button id="removeOpenRoadServerBtn" class="secondary compact-button" type="button">Remove this phone</button></div>
+              <small id="openRoadServerSummary" class="provider-status">Not paired</small>
+            </div>
+          </div>
+
+          <div class="settings-info-row provider-settings">
+            <span class="settings-item-icon subtle" aria-hidden="true">●</span>
+            <div class="settings-item-copy provider-copy">
+              <strong>NaPTAN stops & stations</strong>
+              <small>DfT reference data. Relevant stop areas are cached on this phone automatically.</small>
+              <small id="naptanSummary" class="provider-status good">Built in</small>
+            </div>
+          </div>
+
+          <div class="settings-info-row provider-settings">
+            <span class="settings-item-icon" aria-hidden="true">B</span>
+            <div class="settings-item-copy provider-copy">
+              <strong>DfT bus data · BODS / GB GTFS</strong>
+              <small>Scheduled route geometry is cached automatically from the free DfT GTFS feed. Live vehicle data is fetched on demand through your paired OpenRoad server; the key remains private on JustHostMe.</small>
+              <div class="credential-status-row"><span class="credential-label">Key</span><code id="bodsMaskedKey">Not configured</code><button id="revealBodsBtn" class="tiny-action eye-action" type="button" aria-label="Reveal BODS key">👁</button></div>
+              <input id="bodsApiKey" style="display:none" class="key-input compact-key" type="password" autocomplete="off" placeholder="Replace BODS API key">
+              <div class="provider-actions" style="display:none"><button id="saveBodsBtn" class="secondary compact-button">Change key</button><button id="getBodsBtn" class="secondary compact-button">Get key</button></div>
+              <small id="bodsSummary" class="provider-status">Not configured</small>
+            </div>
+          </div>
+
+          <div class="settings-info-row provider-settings">
+            <span class="settings-item-icon" aria-hidden="true">T</span>
+            <div class="settings-item-copy provider-copy">
+              <strong>TfL · London</strong>
+              <small>Official London Journey Planner, route geometry and live arrivals. Anonymous access works automatically; an app key is optional and raises the request allowance.</small>
+              <div class="credential-status-row"><span class="credential-label">Primary</span><code id="tflMaskedKey">Anonymous</code><button id="revealTflBtn" class="tiny-action eye-action" type="button" aria-label="Reveal TfL primary key">👁</button></div>
+              <div class="credential-status-row"><span class="credential-label">Secondary</span><code id="tflSecondaryMaskedKey">Not stored</code><button id="revealTflSecondaryBtn" class="tiny-action eye-action" type="button" aria-label="Reveal TfL secondary key">👁</button></div>
+              <input id="tflApiKey" class="key-input compact-key" type="password" autocomplete="off" placeholder="Replace primary TfL app key">
+              <input id="tflSecondaryApiKey" class="key-input compact-key" type="password" autocomplete="off" placeholder="Replace secondary TfL app key">
+              <div class="provider-actions"><button id="saveTflBtn" class="secondary compact-button">Change primary</button><button id="saveTflSecondaryBtn" class="secondary compact-button">Change secondary</button><button id="getTflBtn" class="secondary compact-button">Get key</button></div>
+              <small id="tflSummary" class="provider-status good">Anonymous access active</small>
+            </div>
+          </div>
+
+          <div class="settings-info-row provider-settings">
+            <span class="settings-item-icon" aria-hidden="true">R</span>
+            <div class="settings-item-copy provider-copy">
+              <strong>National Rail · Rail Data Marketplace</strong>
+              <small>Official Darwin live predictions, platforms, delays and cancellations through the Rail Data Marketplace Live Departure Board API.</small>
+              <div class="credential-status-row"><span class="credential-label">Credentials</span><code id="railDataKeyMasked">Managed on private server</code></div>
+              <div class="provider-actions"><button id="getDarwinBtn" class="secondary compact-button" type="button">Provider account</button></div>
+              <small id="darwinSummary" class="provider-status">The Rail Data consumer key remains on JustHostMe, not in the Android app.</small>
+              <div class="rail-board-test">
+                <label for="railStationCrs">Test live departures · station code</label>
+                <div class="rail-board-test-controls">
+                  <input id="railStationCrs" type="text" value="BRI" maxlength="3" autocapitalize="characters" spellcheck="false" aria-label="National Rail three-letter station code">
+                  <button id="checkRailDeparturesBtn" class="secondary compact-button" type="button">Check departures</button>
+                </div>
+                <div id="railDepartureResults" class="rail-board-results" role="status" aria-live="polite">Check trains using the private OpenRoad server. Rail Data must first be configured on JustHostMe.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-info-row provider-settings">
+            <span class="settings-item-icon subtle" aria-hidden="true">F</span>
+            <div class="settings-item-copy provider-copy">
+              <strong>TransportAPI · optional fallback</strong>
+              <small>Disabled by default. Only used when you explicitly enable the fallback in Public transport settings and your plan includes Journey Planner.</small>
+              <div class="credential-status-row"><span class="credential-label">app_id</span><code id="transportApiIdMasked">Not configured</code><button id="revealTransportIdBtn" class="tiny-action eye-action" type="button" aria-label="Reveal TransportAPI app ID">👁</button></div>
+              <div class="credential-status-row"><span class="credential-label">app_key</span><code id="transportApiKeyMasked">Not configured</code><button id="revealTransportKeyBtn" class="tiny-action eye-action" type="button" aria-label="Reveal TransportAPI app key">👁</button></div>
+              <input id="transportApiId" class="key-input compact-key" type="text" autocomplete="off" placeholder="Replace TransportAPI app_id">
+              <input id="transportApiKey" class="key-input compact-key" type="password" autocomplete="off" placeholder="Replace TransportAPI app_key">
+              <div class="provider-actions"><button id="saveTransportApiBtn" class="secondary compact-button">Change credentials</button><button id="getTransportApiBtn" class="secondary compact-button">Manage plan</button></div>
+              <small id="transportApiSummary" class="provider-status">Not configured</small>
+            </div>
+          </div>
+
+          <div class="settings-info-row provider-settings">
+            <span class="settings-item-icon subtle" aria-hidden="true">≋</span>
+            <div class="settings-item-copy provider-copy">
+              <strong>Traveline / TNDS coverage</strong>
+              <small>Traveline-derived schedule data can be present in the DfT GB GTFS feed, including services outside England. OpenRoad uses the DfT cache rather than making a separate TNDS call.</small>
+              <small class="provider-status">No separate credential required</small>
+            </div>
+          </div>
+        </section>
+
+        </div>
+
+        <div class="settings-privacy">No OpenRoad account, adverts, analytics, advertising ID or route history. Home and starred places stay on this phone.</div>
+        <p class="version-note">OpenRoad 0.6.29</p>
+      </div>
+      <div class="settings-footer"><button id="closeSettingsBtn" class="primary wide">Done</button></div>
+    </div>
+  </div>
+
+  <div id="voiceSetup" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-title">Navigation voice</div>
+      <p class="muted">Choose an installed Android speech engine, then preview an English voice.</p>
+      <label class="voice-field" for="ttsEngineSelect">Speech engine</label>
+      <select id="ttsEngineSelect" class="setting-select voice-select"><option value="">System default</option></select>
+      <label class="voice-field" for="ttsVoiceSelect">Voice</label>
+      <select id="ttsVoiceSelect" class="setting-select voice-select" disabled><option value="">Engine default UK voice</option></select>
+      <div id="voiceLoadStatus" class="setting-help">Choose an engine to load its voices.</div>
+      <div class="settings-buttons"><button id="previewVoiceBtn" class="secondary">Preview</button><button id="saveVoiceBtn" class="primary">Use this voice</button></div>
+      <button id="cancelVoiceBtn" class="secondary wide">Cancel</button>
+    </div>
+  </div>
+
+  <div id="homeSetup" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-title">Set home</div>
+      <p class="muted">Search for your home address. The selected location is stored only on this phone.</p>
+      <div class="home-search-row"><input id="homeSearchInput" class="key-input" type="search" autocomplete="off" placeholder="Home address or postcode"><button id="homeSearchBtn" class="secondary">Search</button></div>
+      <div id="homeSearchResults" class="home-results hidden"></div>
+      <button id="cancelHomeSetupBtn" class="secondary wide">Cancel</button>
+    </div>
+  </div>
+
+
+  <div id="favouriteNameSheet" class="modal sheet-modal hidden">
+    <div class="modal-card favourite-name-card">
+      <div class="sheet-handle"></div>
+      <div id="favouriteNameTitle" class="modal-title">Name starred place</div>
+      <p class="muted">This name is stored only on this phone and is shown in Starred places.</p>
+      <input id="favouriteNameInput" class="key-input" type="text" maxlength="80" autocomplete="off" placeholder="Place name">
+      <div class="settings-buttons"><button id="cancelFavouriteNameBtn" class="secondary">Cancel</button><button id="saveFavouriteNameBtn" class="primary">Save</button></div>
+    </div>
+  </div>
+
+  <div id="keySetup" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-title">TomTom setup</div>
+      <p>Paste a TomTom API key. It is encrypted using Android Keystore and stored only on this phone.</p>
+      <input id="apiKeyInput" class="key-input" type="password" placeholder="TomTom API key">
+      <button id="saveKeyBtn" class="primary wide">Save key</button>
+    </div>
+  </div>
+
+  <div id="edgeFlash" class="navigation-edge-flash" aria-hidden="true"></div>
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="maplibre-gl.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
