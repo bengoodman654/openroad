@@ -17,9 +17,9 @@ function openroad_bods_key(): string {
 
 /** Only fixed BODS HTTPS host is permitted. No redirects, max 256 KiB reply. */
 function openroad_bods_fetch(string $url): array {
-    if (!str_starts_with($url,'https://data.bus-data.dft.gov.uk/api/v1/datafeed?')) return [0,''];
+    if (!str_starts_with($url,'https://data.bus-data.dft.gov.uk/api/v1/datafeed/?')) return [0,''];
     $ctx=stream_context_create([
-        'http'=>['method'=>'GET','header'=>"Accept: application/xml\r\nUser-Agent: OpenRoad/0.2.5\r\n",
+        'http'=>['method'=>'GET','header'=>"Accept: text/xml, application/xml;q=0.9, */*;q=0.8\r\nUser-Agent: OpenRoad/0.2.6\r\n",
                  'timeout'=>2.5,'ignore_errors'=>true,'follow_location'=>0,'max_redirects'=>0],
         'ssl'=>['verify_peer'=>true,'verify_peer_name'=>true,'allow_self_signed'=>false],
     ]);
@@ -99,12 +99,20 @@ function openroad_bods_live(string $line,float $lat,float $lon,?callable $fetch=
         }
         $pad=0.04;
         $bbox=sprintf('%.5f,%.5f,%.5f,%.5f',$lon-$pad,$lat-$pad,$lon+$pad,$lat+$pad);
-        $url='https://data.bus-data.dft.gov.uk/api/v1/datafeed?boundingBox='.rawurlencode($bbox)
+        $url='https://data.bus-data.dft.gov.uk/api/v1/datafeed/?boundingBox='.rawurlencode($bbox)
              .'&lineRef='.rawurlencode($line).'&api_key='.rawurlencode($key);
         try{[$status,$body]=($fetch??'openroad_bods_fetch')($url);}catch(Throwable $ignored){$status=0;$body='';}
         if($status!==200||!is_string($body)||strlen($body)>262144||strlen($body)<40||!
             (str_contains($body,'VehicleMonitoringDelivery')||str_contains($body,'Siri'))){
-            $bad=['ok'=>false,'error'=>'BODS live vehicles temporarily unavailable'];
+            // No credentials, query URL, personal location or upstream response body
+            // are returned to the phone. Expose only bounded, actionable failure classes.
+            if ($status===401||$status===403) $reason='BODS rejected the server key or its access permissions (HTTP '.$status.')';
+            elseif ($status===406) $reason='BODS rejected the vehicle feed request (HTTP 406)';
+            elseif ($status>=300&&$status<400) $reason='BODS redirected the vehicle feed; endpoint update required (HTTP '.$status.')';
+            elseif ($status===0) $reason='Could not connect to the BODS live vehicle service';
+            elseif ($status>=500) $reason='BODS live vehicle service temporarily unavailable (HTTP '.$status.')';
+            else $reason='BODS returned no usable live vehicle data (HTTP '.$status.')';
+            $bad=['ok'=>false,'error'=>$reason];
             openroad_bods_cache_write($path,$bad,$now+45);
             return [503,$bad];
         }
