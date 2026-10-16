@@ -48,6 +48,8 @@ jobs:
             $files=is_dir($dir)?glob($dir."/*.json"):[];
             echo "Cached geographical tiles on disk: ".count($files)."\n";
             $ageBuckets=["fresh"=>0,"3to10min"=>0,"older"=>0,"missingTime"=>0];
+            $atFetch=["0to3min"=>0,"3to10min"=>0,"older"=>0,"noTimestamp"=>0];
+            $line75=["total"=>0,"freshAtFetch"=>0];
             $totalVehicles=0; $recentTiles=0;$usableTiles=0;$unique=[];
             foreach(array_slice($files,0,32) as $file){
               if(!is_file($file)||filesize($file)>350000)continue;
@@ -56,6 +58,7 @@ jobs:
               $resp=$entry["reply"];
               if(!($resp["ok"]??false))continue;
               $usableTiles++;$recentTiles+=((int)($entry["expires"]??0) > $now)?1:0;
+              $checked=strtotime((string)($resp["checkedAt"]??""));
               $xml=$resp["xml"]??"";
               if(!is_string($xml)||!class_exists("DOMDocument"))continue;
               $doc=new DOMDocument();
@@ -69,6 +72,8 @@ jobs:
                 $nodes=$xp->query("./*[local-name()=\"RecordedAtTime\"]",$activity);
                 $t=($nodes&&$nodes->length)?strtotime(trim($nodes->item(0)->textContent)):false;
                 if($t===false)$ageBuckets["missingTime"]++;
+                if($t===false||$checked===false)$atFetch["noTimestamp"]++;
+                else { $ageAt=max(0,$checked-$t); $atFetch[$ageAt<=180?"0to3min":($ageAt<=600?"3to10min":"older")]++; }
                 else {
                   $age=max(0,$now-$t);
                   if($age<=180)$ageBuckets["fresh"]++;
@@ -78,11 +83,14 @@ jobs:
                 foreach($xp->query(".//*[local-name()=\"MonitoredVehicleJourney\"]/*[local-name()=\"LineRef\" or local-name()=\"PublishedLineName\"]",$activity) as $item){
                   $value=trim($item->textContent);
                   if($value!=="")$unique[strtolower($value)]=true;
+                  if(strcasecmp($value,"75")===0){$line75["total"]++;if($t!==false&&$checked!==false&&$checked-$t<=180)$line75["freshAtFetch"]++;}
                 }
               }
             }
             echo "Tiles with unexpired response: ".$recentTiles."; stored successful tiles: ".$usableTiles."\n";
             echo "Cached vehicle activity entries: ".$totalVehicles."; unique line identifiers: ".count($unique)."\n";
             foreach($ageBuckets as $k=>$v)echo "Vehicle recordedAt age category ".$k.": ".$v."\n";
+            foreach($atFetch as $k=>$v)echo "Vehicle age WHEN FETCHED ".$k.": ".$v."\n";
+            echo "Route 75 references across cached tiles: ".$line75["total"]."; fresh when fetched: ".$line75["freshAtFetch"]."\n";
           ' "$private"
           REMOTE
