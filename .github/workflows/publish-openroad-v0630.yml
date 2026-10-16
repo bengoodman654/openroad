@@ -68,6 +68,8 @@ jobs:
           test ! -e OpenRoad-v0.6.30-source.zip || ! git ls-files --error-unmatch OpenRoad-v0.6.30-source.zip >/dev/null 2>&1
           git add OpenRoad-v0.6.30-source.zip
           git commit -m "Add verified OpenRoad Android v0.6.30 live-bus fix"
+          git fetch origin main
+          git rebase origin/main
           git push origin HEAD:main
       - name: Request existing signed release workflow
         env:
