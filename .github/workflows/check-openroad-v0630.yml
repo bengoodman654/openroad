@@ -6,7 +6,7 @@ on:
       - '.github/workflows/check-openroad-v0630.yml'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   verify:
     runs-on: ubuntu-24.04
@@ -29,6 +29,20 @@ jobs:
           cd extracted
           zip -qr ../OpenRoad-v0.6.30-source.zip OpenRoad-v0.6.30-source
           unzip -t ../OpenRoad-v0.6.30-source.zip | tail -1
+      - name: Publish tested source to trigger existing signed Android pipeline
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f OpenRoad-v0.6.30-source.zip; then
+            echo 'v0.6.30 is already in main; no replacement'
+            exit 0
+          fi
+          cp extracted/../OpenRoad-v0.6.30-source.zip ./OpenRoad-v0.6.30-source.zip
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add OpenRoad-v0.6.30-source.zip
+          git commit -m 'Add tested OpenRoad Android v0.6.30 source for signed build'
+          git push origin HEAD:main
       - uses: actions/upload-artifact@v4
         with:
           name: OpenRoad-v0.6.30-verified-source
