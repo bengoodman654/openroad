@@ -50,7 +50,8 @@ jobs:
             if (!$configured) exit(0);
             // A different cache tile makes this a single new, rate-limited request.
             $fetch=static function(string $url):array{
-              $url=str_replace("/api/v1/datafeed?","/api/v1/datafeed/?",$url);\n              $ctx=stream_context_create([
+              $url=str_replace("/api/v1/datafeed?","/api/v1/datafeed/?",$url);
+              $ctx=stream_context_create([
                 "http"=>["method"=>"GET","header"=>"Accept: application/xml\\r\\nUser-Agent: OpenRoad/0.2.6-diagnostic\\r\\n","timeout"=>2.5,"ignore_errors"=>true,"follow_location"=>0],
                 "ssl"=>["verify_peer"=>true,"verify_peer_name"=>true]
               ]);
