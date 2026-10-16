@@ -50,13 +50,25 @@ jobs:
             if (!$configured) exit(0);
             // A different cache tile makes this a single new, rate-limited request.
             $fetch=static function(string $url):array{
-              [$upstreamStatus,$payload]=openroad_bods_fetch($url);
+              $url=str_replace("/api/v1/datafeed?","/api/v1/datafeed/?",$url);\n              $ctx=stream_context_create([
+                "http"=>["method"=>"GET","header"=>"Accept: application/xml\\r\\nUser-Agent: OpenRoad/0.2.6-diagnostic\\r\\n","timeout"=>2.5,"ignore_errors"=>true,"follow_location"=>0],
+                "ssl"=>["verify_peer"=>true,"verify_peer_name"=>true]
+              ]);
+              $fp=@fopen($url,"rb",false,$ctx);
+              $upstreamStatus=0; $payload="";
+              if($fp!==false){
+                stream_set_timeout($fp,2,500000);
+                $payload=(string)stream_get_contents($fp,262145);
+                $meta=stream_get_meta_data($fp);fclose($fp);
+                foreach(($meta["wrapper_data"]??[]) as $header)if(preg_match("/^HTTP\\/\\S+\\s+(\\d{3})\\b/",$header,$m))$upstreamStatus=(int)$m[1];
+              }
+              if(strlen($payload)>262144)$payload="";
               echo "BODS upstream HTTP: ".$upstreamStatus."\\n";
               echo "Upstream response: ".(str_contains($payload,"VehicleMonitoringDelivery")?"SIRI-VM XML":(str_contains($payload,"<html")||str_contains($payload,"<HTML")?"HTML":"other or empty"))."\\n";
               echo "Response bytes: ".strlen($payload)."\\n";
               return [$upstreamStatus,$payload];
             };
-            [$status,$data] = openroad_bods_live("75", 51.48, -2.59, $fetch);
+            [$status,$data] = openroad_bods_live("75", 51.49, -2.59, $fetch);
             echo "Budgeted BODS probe HTTP: ".$status."\n";
             echo "Outcome: ".(($data["ok"]??false) ? "valid SIRI-VM" : ($data["error"]??"unclassified"))."\n";
             echo "Cache: ".($data["cache"]??"not supplied")."\n";
