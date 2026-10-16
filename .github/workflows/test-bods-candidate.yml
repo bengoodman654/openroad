@@ -1,4 +1,4 @@
-name: Verify candidate BODS gateway offline
+name: Verify candidate BODS gateway offline (XML route filtering)
 on:
   push:
     branches: [main]
