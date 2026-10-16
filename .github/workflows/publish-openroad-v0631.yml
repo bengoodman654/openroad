@@ -1,0 +1,82 @@
+name: OpenRoad 0.6.31 — build, publish source and request signed release
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-openroad-v0630.yml'
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: openroad-android-v0630-publication
+  cancel-in-progress: false
+jobs:
+  build-publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Patch the original Android release source and run offline tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f OpenRoad-v0.6.30-source.zip
+          unzip -q OpenRoad-v0.6.30-source.zip -d extracted
+          project="$(find extracted -mindepth 1 -maxdepth 1 -type d | head -1)"
+          test -f "$project/app/build.gradle"
+          python3 maintenance/android-v0.6.31/patch.py "$project"
+          node --check "$project/app/src/main/assets/app.js"
+          node maintenance/android-v0.6.30/live-bus-test.js "$project/app/src/main/assets/app.js"
+          (cd "$project" && bash validate.sh && node tests/watchdog_test.js)
+          mv "$project" extracted/OpenRoad-v0.6.31-source
+          (cd extracted && zip -qr ../OpenRoad-v0.6.31-source.zip OpenRoad-v0.6.31-source)
+          unzip -t OpenRoad-v0.6.31-source.zip | tail -1
+          echo "PROJECT=extracted/OpenRoad-v0.6.31-source" >> "$GITHUB_ENV"
+      - name: Install Android build toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          manager="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$manager"
+          yes | "$manager" --licenses >/dev/null || true
+          "$manager" --install 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Compile debug Android APK before publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd "$PROJECT" && gradle --no-daemon :app:assembleDebug)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenRoad-v0.6.31-verified-debug
+          path: extracted/OpenRoad-v0.6.31-source/app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+      - name: Commit tested release source to GitHub
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          test ! -e OpenRoad-v0.6.31-source.zip || ! git ls-files --error-unmatch OpenRoad-v0.6.31-source.zip >/dev/null 2>&1
+          git add OpenRoad-v0.6.31-source.zip
+          git commit -m "Add verified OpenRoad Android v0.6.31 live-bus fix"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
+      - name: Request existing signed release workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run android.yml --ref main
+          echo "Triggered OpenRoad Android signed release build for the newly committed v0.6.31 source."
