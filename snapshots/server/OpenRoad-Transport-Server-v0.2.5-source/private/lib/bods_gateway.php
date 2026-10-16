@@ -88,6 +88,43 @@ function openroad_bods_filter_cached(array $reply,string $line,string $cache): a
         'vehicleCount'=>$matched,'checkedAt'=>$reply['checkedAt']??null,'cache'=>$cache]];
 }
 
+
+/** Keep the SIRI envelope intact; remove non-matching vehicle activities locally. */
+function openroad_bods_filter_xml(string $xml,string $line): ?string {
+    if (!class_exists('DOMDocument')) return null;
+    $dom=new DOMDocument();
+    $previous=libxml_use_internal_errors(true);
+    try {
+        if (!$dom->loadXML($xml,LIBXML_NONET|LIBXML_NOBLANKS)) return null;
+        $xpath=new DOMXPath($dom);
+        $activities=$xpath->query('//*[local-name()="VehicleActivity"]');
+        if ($activities===false) return null;
+        $requested=trim($line);
+        foreach (iterator_to_array($activities) as $activity) {
+            $refs=$xpath->query('.//*[local-name()="MonitoredVehicleJourney"]/*[local-name()="LineRef"]',$activity);
+            $match=false;
+            if ($refs!==false) foreach($refs as $ref) {
+                if (strcasecmp(trim($ref->textContent),$requested)===0) { $match=true; break; }
+            }
+            if (!$match) $activity->parentNode?->removeChild($activity);
+        }
+        $output=$dom->saveXML();
+        return is_string($output)?$output:null;
+    } finally {
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+    }
+}
+
+/** Adapt a shared area cache hit to the phone's requested line. */
+function openroad_bods_result_for_line(array $reply,string $line,string $cache): array {
+    if (!($reply['ok']??false)) return [503,$reply+['cache'=>$cache]];
+    $filtered=openroad_bods_filter_xml((string)($reply['xml']??''),$line);
+    if($filtered===null)return [503,['ok'=>false,'error'=>'Could not parse BODS live vehicle data','cache'=>$cache]];
+    return [200,['ok'=>true,'line'=>$line,'source'=>'BODS','xml'=>$filtered,
+        'checkedAt'=>$reply['checkedAt']??gmdate('c'),'cache'=>$cache]];
+}
+
 /** Returns [HTTP status, JSON object]. $fetch and $keyOverride exist ONLY for offline tests. */
 function openroad_bods_live(string $line,float $lat,float $lon,?callable $fetch=null,?string $cacheDir=null,?int $now=null,?string $keyOverride=null): array {
     $line=trim($line);
@@ -97,7 +134,7 @@ function openroad_bods_live(string $line,float $lat,float $lon,?callable $fetch=
     $key=$keyOverride??openroad_bods_key();
     if ($key==='')return [503,['ok'=>false,'error'=>'BODS is not configured on the OpenRoad server']];
     $now=$now??time();
-    $dir=$cacheDir??openroad_private_root().'/cache/bods-v1';
+    $dir=$cacheDir??openroad_private_root().'/cache/bods-v2';
     if (!is_dir($dir)&&!@mkdir($dir,0700,true)&&!is_dir($dir))
         return [503,['ok'=>false,'error'=>'Live bus service is unavailable']];
     // Round query coordinates to ~1 km tiles to reuse same live feed nearby.
