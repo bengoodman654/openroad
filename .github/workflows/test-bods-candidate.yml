@@ -1,0 +1,24 @@
+name: Verify candidate BODS gateway offline
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/test-bods-candidate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  php-offline-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: diagnostics/live-buses-20261016
+      - name: Check PHP syntax and run local fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          src="snapshots/server/OpenRoad-Transport-Server-v0.2.5-source"
+          php -l "$src/private/lib/bods_gateway.php"
+          php -l "$src/tests/bods_gateway_test.php"
+          php "$src/tests/bods_gateway_test.php"
