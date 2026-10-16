@@ -52,6 +52,31 @@ function openroad_bods_cache_write(string $path,array $reply,int $expires): void
     if(@file_put_contents($tmp,$json,LOCK_EX)===false||!@rename($tmp,$path))@unlink($tmp);
 }
 
+/** Filter the area feed to the requested LineRef while preserving the SIRI envelope. */
+function openroad_bods_filter_line(array $raw,string $line,string $cache): array {
+    if (!($raw['ok']??false)) return [503,array_merge($raw,['cache'=>$cache])];
+    if (!class_exists('DOMDocument')) return [503,['ok'=>false,'error'=>'XML parser unavailable','cache'=>$cache]];
+    $dom=new DOMDocument();
+    $old=libxml_use_internal_errors(true);
+    try {
+        if (!$dom->loadXML((string)($raw['xml']??''),LIBXML_NONET)) return [503,['ok'=>false,'error'=>'Invalid BODS XML','cache'=>$cache]];
+        $xp=new DOMXPath($dom);
+        $nodes=$xp->query('//*[local-name()="VehicleActivity"]');
+        if ($nodes===false) return [503,['ok'=>false,'error'=>'Invalid BODS XML','cache'=>$cache]];
+        foreach(iterator_to_array($nodes) as $activity){
+            $refs=$xp->query('.//*[local-name()="MonitoredVehicleJourney"]/*[local-name()="LineRef"]',$activity);
+            $matched=false;
+            if($refs!==false)foreach($refs as $ref){
+                if(strcasecmp(trim($ref->textContent),trim($line))===0){$matched=true;break;}
+            }
+            if(!$matched)$activity->parentNode?->removeChild($activity);
+        }
+        $xml=$dom->saveXML();
+        if(!is_string($xml))return [503,['ok'=>false,'error'=>'Invalid BODS XML','cache'=>$cache]];
+        return [200,['ok'=>true,'line'=>$line,'source'=>'BODS','xml'=>$xml,'checkedAt'=>$raw['checkedAt']??gmdate('c'),'cache'=>$cache]];
+    } finally { libxml_clear_errors();libxml_use_internal_errors($old); }
+}
+
 /** Returns [HTTP status, JSON object]. $fetch and $keyOverride exist ONLY for offline tests. */
 function openroad_bods_live(string $line,float $lat,float $lon,?callable $fetch=null,?string $cacheDir=null,?int $now=null,?string $keyOverride=null): array {
     $line=trim($line);
@@ -74,13 +99,13 @@ function openroad_bods_live(string $line,float $lat,float $lon,?callable $fetch=
     $cacheKey=hash('sha256','area-v2|'.number_format($lat,2,'.','').'|'.number_format($lon,2,'.',''));
     $path=$areaDir.'/'.$cacheKey.'.json';
     $hit=openroad_bods_cache_read($path,$now);
-    if ($hit!==null)return [($hit['ok']??false)?200:503,array_merge($hit,['line'=>$line,'cache'=>'hit'])];
+    if ($hit!==null)return openroad_bods_filter_line($hit,$line,'hit');
     $lock=@fopen($dir.'/bods.lock','c');
     if($lock===false)return [503,['ok'=>false,'error'=>'Live bus service is unavailable']];
     if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);return [503,['ok'=>false,'error'=>'Live buses are busy; retry shortly']];}
     try {
         $hit=openroad_bods_cache_read($path,$now);
-        if($hit!==null)return [($hit['ok']??false)?200:503,array_merge($hit,['line'=>$line,'cache'=>'hit'])];
+        if($hit!==null)return openroad_bods_filter_line($hit,$line,'hit');
         // Up to 32 cached v2 geographical tiles, capped at ~11 MB worst case.
         if(!is_file($path)) {
             $entries=glob($areaDir.'/*.json')?:[];
@@ -122,7 +147,9 @@ function openroad_bods_live(string $line,float $lat,float $lon,?callable $fetch=
             return [503,$bad];
         }
         $result=['ok'=>true,'source'=>'BODS','xml'=>$body,'checkedAt'=>gmdate('c',$now)];
+        $filtered=openroad_bods_filter_line($result,$line,'miss');
+        if($filtered[0]!==200)return $filtered;
         openroad_bods_cache_write($path,$result,$now+60);
-        return [200,array_merge($result,['line'=>$line,'cache'=>'miss'])];
+        return $filtered;
     }finally{flock($lock,LOCK_UN);fclose($lock);}
 }
