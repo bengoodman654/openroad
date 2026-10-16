@@ -1,0 +1,88 @@
+name: OpenRoad read-only live-bus cache diagnosis
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-bods-cache-readonly.yml'
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    steps:
+      - name: Configure trusted SSH
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_openroad_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Read only existing cache counters and XML age summary
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+          PRIVATE_DIR: ${{ vars.CPANEL_OPENROAD_PRIVATE_DIR }}
+        run: |
+          set -euo pipefail
+          : "${SSH_HOST:?}" "${SSH_USER:?}" "${PRIVATE_DIR:?}"
+          ssh -i ~/.ssh/id_openroad_deploy -p "$SSH_PORT" -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            "$SSH_USER@$SSH_HOST" bash -s -- "$PRIVATE_DIR" <<'REMOTE'
+          set -euo pipefail
+          private="$1"
+          php -r '
+            $root=$argv[1]."/cache/bods-v1";
+            $budgetFile=$root."/budget.json";
+            $budget=is_file($budgetFile)?json_decode((string)file_get_contents($budgetFile),true):null;
+            $now=time(); $current=intdiv($now,3600);
+            $count=is_array($budget)&&($budget["hour"]??-1)===$current?(int)($budget["count"]??0):0;
+            echo "Current hourly BODS upstream calls: ".$count." / 8\n";
+            $dir=$root."/area-v2";
+            $files=is_dir($dir)?glob($dir."/*.json"):[];
+            echo "Cached geographical tiles on disk: ".count($files)."\n";
+            $ageBuckets=["fresh"=>0,"3to10min"=>0,"older"=>0,"missingTime"=>0];
+            $totalVehicles=0; $recentTiles=0;$usableTiles=0;$unique=[];
+            foreach(array_slice($files,0,32) as $file){
+              if(!is_file($file)||filesize($file)>350000)continue;
+              $entry=json_decode((string)file_get_contents($file),true);
+              if(!is_array($entry)||!is_array($entry["reply"]??null))continue;
+              $resp=$entry["reply"];
+              if(!($resp["ok"]??false))continue;
+              $usableTiles++;$recentTiles+=((int)($entry["expires"]??0) > $now)?1:0;
+              $xml=$resp["xml"]??"";
+              if(!is_string($xml)||!class_exists("DOMDocument"))continue;
+              $doc=new DOMDocument();
+              $prev=libxml_use_internal_errors(true);
+              $ok=$doc->loadXML($xml,LIBXML_NONET);
+              libxml_clear_errors();libxml_use_internal_errors($prev);
+              if(!$ok)continue;
+              $xp=new DOMXPath($doc);
+              foreach($xp->query("//*[local-name()=\"VehicleActivity\"]") as $activity){
+                $totalVehicles++;
+                $nodes=$xp->query("./*[local-name()=\"RecordedAtTime\"]",$activity);
+                $t=($nodes&&$nodes->length)?strtotime(trim($nodes->item(0)->textContent)):false;
+                if($t===false)$ageBuckets["missingTime"]++;
+                else {
+                  $age=max(0,$now-$t);
+                  if($age<=180)$ageBuckets["fresh"]++;
+                  elseif($age<=600)$ageBuckets["3to10min"]++;
+                  else $ageBuckets["older"]++;
+                }
+                foreach($xp->query(".//*[local-name()=\"MonitoredVehicleJourney\"]/*[local-name()=\"LineRef\" or local-name()=\"PublishedLineName\"]",$activity) as $item){
+                  $value=trim($item->textContent);
+                  if($value!=="")$unique[strtolower($value)]=true;
+                }
+              }
+            }
+            echo "Tiles with unexpired response: ".$recentTiles."; stored successful tiles: ".$usableTiles."\n";
+            echo "Cached vehicle activity entries: ".$totalVehicles."; unique line identifiers: ".count($unique)."\n";
+            foreach($ageBuckets as $k=>$v)echo "Vehicle recordedAt age category ".$k.": ".$v."\n";
+          ' "$private"
+          REMOTE
