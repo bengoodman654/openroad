@@ -3,12 +3,12 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/publish-openroad-v0630.yml'
+      - '.github/workflows/publish-openroad-v0631.yml'
 permissions:
   contents: write
   actions: write
 concurrency:
-  group: openroad-android-v0630-publication
+  group: openroad-android-v0631-publication
   cancel-in-progress: false
 jobs:
   build-publish:
