@@ -1,0 +1,33 @@
+name: OpenRoad BODS v0.2.6 offline regression checks
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-bods-v026.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  php-fixtures:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: diagnostics/live-buses-20261016
+          path: diagnostic-baseline
+      - name: Check updated gateway against real v0.2.5 server bootstrap and fixture suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          src="diagnostic-baseline/snapshots/server/OpenRoad-Transport-Server-v0.2.5-source"
+          cp maintenance/bods-v0.2.6/bods_gateway.php "$src/private/lib/bods_gateway.php"
+          cp maintenance/bods-v0.2.6/bods_gateway_test.php "$src/tests/bods_gateway_test.php"
+          php -l "$src/private/lib/bods_gateway.php"
+          php -l "$src/tests/bods_gateway_test.php"
+          php "$src/tests/bods_gateway_test.php"
+          if grep -Fq "'&lineRef='" "$src/private/lib/bods_gateway.php"; then
+            echo "Blocked: rejected BODS lineRef request parameter still present" >&2
+            exit 1
+          fi
+          grep -Fq "\$budgetFile=\$dir.'/budget.json'" "$src/private/lib/bods_gateway.php"
