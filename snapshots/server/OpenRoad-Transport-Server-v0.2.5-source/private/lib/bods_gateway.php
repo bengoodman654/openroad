@@ -52,6 +52,42 @@ function openroad_bods_cache_write(string $path,array $reply,int $expires): void
     if(@file_put_contents($tmp,$json,LOCK_EX)===false||!@rename($tmp,$path))@unlink($tmp);
 }
 
+/**
+ * Filter an already cached area-wide SIRI-VM response by route. This is local
+ * processing only: distinct route lookups in the same tile never hit BODS again.
+ * XML is parsed without network access or external entity resolution.
+ */
+function openroad_bods_filter_cached(array $reply,string $line,string $cache): array {
+    if (empty($reply['ok'])) return [503,$reply+['cache'=>$cache]];
+    $xml=(string)($reply['xml']??'');
+    if ($xml==='' || strlen($xml)>262144 || !class_exists('DOMDocument'))
+        return [503,['ok'=>false,'error'=>'Live bus XML parser unavailable','cache'=>$cache]];
+    $doc=new DOMDocument();
+    $previous=libxml_use_internal_errors(true);
+    try {
+        if (!$doc->loadXML($xml,LIBXML_NONET|LIBXML_NOBLANKS))
+            return [503,['ok'=>false,'error'=>'BODS sent invalid vehicle XML','cache'=>$cache]];
+    } finally {libxml_clear_errors();libxml_use_internal_errors($previous);}
+    $xpath=new DOMXPath($doc);
+    $nodes=$xpath->query('//*[local-name()="VehicleActivity"]');
+    if ($nodes===false) return [503,['ok'=>false,'error'=>'Invalid BODS vehicle XML','cache'=>$cache]];
+    $removed=0;$matched=0;
+    foreach (iterator_to_array($nodes) as $node) {
+        $route=$xpath->query('.//*[local-name()="MonitoredVehicleJourney"]/*[local-name()="LineRef" or local-name()="PublishedLineName"]',$node);
+        $found=false;
+        if ($route!==false)foreach($route as $value) {
+            if (strcasecmp(trim($value->textContent),$line)===0){$found=true;break;}
+        }
+        if($found)$matched++;
+        else { $node->parentNode?->removeChild($node);$removed++; }
+    }
+    $filtered=$doc->saveXML();
+    if (!is_string($filtered)||strlen($filtered)>262144)
+        return [503,['ok'=>false,'error'=>'Could not filter live vehicle data','cache'=>$cache]];
+    return [200,['ok'=>true,'line'=>$line,'source'=>'BODS','xml'=>$filtered,
+        'vehicleCount'=>$matched,'checkedAt'=>$reply['checkedAt']??null,'cache'=>$cache]];
+}
+
 /** Returns [HTTP status, JSON object]. $fetch and $keyOverride exist ONLY for offline tests. */
 function openroad_bods_live(string $line,float $lat,float $lon,?callable $fetch=null,?string $cacheDir=null,?int $now=null,?string $keyOverride=null): array {
     $line=trim($line);
@@ -66,16 +102,16 @@ function openroad_bods_live(string $line,float $lat,float $lon,?callable $fetch=
         return [503,['ok'=>false,'error'=>'Live bus service is unavailable']];
     // Round query coordinates to ~1 km tiles to reuse same live feed nearby.
     $lat=round($lat,2);$lon=round($lon,2);
-    $cacheKey=hash('sha256',strtoupper($line).'|'.number_format($lat,2,'.','').'|'.number_format($lon,2,'.',''));
+    $cacheKey=hash('sha256','area-v2|'.number_format($lat,2,'.','').'|'.number_format($lon,2,'.',''));
     $path=$dir.'/'.$cacheKey.'.json';
     $hit=openroad_bods_cache_read($path,$now);
-    if ($hit!==null)return [($hit['ok']??false)?200:503,$hit+['cache'=>'hit']];
+    if ($hit!==null)return openroad_bods_filter_cached($hit,$line,'hit');
     $lock=@fopen($dir.'/bods.lock','c');
     if($lock===false)return [503,['ok'=>false,'error'=>'Live bus service is unavailable']];
     if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);return [503,['ok'=>false,'error'=>'Live buses are busy; retry shortly']];}
     try {
         $hit=openroad_bods_cache_read($path,$now);
-        if($hit!==null)return [($hit['ok']??false)?200:503,$hit+['cache'=>'hit']];
+        if($hit!==null)return openroad_bods_filter_cached($hit,$line,'hit');
         // Up to 32 cached geographical tiles, capped at ~11 MB worst case.
         if(!is_file($path)) {
             $entries=glob($dir.'/*.json')?:[];
@@ -100,7 +136,7 @@ function openroad_bods_live(string $line,float $lat,float $lon,?callable $fetch=
         $pad=0.04;
         $bbox=sprintf('%.5f,%.5f,%.5f,%.5f',$lon-$pad,$lat-$pad,$lon+$pad,$lat+$pad);
         $url='https://data.bus-data.dft.gov.uk/api/v1/datafeed/?boundingBox='.rawurlencode($bbox)
-             .'&lineRef='.rawurlencode($line).'&api_key='.rawurlencode($key);
+             .'&api_key='.rawurlencode($key);
         try{[$status,$body]=($fetch??'openroad_bods_fetch')($url);}catch(Throwable $ignored){$status=0;$body='';}
         if($status!==200||!is_string($body)||strlen($body)>262144||strlen($body)<40||!
             (str_contains($body,'VehicleMonitoringDelivery')||str_contains($body,'Siri'))){
@@ -116,8 +152,8 @@ function openroad_bods_live(string $line,float $lat,float $lon,?callable $fetch=
             openroad_bods_cache_write($path,$bad,$now+45);
             return [503,$bad];
         }
-        $result=['ok'=>true,'line'=>$line,'source'=>'BODS','xml'=>$body,'checkedAt'=>gmdate('c',$now)];
+        $result=['ok'=>true,'source'=>'BODS','xml'=>$body,'checkedAt'=>gmdate('c',$now)];
         openroad_bods_cache_write($path,$result,$now+60);
-        return [200,$result+['cache'=>'miss']];
+        return openroad_bods_filter_cached($result,$line,'miss');
     }finally{flock($lock,LOCK_UN);fclose($lock);}
 }
