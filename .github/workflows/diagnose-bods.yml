@@ -52,7 +52,7 @@ jobs:
             $fetch=static function(string $url):array{
               $url=str_replace("/api/v1/datafeed?","/api/v1/datafeed/?",$url);
               $ctx=stream_context_create([
-                "http"=>["method"=>"GET","header"=>"Accept: application/xml\\r\\nUser-Agent: OpenRoad/0.2.6-diagnostic\\r\\n","timeout"=>2.5,"ignore_errors"=>true,"follow_location"=>0],
+                "http"=>["method"=>"GET","header"=>"Accept: */*\\r\\nUser-Agent: OpenRoad/0.2.6-diagnostic\\r\\n","timeout"=>2.5,"ignore_errors"=>true,"follow_location"=>0],
                 "ssl"=>["verify_peer"=>true,"verify_peer_name"=>true]
               ]);
               $fp=@fopen($url,"rb",false,$ctx);
@@ -69,7 +69,7 @@ jobs:
               echo "Response bytes: ".strlen($payload)."\\n";
               return [$upstreamStatus,$payload];
             };
-            [$status,$data] = openroad_bods_live("75", 51.49, -2.59, $fetch);
+            [$status,$data] = openroad_bods_live("75", 51.50, -2.59, $fetch);
             echo "Budgeted BODS probe HTTP: ".$status."\n";
             echo "Outcome: ".(($data["ok"]??false) ? "valid SIRI-VM" : ($data["error"]??"unclassified"))."\n";
             echo "Cache: ".($data["cache"]??"not supplied")."\n";
