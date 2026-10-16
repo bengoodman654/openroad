@@ -1,6 +1,6 @@
 <?php
 /**
- * OpenRoad v0.2.6: area-only BODS SIRI-VM gateway, line filtering on Android.
+ * OpenRoad v0.2.6: area-only BODS SIRI-VM gateway, area feed filtering by LineRef or PublishedLineName.
  * IMPORTANT: no cron, no polling, no prefetch. Private server-side credential only.
  * Bounds + budget defend other websites/email on shared JustHostMe hosting.
  */
@@ -64,7 +64,7 @@ function openroad_bods_filter_line(array $raw,string $line,string $cache): array
         $nodes=$xp->query('//*[local-name()="VehicleActivity"]');
         if ($nodes===false) return [503,['ok'=>false,'error'=>'Invalid BODS XML','cache'=>$cache]];
         foreach(iterator_to_array($nodes) as $activity){
-            $refs=$xp->query('.//*[local-name()="MonitoredVehicleJourney"]/*[local-name()="LineRef"]',$activity);
+            $refs=$xp->query('.//*[local-name()="MonitoredVehicleJourney"]/*[local-name()="LineRef" or local-name()="PublishedLineName"]',$activity);
             $matched=false;
             if($refs!==false)foreach($refs as $ref){
                 if(strcasecmp(trim($ref->textContent),trim($line))===0){$matched=true;break;}
