@@ -1,13 +1,16 @@
 name: OpenRoad BODS one-shot diagnostic (read-only except bounded gateway request)
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/diagnose-bods.yml'
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type PROBE to allow one budgeted live-bus lookup'
+        required: true
+        type: string
 permissions:
   contents: read
 jobs:
   diagnose:
+    if: inputs.confirm == 'PROBE'
     runs-on: ubuntu-24.04
     environment: openroad-production
     steps:
@@ -52,7 +55,12 @@ jobs:
             echo "BODS key format: ".(preg_match("/^[a-fA-F0-9]{40}$/D",$key)?"40-character hexadecimal":"other length/format")."\\n";
             // A different cache tile makes this a single new, rate-limited request.
             $fetch=static function(string $url):array{
-              $url=str_replace("/api/v1/datafeed?","/avl/datafeed/?",$url);
+              $alternate=str_replace("/api/v1/datafeed/?","/avl/datafeed/?",$url);
+              if($alternate===$url){
+                echo "Endpoint substitution failed; no upstream request made.\\n";
+                return [0,""];
+              }
+              $url=$alternate;
               $ctx=stream_context_create([
                 "http"=>["method"=>"GET","header"=>"Accept: */*\r\nUser-Agent: OpenRoad/0.2.6-diagnostic\r\n","timeout"=>2.5,"ignore_errors"=>true,"follow_location"=>0],
                 "ssl"=>["verify_peer"=>true,"verify_peer_name"=>true]
