@@ -1,4 +1,4 @@
-name: OpenRoad BODS v0.2.6 offline regression checks
+name: OpenRoad BODS v0.2.6 offline regression checks (public line names)
 on:
   push:
     branches: [main]
