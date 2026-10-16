@@ -106,8 +106,13 @@ p=root/"app/build.gradle"
 txt=p.read_text(encoding="utf-8")
 if txt.count("0.6.30")!=2: raise SystemExit("Unexpected Android build.gradle version count")
 p.write_text(txt.replace("0.6.30","0.6.31"),encoding="utf-8")
-edit("app/src/main/assets/index.html","0.6.30","0.6.31")
-edit("app/src/main/java/uk/co/bengoodman/clearroute/ApiClient.java","0.6.30","0.6.31")
-edit("validate.sh","0.6.30","0.6.31")
+def update_version(path):
+    p=root/path
+    text=p.read_text(encoding="utf-8")
+    if "0.6.30" not in text: raise SystemExit(f"Unexpected version in {path}")
+    p.write_text(text.replace("0.6.30","0.6.31"),encoding="utf-8")
+update_version("app/src/main/assets/index.html")
+update_version("app/src/main/java/uk/co/bengoodman/clearroute/ApiClient.java")
+update_version("validate.sh")
 edit("validate.sh","versionCode 90","versionCode 91")
 print("OpenRoad 0.6.31 patch: rate-aware button, labelled last-known vehicles, diagnostics")
