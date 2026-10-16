@@ -16,7 +16,7 @@ jobs:
         with:
           ref: diagnostics/live-buses-20261016
           path: diagnostic-baseline
-      - name: Check updated gateway against real v0.2.5 server bootstrap and fixture suite
+      - name: Check filtered area gateway against existing server bootstrap and fixture suite
         shell: bash
         run: |
           set -euo pipefail
