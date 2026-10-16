@@ -519,13 +519,14 @@
 
   function requestBusLive(){
     const data=busServiceData;if(!data?.line||!native()?.loadBusLiveVehicles)return;
-    const ref=busServiceTargetStop||current||((data.stops||[])[0]?{lat:Number(data.stops[0].lat),lon:Number(data.stops[0].lon)}:null);if(!ref||!Number.isFinite(ref.lat)||!Number.isFinite(ref.lon))return toast('A location is needed to load nearby live buses.');
+    const routeStop=(data.stops||[]).find(stop=>Number.isFinite(Number(stop.lat))&&Number.isFinite(Number(stop.lon)));
+    const ref=busServiceTargetStop||(routeStop?{lat:Number(routeStop.lat),lon:Number(routeStop.lon)}:null)||current;if(!ref||!Number.isFinite(ref.lat)||!Number.isFinite(ref.lon))return toast('A location is needed to load nearby live buses.');
     const id=++busLiveRequestId,btn=el('loadBusLiveBtn');if(btn){btn.disabled=true;btn.classList.add('loading');btn.textContent='Loading live…';}
     native().loadBusLiveVehicles(String(data.line),ref.lat,ref.lon,id);
   }
 
   function drawBusRoute(data){
-    clearBusRouteMarkers();busServiceData=data||{};busServiceTab='timetable';
+    ++busLiveRequestId;busServiceTargetStop=null;clearBusRouteMarkers();busServiceData=data||{};busServiceTab='timetable';
     if(!map || !mapLoaded || !data) return;
     const bounds=new maplibregl.LngLatBounds(); let hasBounds=false;
     const geometries=Array.isArray(data.geometries)?data.geometries:[];
@@ -1937,7 +1938,7 @@ ${leg.arrival}`:''}`;row.append(icon,main,time);box.appendChild(row);
     onBusStopError(requestId,message){if(requestId!==busStopRequestId)return;el('busStopSource').textContent=message||'Could not load this stop.';el('busStopServices').innerHTML='<div class="bus-about">Bus-stop information is unavailable.</div>';},
     onBusRoute(data,requestId){if(requestId!==busRouteRequestId)return;drawBusRoute(data);},
     onBusRouteError(requestId,message){if(requestId!==busRouteRequestId)return;toast(message||'Could not load that bus route.');},
-    onBusLive(data,requestId){if(requestId!==busLiveRequestId)return;if(busServiceData){busServiceData.vehicles=Array.isArray(data?.vehicles)?data.vehicles:[];busServiceData.liveSource=data?.source||'BODS';renderBusLiveMarkers();renderBusServiceContent();}},
+    onBusLive(data,requestId){if(requestId!==busLiveRequestId||!busServiceData||String(data?.line||'').toLowerCase()!==String(busServiceData.line||'').toLowerCase())return;if(busServiceData){busServiceData.vehicles=Array.isArray(data?.vehicles)?data.vehicles:[];busServiceData.liveSource=data?.source||'BODS';renderBusLiveMarkers();renderBusServiceContent();}},
     onBusLiveError(requestId,message){if(requestId!==busLiveRequestId)return;const btn=el('loadBusLiveBtn');if(btn){btn.disabled=false;btn.classList.remove('loading');btn.textContent=busServiceTargetStop?'Next 3 live buses':'Live buses';}toast(message||'Live bus positions are unavailable.');},
     onTransitCredentialSaved(provider,ok){
       if(ok){refreshProviderSettings();toast(`${provider==='bods'?'BODS':provider==='tfl'?'TfL':'National Rail'} credentials saved securely.`);}
