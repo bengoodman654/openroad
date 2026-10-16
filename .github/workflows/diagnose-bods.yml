@@ -52,7 +52,7 @@ jobs:
             echo "BODS key format: ".(preg_match("/^[a-fA-F0-9]{40}$/D",$key)?"40-character hexadecimal":"other length/format")."\\n";
             // A different cache tile makes this a single new, rate-limited request.
             $fetch=static function(string $url):array{
-              $url=str_replace("/api/v1/datafeed?","/api/v1/datafeed/?",$url);
+              $url=str_replace("/api/v1/datafeed?","/avl/datafeed/?",$url);
               $ctx=stream_context_create([
                 "http"=>["method"=>"GET","header"=>"Accept: */*\\r\\nUser-Agent: OpenRoad/0.2.6-diagnostic\\r\\n","timeout"=>2.5,"ignore_errors"=>true,"follow_location"=>0],
                 "ssl"=>["verify_peer"=>true,"verify_peer_name"=>true]
@@ -75,7 +75,7 @@ jobs:
               if(strlen($payload)<=24)echo "Response diagnostic hex: ".bin2hex($payload)."\\n";
               return [$upstreamStatus,$payload];
             };
-            [$status,$data] = openroad_bods_live("75", 51.52, -2.59, $fetch);
+            [$status,$data] = openroad_bods_live("75", 51.53, -2.59, $fetch);
             echo "Budgeted BODS probe HTTP: ".$status."\n";
             echo "Outcome: ".(($data["ok"]??false) ? "valid SIRI-VM" : ($data["error"]??"unclassified"))."\n";
             echo "Cache: ".($data["cache"]??"not supplied")."\n";
