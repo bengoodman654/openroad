@@ -70,12 +70,15 @@ jobs:
             echo "BODS key format: ".(preg_match("/^[a-fA-F0-9]{40}$/D",$key)?"40-character hexadecimal":"other length/format")."\\n";
             // A different cache tile makes this a single new, rate-limited request.
             $fetch=static function(string $url):array{
-              $alternate=str_replace("/api/v1/datafeed/?","/api/v1/datafeed?",$url);
-              if($alternate===$url){
-                echo "Canonical endpoint substitution failed; no upstream request made.\\n";
+              $parsed=parse_url($url);
+              $path=is_array($parsed) ? ($parsed["path"]??"") : "";
+              $safe=($parsed["scheme"]??"")==="https" && ($parsed["host"]??"")==="data.bus-data.dft.gov.uk";
+              echo "Generated gateway feed path: ".($path==="/api/v1/datafeed"?"canonical":($path==="/api/v1/datafeed/"?"trailing slash":"unexpected"))."\\n";
+              if(!$safe || !in_array($path,["/api/v1/datafeed","/api/v1/datafeed/"],true)){
+                echo "Unexpected endpoint. Upstream request blocked.\\n";
                 return [0,""];
               }
-              $url=$alternate;
+              $url=$path==="/api/v1/datafeed/" ? str_replace("/api/v1/datafeed/?","/api/v1/datafeed?",$url) : $url;
               $ctx=stream_context_create([
                 "http"=>["method"=>"GET","header"=>"Accept: */*\r\nUser-Agent: OpenRoad/0.2.6-canonical-probe\r\n","timeout"=>2.5,"ignore_errors"=>true,"follow_location"=>0],
                 "ssl"=>["verify_peer"=>true,"verify_peer_name"=>true]
