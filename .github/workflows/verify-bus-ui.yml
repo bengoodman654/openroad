@@ -1,0 +1,29 @@
+name: OpenRoad bus route live UI regression
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-bus-ui.yml'
+permissions:
+  contents: read
+jobs:
+  ui-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: diagnostics/live-buses-20261016
+      - name: Validate JS and route-specific live lookup guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          file=snapshots/android/OpenRoad-v0.6.29-source/app/src/main/assets/app.js
+          node --check "$file"
+          node - "$file" <<'NODE'
+          const fs=require('fs'),assert=require('assert');
+          const s=fs.readFileSync(process.argv[2],'utf8');
+          assert(s.includes('const ref=busServiceTargetStop||(routeStop?'), 'route anchor must precede device location');
+          assert(s.includes('++busLiveRequestId;busServiceTargetStop=null;clearBusRouteMarkers();'), 'new route must invalidate prior response and stop');
+          assert(s.includes("String(data?.line||'').toLowerCase()!==String(busServiceData.line||'').toLowerCase()"), 'stale route identity must be rejected');
+          console.log('PASS: syntax, remote route anchor, state reset, stale callback guard');
+          NODE
