@@ -1,0 +1,21 @@
+name: PT v2 official First Bus dataset 2157 identity verification
+on:
+  push:
+    branches: [design/public-transport-v2-2-contract]
+    paths:
+      - '.github/workflows/pt-v2-firstbus-2157.yml'
+permissions:
+  contents: read
+jobs:
+  inspect-offhost:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify actual NOC and route identity in smaller BODS candidate 2157 off-host
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/pt_v2/inspect_bristol_txc.py --dataset 2157
+      - name: Production integration scope
+        run: echo 'Route-number/NOC metadata inspection only; stop, date and end-to-end acceptance still 0/105.'
