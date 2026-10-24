@@ -1,0 +1,51 @@
+name: PT v2 Coventry BODS metadata (one read-only keyed request)
+on:
+  push:
+    branches: [design/public-transport-v2-2-contract]
+    paths:
+      - '.github/workflows/pt-v2-operator-metadata-probe.yml'
+permissions:
+  contents: read
+concurrency:
+  group: openroad-pt-v2-metadata-probe
+  cancel-in-progress: false
+jobs:
+  metadata-only:
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate metadata script syntax on GitHub runner
+        run: php -l tests/pt_v2/probe_bods_metadata.php
+      - name: Configure existing pinned SSH credentials
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          : "${SSH_KEY:?}" "${KNOWN_HOSTS:?}"
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_openroad_pt_metadata
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Read only Coventry operator timetable metadata from BODS
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+          PRIVATE_DIR: ${{ vars.CPANEL_OPENROAD_PRIVATE_DIR }}
+        run: |
+          set -euo pipefail
+          : "${SSH_HOST:?}" "${SSH_USER:?}" "${PRIVATE_DIR:?}"
+          [[ "$PRIVATE_DIR" =~ ^/[A-Za-z0-9_./-]+$ ]] || exit 2
+          [[ "$SSH_PORT" =~ ^[0-9]{1,5}$ ]] || exit 2
+          # Script streams over SSH and is not installed on shared hosting.
+          # The BODS key is used there only; never returned to the runner.
+          ssh -i ~/.ssh/id_openroad_pt_metadata -p "$SSH_PORT" \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=7 "$SSH_USER@$SSH_HOST" \
+            "php /dev/stdin '$PRIVATE_DIR' TCVW" \
+            < tests/pt_v2/probe_bods_metadata.php
