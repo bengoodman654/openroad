@@ -1,0 +1,16 @@
+name: PT v2 Coventry BODS dataset 20442 HEAD-only off-host
+on:
+  push:
+    branches: [design/public-transport-v2-2-contract]
+    paths:
+      - '.github/workflows/pt-v2-dataset-20442-head.yml'
+permissions:
+  contents: read
+jobs:
+  safe-head:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect headers only — no download or production contact
+        run: python3 tests/pt_v2/check_dataset_headers.py
