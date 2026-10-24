@@ -58,8 +58,9 @@ class GTFSFixture:
                 raise GTFSFixtureError("Unresolved stop-time reference")
             try:seq=int(s["stop_sequence"])
             except ValueError:raise GTFSFixtureError("Bad stop sequence")
-            arr=seconds(s["arrival_time"]);dep=seconds(s["departure_time"])
-            if dep < arr:raise GTFSFixtureError("Departure precedes arrival")
+            a,d=s["arrival_time"],s["departure_time"]
+            if bool(a)!=bool(d):raise GTFSFixtureError("Only one of arrival/departure times provided")
+            if a and seconds(d)<seconds(a):raise GTFSFixtureError("Departure precedes arrival")
             self.stop_times.setdefault(s["trip_id"],[]).append((seq,s))
         for trip in self.trips.values():
             if trip["route_id"] not in self.routes:
@@ -72,9 +73,10 @@ class GTFSFixture:
                 raise GTFSFixtureError("Duplicate stop sequence")
             last=-1
             for _,st in ordered:
-                if seconds(st["arrival_time"])<last:
-                    raise GTFSFixtureError("Trip timetable not monotonic")
-                last=seconds(st["departure_time"])
+                if st["arrival_time"]:
+                    if seconds(st["arrival_time"])<last:
+                        raise GTFSFixtureError("Trip timetable not monotonic")
+                    last=seconds(st["departure_time"])
             self.stop_times[trip["trip_id"]]=[x for _,x in ordered]
 
     @classmethod
