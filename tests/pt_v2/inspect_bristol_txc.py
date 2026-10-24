@@ -3,6 +3,7 @@
 Candidate source data only: do not infer Bristol from a matching route number.
 """
 import argparse
+import re
 from collections import Counter
 from hashlib import sha256
 from io import BytesIO
@@ -15,6 +16,7 @@ from txc_stream import scan,MAX_MEMBER
 
 MAX_ZIP_BY_ID={"2154":6*1024*1024,"2157":16*1024*1024}
 MAX_STREAM_TOTAL=350*1024*1024
+MAX_SELECTED_STREAM=80*1024*1024
 
 def get(dataset):
     data=[];size=0;digest=sha256()
@@ -34,12 +36,25 @@ def inspect(zfile,size,digest,dataset):
     with ZipFile(zfile) as z:
         items=[x for x in z.infolist() if not x.is_dir()]
         total=sum(i.file_size for i in items)
-        if len(items)>250 or total>MAX_STREAM_TOTAL:
-            print(json.dumps({"status":"BLOCKED_BY_MANIFEST_RESOURCE_GATE","archive_members":len(items),
-                              "uncompressed_bytes":total,"compressed_bytes":size,"sha256":digest}))
-            return 2
+        if len(items)>250:
+            raise ValueError("Too many archive members")
+        partial=total>MAX_STREAM_TOTAL
+        selected=items
+        if partial:
+            selected=[x for x in items if re.search(
+                r'(^|[^A-Za-z0-9])75([^A-Za-z0-9]|$)',
+                PurePosixPath(x.filename).name,re.I)]
+            selected=sorted(selected,key=lambda x:x.file_size)
+            total_selected=0
+            capped=[]
+            for info in selected:
+                if info.file_size>MAX_MEMBER or total_selected+info.file_size>MAX_SELECTED_STREAM:
+                    continue
+                capped.append(info)
+                total_selected+=info.file_size
+            selected=capped
         nocs=Counter();found=[];routes=0;trips=0
-        for info in items:
+        for info in selected:
             filename=PurePosixPath(info.filename)
             if info.filename.startswith("/") or ".." in filename.parts or not info.filename.lower().endswith(".xml"):
                 raise ValueError("Unexpected/unsafe member path")
@@ -58,7 +73,8 @@ def inspect(zfile,size,digest,dataset):
         print(json.dumps({
             "source":"Official BODS First Bus catalogue candidate",
             "dataset_id":dataset, "sha256":digest, "download_bytes":size,
-            "xml_members":len(items),"expanded_bytes":total,
+            "xml_members_total":len(items),"xml_members_inspected":len(selected),"expanded_bytes_declared":total,
+            "partial_filename_scoped_inspection":partial,
             "operator_codes":dict(nocs),"matching_line_75_files":found,
             "routes_observed":routes,"vehicle_journeys_observed":trips,
             "date_specific_departures_verified":False,
