@@ -118,13 +118,15 @@ def candidate(root):
                 wait=duration(lw) if lw else 0
                 if i==0:
                     stops.append({"stop_ref":source,**stop_index.get(source,{}),
-                                  "arrival_offset_seconds":0,"departure_offset_seconds":0})
+                                  "arrival_offset_seconds":0,"departure_offset_seconds":0,
+                                  "activity":value(direct(override,"From"),"Activity") or value(a,"Activity")})
                 stops[-1]["departure_offset_seconds"]=current+wait-raw_start
                 depart=current+wait
                 arrive=depart+sec
                 stops.append({"stop_ref":dest,**stop_index.get(dest,{}),
                               "arrival_offset_seconds":arrive-raw_start,
-                              "departure_offset_seconds":arrive-raw_start})
+                              "departure_offset_seconds":arrive-raw_start,
+                              "activity":value(direct(override,"To"),"Activity") or value(b,"Activity")})
                 current=arrive
                 prev=dest
             if len(stops)<8 or len(stops)>150 or any(not x.get("name") for x in stops):
