@@ -70,6 +70,27 @@ class MultiTripDirectContracts(unittest.TestCase):
         self.assertEqual(direct_options(a,"43000065301","43000005010",q)["outcome"],
                          "UNSUPPORTED_CALENDAR_TIME_TRANSITION")
 
+    def test_identical_source_variants_are_one_displayed_journey_with_both_ids(self):
+        a=synthetic()
+        second=copy.deepcopy(a["trips"][0])
+        second["journey_code"]="SYNTHETIC_EQUIVALENT_ID"
+        a["trips"].append(second)
+        q=datetime(2026,10,23,5,40,tzinfo=ZONE)
+        result=direct_options(a,"43000065301","43000005010",q)
+        self.assertEqual(result["outcome"],"OK")
+        self.assertEqual(len(result["results"]),1)
+        self.assertEqual(len(result["results"][0]["source_trip_aliases"]),2)
+
+    def test_same_departure_with_different_stop_pattern_remains_distinct(self):
+        a=synthetic()
+        second=copy.deepcopy(a["trips"][0])
+        second["journey_code"]="SYNTHETIC_DIFFERENT_BRANCH"
+        second["stops"][3]["stop_ref"]="SYNTHETIC_ALTERNATE_STOP"
+        a["trips"].append(second)
+        q=datetime(2026,10,23,5,40,tzinfo=ZONE)
+        result=direct_options(a,"43000065301","43000005010",q)
+        self.assertEqual(len(result["results"]),2)
+
     def test_naive_date_and_invalid_request_limits(self):
         a=synthetic()
         with self.assertRaises(UnsupportedTXC):direct_options(a,"A","B",datetime(2026,10,23,5,0))
