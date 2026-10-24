@@ -1,4 +1,4 @@
-"""Extract one bounded, *real-source* Coventry 11 Saturday timetable fixture.
+"""Extract one bounded, *real-source* Coventry 11 Friday timetable fixture.
 
 Uses an operator-published TXC member pinned by parent ZIP SHA. Converts explicit
 journey-pattern and vehicle-journey references to a small provenance-labelled JSON
@@ -13,9 +13,9 @@ from zipfile import ZipFile
 from inspect_coventry_txc_structure import get, PIN, TARGET, MAX, tag, descendants
 from txc_stream import scan
 
-SERVICE_DAY=date(2026,10,24)
-DATE="2026-10-24"
-DAY="Saturday"
+SERVICE_DAY=date(2026,10,23)
+DATE="2026-10-23"
+DAY="Friday"
 MINS={"Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"}
 
 def direct(e,n):
@@ -41,7 +41,7 @@ def day_rule(prof):
     days=direct(regular,"DaysOfWeek")
     if days is None:return None
     tokens={tag(e) for e in days}
-    active=("Saturday" in tokens or "MondayToSaturday" in tokens or "MondayToSunday" in tokens or "Weekend" in tokens)
+    active=("Friday" in tokens or "MondayToFriday" in tokens or "MondayToSaturday" in tokens or "MondayToSunday" in tokens)
     # SpecialDaysOperation and BankHoliday DaysOfOperation require a fuller calendar.
     if direct(prof,"SpecialDaysOperation") is not None:return None
     bank=direct(prof,"BankHolidayOperation")
@@ -79,7 +79,7 @@ def candidate(root):
         if prof is None:prof=direct(service,"OperatingProfile")
         allowed=day_rule(prof)
         if allowed is not True:
-            reasons["non_saturday_or_unsupported_calendar"]=reasons.get("non_saturday_or_unsupported_calendar",0)+1
+            reasons["non_friday_or_unsupported_calendar"]=reasons.get("non_friday_or_unsupported_calendar",0)+1
             continue
         if direct(v,"StartDeadRun") is not None or direct(v,"EndDeadRun") is not None:
             reasons["dead_run_or_short_working"]=reasons.get("dead_run_or_short_working",0)+1
@@ -149,7 +149,7 @@ def main():
     root,info,size,digest=load()
     _,choices,reasons=candidate(root)
     print("SOURCE_SELECTION_DIAGNOSTIC "+json.dumps({"candidate_count":len(choices),"reasons":reasons},sort_keys=True))
-    if not choices:raise ValueError("No clean Saturday Coventry 11 reference trip found; do not invent fixture")
+    if not choices:raise ValueError("No clean Friday Coventry 11 reference trip found; do not invent fixture")
     # Select a modest, source-complete pattern and stable ID; no clock-time guessing.
     choices.sort(key=lambda t:(t["stop_count"],t["published_departure_time"],t["journey_code"]))
     chosen=choices[0]
@@ -158,7 +158,7 @@ def main():
        "operator_noc":"TCVW","service_code":"PD0001111:813","line":"11",
        "source_dataset":"20442","source_zip_sha256":digest,"source_xml_member":TARGET,
        "service_date":DATE,"weekday":"Saturday","time_zone":"Europe/London",
-       "calendar_assumptions":["2026-10-24 normal Saturday; government list has no public bank holiday","TXC vehicle journey RegularDayType matches Saturday","special exception calendars beyond normal and BankHoliday exclusions require fuller engine"],
+       "calendar_assumptions":["2026-10-23 normal Friday; government list has no public bank holiday","TXC vehicle journey RegularDayType matches Friday","special exception calendars beyond normal and BankHoliday exclusions require fuller engine"],
        "candidate_count":len(choices),"skipped":reasons,
        "journey":chosen,
        "production_acceptance_cases_passed":0
