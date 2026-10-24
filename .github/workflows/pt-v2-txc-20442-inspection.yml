@@ -1,4 +1,4 @@
-name: PT v2 bounded official Coventry TransXChange archive inspection
+name: PT v2 bounded Coventry TXC selective XML inspection
 on:
   push:
     branches: [design/public-transport-v2-2-contract]
@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 4
     steps:
       - uses: actions/checkout@v4
-      - name: Inventory one official dataset under 16 MiB compressed and 180 MiB expanded caps
+      - name: Inventory and selectively inspect 36 MiB of XML while retaining full-import 180 MiB gate
         shell: bash
         run: |
           set -euo pipefail
