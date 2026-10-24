@@ -148,6 +148,7 @@ def candidate(root):
 def main():
     root,info,size,digest=load()
     _,choices,reasons=candidate(root)
+    print("SOURCE_SELECTION_DIAGNOSTIC "+json.dumps({"candidate_count":len(choices),"reasons":reasons},sort_keys=True))
     if not choices:raise ValueError("No clean Saturday Coventry 11 reference trip found; do not invent fixture")
     # Select a modest, source-complete pattern and stable ID; no clock-time guessing.
     choices.sort(key=lambda t:(t["stop_count"],t["published_departure_time"],t["journey_code"]))
