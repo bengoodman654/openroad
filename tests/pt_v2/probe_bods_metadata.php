@@ -18,7 +18,7 @@ $key=is_array($settings)?trim((string)($settings['bods_api_key']??'')):'';
 if(!preg_match('/^[A-Za-z0-9._-]{8,256}$/D',$key)){
     echo "Metadata check: no valid BODS key configured.\n";exit(3);
 }
-$url='https://data.bus-data.dft.gov.uk/api/v1/dataset?limit=25&noc='.$noc.
+$url='https://data.bus-data.dft.gov.uk/api/v1/dataset/?limit=25&noc='.$noc.
      '&status=published&api_key='.rawurlencode($key);
 $ctx=stream_context_create([
  'http'=>[
