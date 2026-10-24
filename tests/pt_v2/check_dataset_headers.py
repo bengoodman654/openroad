@@ -6,7 +6,7 @@ from urllib.error import HTTPError
 from urllib.parse import urljoin, urlsplit
 import json
 
-ALLOWED_DATASETS=("20442","2100","2154","2157")
+ALLOWED_DATASETS=("20442","2100","2154","2157","18326","18422")
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self,req,fp,code,msg,headers,newurl):
         return None
