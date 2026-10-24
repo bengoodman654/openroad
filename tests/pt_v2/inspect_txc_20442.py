@@ -18,6 +18,7 @@ MAX_ZIP=16*1024*1024
 MAX_EXPANDED=180*1024*1024
 MAX_XML=6*1024*1024
 MAX_PARSE_TOTAL=36*1024*1024
+MAX_PREFIX_PER_FILE=1024*1024
 WANTED={"9","11","12X"}
 
 def get():
@@ -43,6 +44,23 @@ def text_items(root,local_name):
             if v:found.append(v)
     return found
 
+def prefix_labels(raw):
+    """Bounded XML prefix metadata discovery. No complete XML file required."""
+    if b"<!DOCTYPE" in raw.upper() or b"<!ENTITY" in raw.upper():
+        return set(),set()
+    parser=ElementTree.XMLPullParser(events=["end"])
+    parser.feed(raw)
+    lines=set();operators=set()
+    for _,elem in parser.read_events():
+        tag=elem.tag.rsplit("}",1)[-1]
+        if tag in ("LineName","NationalOperatorCode"):
+            val=(elem.text or "").strip()
+            if val and len(val)<=24:
+                if tag=="LineName":lines.add(val)
+                else:operators.add(val)
+        elem.clear()
+    return lines,operators
+
 def inspect(filelike,size,digest):
     with ZipFile(filelike) as z:
         infos=[f for f in z.infolist() if not f.is_dir()]
@@ -61,6 +79,28 @@ def inspect(filelike,size,digest):
            "largest_members":[
              {"name":PurePosixPath(f.filename).name[:110],"bytes":f.file_size}
              for f in sorted(infos,key=lambda x:x.file_size,reverse=True)[:6]]
+        },sort_keys=True))
+        prefix_lines=Counter();prefix_ops=Counter();prefix_bytes=0;prefix_errors=0
+        prefix_files={}
+        for info in [x for x in infos if x.filename.lower().endswith(".xml")]:
+            with z.open(info) as part:
+                raw=part.read(MAX_PREFIX_PER_FILE)
+            prefix_bytes+=len(raw)
+            try:found,operators=prefix_labels(raw)
+            except ElementTree.ParseError:
+                prefix_errors+=1
+                continue
+            for name in found:prefix_lines[name]+=1
+            for code in operators:prefix_ops[code]+=1
+            for name in found.intersection(WANTED):
+                prefix_files.setdefault(name,[]).append(PurePosixPath(info.filename).name[:110])
+        print(json.dumps({
+            "prefix_bytes_scanned":prefix_bytes,
+            "prefix_xml_errors":prefix_errors,
+            "prefix_target_lines":{k:prefix_lines.get(k,0) for k in sorted(WANTED)},
+            "prefix_target_filenames":{k:v[:12] for k,v in prefix_files.items()},
+            "prefix_noc_codes":prefix_ops.most_common(10),
+            "note":"XML prefix discovery only; no stop/time/calendar validation"
         },sort_keys=True))
         scanned=0; parsed=0; used=0; skipped=0
         route_lines=Counter(); operator_codes=Counter(); roots=Counter(); errors=0
