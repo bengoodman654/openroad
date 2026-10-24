@@ -48,7 +48,7 @@ def inspect(filelike,size,digest):
         infos=[f for f in z.infolist() if not f.is_dir()]
         if len(infos)>4000:raise ValueError("Too many archive members")
         total=sum(x.file_size for x in infos)
-        if total>MAX_EXPANDED:raise ValueError("Unsafe total expanded size")
+        over_full_import_limit=total>MAX_EXPANDED
         for info in infos:
             parts=PurePosixPath(info.filename).parts
             if info.filename.startswith("/") or ".." in parts or not parts:
@@ -57,7 +57,7 @@ def inspect(filelike,size,digest):
         print(json.dumps({
            "source":"BODS official dataset 20442", "retrieved_archive_bytes":size,
            "sha256":digest, "archive_members":len(infos),
-           "expanded_bytes_declared":total, "extensions":dict(extensions),
+           "expanded_bytes_declared":total, "full_import_exceeds_180MiB_gate":over_full_import_limit, "extensions":dict(extensions),
            "largest_members":[
              {"name":PurePosixPath(f.filename).name[:110],"bytes":f.file_size}
              for f in sorted(infos,key=lambda x:x.file_size,reverse=True)[:6]]
@@ -71,7 +71,7 @@ def inspect(filelike,size,digest):
                 continue
             with z.open(info) as source:
                 raw=source.read(MAX_XML+1)
-            if len(raw)>MAX_XML or b"<!DOCTYPE" in raw[:4096].upper() or b"<!ENTITY" in raw[:4096].upper():
+            if len(raw)>MAX_XML or b"<!DOCTYPE" in raw.upper() or b"<!ENTITY" in raw.upper():
                 skipped+=1
                 continue
             scanned+=1;used+=len(raw)
