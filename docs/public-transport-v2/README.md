@@ -21,3 +21,15 @@ Seven corrected vector diagrams, a 56-page authoritative dossier, a correction r
 The included unittest suite exercises *synthetic reference models* of these rules. It is not an Android or PHP integration test and makes **no external requests**. **0/105 production acceptance cases have passed**. All real golden fixtures, providers, permits and load benchmarks must be verified before enabling any new capability.
 
 See the downloadable v2.2 specification bundle for the complete vector diagrams and 105-row case matrix.
+
+
+## First real published timetable sample (24 October 2026 milestone)
+
+A 23 October 2026 **Coventry National Express 11** trip, with source operator **TCVW**, approved BODS ZIP hash and 26 ATCO stop codes, has been extracted into the small source-derived fixture at
+[Coventry 11 fixture](fixtures/official_coventry_11_friday_2026-10-23_candidate.json).
+
+The limited offline direct-journey reference engine returns University Interchange at **05:55** to Pool Meadow Bus Station at **06:21**. Five calculated checkpoint times agree with a separately published timetable presentation on Bus Times. See [provenance and limitations](fixtures/COVENTRY_11_GOLDEN.md). It is expressly limited to **one trip occurrence on one date**, not a complete route planner.
+
+The new executable tests reject wrong-direction queries, missed departure times, incorrect date/operator/snapshot, unsupported boarding at non-pickup stops, and inconsistent stop times. All test data processing and extraction happen on disposable GitHub runners, not the production server.
+
+**No production acceptance test has passed (0/105).** The prototype is not connected to Android or JustHostMe, and full TransXChange calendar handling, transfer planning, rail, accessible paths, geolocation and server resource benchmarks are still necessary.
