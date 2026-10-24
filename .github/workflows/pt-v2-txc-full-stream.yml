@@ -1,0 +1,21 @@
+name: PT v2 Coventry official TXC complete bounded streaming
+on:
+  push:
+    branches: [design/public-transport-v2-2-contract]
+    paths:
+      - '.github/workflows/pt-v2-txc-full-stream.yml'
+permissions:
+  contents: read
+jobs:
+  stream-offhost:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stream every Coventry TXC member off-host under 350MiB and 40MiB/member caps
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/pt_v2/inspect_txc_stream_offhost.py
+      - name: Record honest proof boundary
+        run: echo 'Validated source file metadata only; no journey calculations, date-specific departures, Android or live host acceptance (0/105).'
