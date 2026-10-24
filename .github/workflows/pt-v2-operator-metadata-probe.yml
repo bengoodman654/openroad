@@ -1,4 +1,4 @@
-name: PT v2 Coventry BODS metadata (one read-only keyed request)
+name: PT v2 Coventry BODS metadata canonical URL (one read-only keyed request)
 on:
   push:
     branches: [design/public-transport-v2-2-contract]
