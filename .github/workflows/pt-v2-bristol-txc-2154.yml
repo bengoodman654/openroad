@@ -1,0 +1,21 @@
+name: PT v2 bounded official Bristol 75 TransXChange inspection
+on:
+  push:
+    branches: [design/public-transport-v2-2-contract]
+    paths:
+      - '.github/workflows/pt-v2-bristol-txc-2154.yml'
+permissions:
+  contents: read
+jobs:
+  inspect-offhost:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan one official Bristol candidate ZIP on disposable runner with bounded resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/pt_v2/inspect_bristol_txc.py
+      - name: Confirm evidence is not journey acceptance
+        run: echo 'Dataset identity only. No stop, calendar, journey or Android production acceptance (0/105).'
