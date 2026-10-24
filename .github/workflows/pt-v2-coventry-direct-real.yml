@@ -1,0 +1,17 @@
+name: PT v2 real Coventry multi-day direct journey dry-run
+on:
+  push:
+    branches: [design/public-transport-v2-2-contract]
+    paths: ['.github/workflows/pt-v2-coventry-direct-real.yml']
+permissions:
+  contents: read
+jobs:
+  real-data-offhost:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Route across all real Coventry 11 timetable candidates for controlled service days
+        run: python3 tests/pt_v2/check_coventry_multitrip_routes_offhost.py
+      - name: Production safety statement
+        run: echo 'Offline source-derived dry-run only: 0 of 105 production acceptance cases passed.'
