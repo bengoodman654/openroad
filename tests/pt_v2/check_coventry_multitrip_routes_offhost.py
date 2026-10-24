@@ -20,7 +20,7 @@ def build(d,roots):
     return {"kind":"REAL_TXC_MULTITRIP_OFFLINE_CANDIDATES","operator_noc":"TCVW",
             "service_code":"PD0001111:813","line":"11","source_dataset":"20442",
             "source_zip_sha256":PIN,"source_xml_member":file,
-            "service_date":d.isoformat(),"time_zone":"Europe/London","trips":trips},rejected
+            "service_date":d.isoformat(),"time_zone":"Europe/London","trips":trips,"rejected":rejected},rejected
 
 def first_valid_pair(journeys):
     for journey in journeys:
