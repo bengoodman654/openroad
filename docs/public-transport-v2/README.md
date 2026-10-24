@@ -33,3 +33,16 @@ The limited offline direct-journey reference engine returns University Interchan
 The new executable tests reject wrong-direction queries, missed departure times, incorrect date/operator/snapshot, unsupported boarding at non-pickup stops, and inconsistent stop times. All test data processing and extraction happen on disposable GitHub runners, not the production server.
 
 **No production acceptance test has passed (0/105).** The prototype is not connected to Android or JustHostMe, and full TransXChange calendar handling, transfer planning, rail, accessible paths, geolocation and server resource benchmarks are still necessary.
+
+
+## Multi-trip Coventry 11 off-host pilot
+
+The next development stage extends the single known trip to **four actual service dates** (23–26 October 2026). It reads two dated, SHA-pinned official TransXChange revisions off-host, extracts source candidate journeys, and selects up to three direct itineraries where the stop boarding/alighting rules allow them.
+
+Friday's 204 vehicle-journey rows include **102 pairs of exactly duplicated public timetable patterns**. They are grouped for route-choice display without discarding source identities. Saturday has 99, Sunday 62, and Monday 106 candidate journeys. Some non-standard calendars remain excluded and expressly produce partial-coverage warnings.
+
+The preliminary direct-route engine returns results for **Friday, Saturday and Monday**. It declines to calculate Sunday 25 October routes because of the UK daylight-saving clock change, pending source-specific time verification. No weekend or weekday availability claims extend beyond the specifically tested dates.
+
+See [multi-day evidence and limitations](fixtures/COVENTRY_11_MULTIDAY.md) and [machine-readable observed results](fixtures/official_coventry_11_multiday_evidence.json).
+
+The **105 production acceptance tests remain unpassed**: no production Android or server change was made.
