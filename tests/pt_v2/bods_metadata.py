@@ -70,3 +70,19 @@ def select(metadata,noc,line,service_date=None):
             "evidence":"BODS metadata candidate only; timetable archive not yet validated",
         })
     return selected
+
+def verify_source_identity(expected_noc,expected_line,observed_nocs,observed_lines,geography_confirmed=False):
+    """Source metadata alone is never enough for an ACCEPTED timetable fixture.
+
+    Observations must be from the *same service-bearing XML members*, not from
+    unrelated operators elsewhere in a multi-operator ZIP.
+    """
+    if not isinstance(observed_nocs,(list,tuple,set)) or not observed_nocs:
+        return "NEEDS_XML_OPERATOR_EVIDENCE"
+    if expected_noc not in set(observed_nocs):
+        return "REJECT_WRONG_OPERATOR"
+    if expected_line not in set(observed_lines):
+        return "REJECT_WRONG_SERVICE"
+    if not geography_confirmed:
+        return "NEEDS_STOP_AND_GEOGRAPHY_EVIDENCE"
+    return "CANDIDATE_NEEDS_CALENDAR_AND_TRIP_VALIDATION"
