@@ -1,4 +1,4 @@
-name: PT v2.2 offline reference-contract checks (NOT integration acceptance)
+name: PT v2.2 reference and Bristol-Coventry fixture checks (NOT integration acceptance)
 on:
   pull_request:
     paths:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 jobs:
   reference-checks:
-    name: Synthetic contract tests only
+    name: Synthetic contract and bounded GTFS fixture checks only
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     steps:
@@ -19,8 +19,8 @@ jobs:
         with:
           python-version: '3.12'
       - name: Prove design reference behaviours (never contact providers or deployment)
-        run: python -m unittest discover -s tests/pt_v2 -p 'test_reference.py' -v
+        run: python -m unittest discover -s tests/pt_v2 -p 'test_*.py' -v
       - name: State scope and production gate clearly
         run: |
-          echo 'Reference-contract tests only. No Android, server, GTFS, transport APIs or real travel acceptance has been exercised.'
-          echo 'Production acceptance remains 0/105 pending integration fixtures.'
+          echo 'Reference-model plus synthetic GTFS fixture tests only. No Android, PHP, BODS, downloaded official GTFS or real travel acceptance has been exercised.'
+          echo 'Production acceptance remains 0/105 pending real GTFS import, transport engine, provider and mobile integration.'
