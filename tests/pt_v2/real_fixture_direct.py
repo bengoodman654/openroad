@@ -10,6 +10,8 @@ from zoneinfo import ZoneInfo
 BOARD={"pickUp","pickUpAndSetDown"}
 ALIGHT={"setDown","pickUpAndSetDown"}
 EXPECTED_KIND="REAL_TXC_COVENTRY_11_CANDIDATE_NOT_INDEPENDENTLY_VERIFIED"
+EXPECTED_SHA="5fc158d433b7eff9dc72270b8d955d00d4ae2a8e027dbf13bb1316634cec05e0"
+EXPECTED_FILE="BODS_PD0001111_813_20260920_32.xml"
 
 class FixtureError(ValueError):pass
 
@@ -18,16 +20,18 @@ def validate(f):
         raise FixtureError("Unapproved provenance")
     if f.get("weekday")!="Friday" or f.get("service_date")!="2026-10-23":
         raise FixtureError("Fixture date outside verified scope")
-    if f.get("time_zone")!="Europe/London" or not f.get("source_zip_sha256"):
+    if f.get("time_zone")!="Europe/London" or f.get("source_zip_sha256")!=EXPECTED_SHA or f.get("source_xml_member")!=EXPECTED_FILE:
         raise FixtureError("Missing timezone or pinned source")
     j=f.get("journey",{})
-    if not j.get("journey_code") or j.get("unhandled_special_rules") is not False:
+    if j.get("journey_code")!="VJ136" or j.get("unhandled_special_rules") is not False:
         raise FixtureError("Unsupported calendar and trip conditions")
     stops=j.get("stops",[])
     if not 2<=len(stops)<=150:raise FixtureError("No usable stop sequence")
     previous=(-1,-1)
     for s in stops:
         if not isinstance(s.get("stop_ref"),str) or not s.get("name"):raise FixtureError("Missing stop reference")
+        if s.get("activity") not in ("pickUp","setDown","pickUpAndSetDown","pass"):
+            raise FixtureError("Unsupported boarding/alighting activity")
         ar=s.get("arrival_offset_seconds");dep=s.get("departure_offset_seconds")
         if not isinstance(ar,int) or not isinstance(dep,int) or ar<0 or dep<ar or ar<previous[1]:
             raise FixtureError("Inconsistent source stop times")
