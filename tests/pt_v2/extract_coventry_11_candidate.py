@@ -159,7 +159,7 @@ def main():
        "kind":"REAL_TXC_SOURCE_CANDIDATE_TIMETABLE_NOT_INDEPENDENTLY_VERIFIED",
        "operator_noc":"TCVW","service_code":"PD0001111:813","line":"11",
        "source_dataset":"20442","source_zip_sha256":digest,"source_xml_member":TARGET,
-       "service_date":DATE,"weekday":"Saturday","time_zone":"Europe/London",
+       "service_date":DATE,"weekday":DAY,"time_zone":"Europe/London",
        "calendar_assumptions":["2026-10-23 normal Friday; government list has no public bank holiday","TXC vehicle journey RegularDayType matches Friday","special exception calendars beyond normal and BankHoliday exclusions require fuller engine"],
        "candidate_count":len(choices),"skipped":reasons,
        "journey":chosen,
