@@ -1,4 +1,4 @@
-name: PT v2 Bristol 75 BODS metadata canonical URL (one read-only keyed request)
+name: PT v2 Bristol 75 BODS complete candidate metadata (one read-only request)
 on:
   push:
     branches: [design/public-transport-v2-2-contract]
