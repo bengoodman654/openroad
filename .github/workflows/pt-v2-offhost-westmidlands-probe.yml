@@ -1,0 +1,29 @@
+name: PT v2 bounded DfT West Midlands GTFS inspection (off-host, one GET)
+on:
+  push:
+    branches: [design/public-transport-v2-2-contract]
+    paths:
+      - '.github/workflows/pt-v2-offhost-westmidlands-probe.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pt-v2-offhost-wm-one-shot
+  cancel-in-progress: false
+jobs:
+  check-published-feed:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Read one bounded official feed from the GitHub runner only
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'Only public DfT GTFS routes/agency metadata; no live positions and no timetable-acceptance claims.'
+          python tests/pt_v2/offhost_gtfs_probe.py --region west_midlands --max-download-mib 140
+      - name: Explicit integration status
+        run: echo 'Published GTFS metadata audit is not an Android/server end-to-end acceptance test (0/105).'
