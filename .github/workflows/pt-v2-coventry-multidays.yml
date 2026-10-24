@@ -1,4 +1,4 @@
-name: PT v2 Coventry 11 real multi-day all-trip audit
+name: PT v2 Coventry 11 multi-day and duplicate identity audit
 on:
   push:
     branches: [design/public-transport-v2-2-contract]
