@@ -47,4 +47,14 @@ class OfficialEvidenceManifest(unittest.TestCase):
             verify_source_identity("FBRI","75",["FBRI"],["75"],True),
             "CANDIDATE_NEEDS_CALENDAR_AND_TRIP_VALIDATION")
 
+    def test_coventry_multiday_audit_is_not_mistaken_for_live_acceptance(self):
+        data=json.loads((ROOT/"official_coventry_11_multiday_evidence.json").read_text())
+        self.assertEqual(data["production_acceptance_cases_passed"],0)
+        counts={x["service_date"]:x for x in data["dates"]}
+        self.assertEqual(counts["2026-10-23"]["eligible_source_vehicle_journey_records"],204)
+        self.assertEqual(counts["2026-10-23"]["exact_duplicates"],102)
+        self.assertEqual(counts["2026-10-24"]["distinct_scheduled_pattern_candidates"],99)
+        self.assertEqual(counts["2026-10-25"]["tested_offline_direct_route"],"UNSUPPORTED_CALENDAR_TIME_TRANSITION")
+        self.assertEqual(counts["2026-10-26"]["tested_offline_direct_route"],"OK")
+
 if __name__=="__main__":unittest.main()
