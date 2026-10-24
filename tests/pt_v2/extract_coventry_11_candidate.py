@@ -119,8 +119,7 @@ def candidate(root):
                 if i==0:
                     stops.append({"stop_ref":source,**stop_index.get(source,{}),
                                   "arrival_offset_seconds":0,"departure_offset_seconds":0})
-                else:
-                    stops[-1]["departure_offset_seconds"]=current+wait-raw_start
+                stops[-1]["departure_offset_seconds"]=current+wait-raw_start
                 depart=current+wait
                 arrive=depart+sec
                 stops.append({"stop_ref":dest,**stop_index.get(dest,{}),
