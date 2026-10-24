@@ -1,0 +1,24 @@
+name: PT v2 bounded official Coventry TransXChange archive inspection
+on:
+  push:
+    branches: [design/public-transport-v2-2-contract]
+    paths:
+      - '.github/workflows/pt-v2-txc-20442-inspection.yml'
+permissions:
+  contents: read
+concurrency:
+  group: pt-v2-txc-20442-oneshot
+  cancel-in-progress: false
+jobs:
+  inspect-offhost:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inventory one official dataset under 16 MiB compressed and 180 MiB expanded caps
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/pt_v2/inspect_txc_20442.py
+      - name: Record incomplete acceptance status
+        run: echo 'Real ZIP inventory only. No calendar, stop, journey or Android acceptance proven (0/105).'
