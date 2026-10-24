@@ -67,6 +67,13 @@ def inspect(gtfs, reference, service_date):
         })
     return report
 
+def stream_sha256(path):
+    digest=hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda:handle.read(1024*1024),b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--archive",type=Path,required=True,help="Local, previously downloaded GTFS ZIP; no network access")
@@ -89,7 +96,7 @@ def main():
         report={
             "kind":"GTFS_IMPORT_INSPECTION_NOT_PRODUCTION_ACCEPTANCE",
             "service_date":d.isoformat(),
-            "archive_sha256":hashlib.sha256(args.archive.read_bytes()).hexdigest(),
+            "archive_sha256":stream_sha256(args.archive),
             "source_url":args.source_url,
             "archive_name":args.archive.name,
             "schema":"openroad.pt.gtfs-inspection.v1",
