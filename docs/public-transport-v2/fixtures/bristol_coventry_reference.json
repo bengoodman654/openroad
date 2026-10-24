@@ -1,0 +1,115 @@
+{
+  "schema": "openroad.pt.fixture-reference.v1",
+  "reviewed_at": "2026-10-24",
+  "source_notice": "Published operator and local-authority pages establish existence, operator and advertised termini/via points only. Not raw GTFS, immutable trip IDs, stop-point IDs, operating dates, departure times or live predictions. CI synthetic GTFS must never be presented as real departures.",
+  "cases": [
+    {
+      "id": "BRI-75",
+      "area": "Bristol",
+      "region": "south_west",
+      "provider": "First Bus",
+      "line": "75",
+      "endpoints": [
+        "Cribbs Causeway",
+        "Hengrove"
+      ],
+      "via": [],
+      "mode": "bus",
+      "evidence": [
+        {
+          "authority": "TravelWest Journey Planner",
+          "url": "https://journeyplanner.travelwest.info/service/38-75-_-y10-%25/direction/inbound/timetable",
+          "assertions": [
+            "Service 75",
+            "First in Bristol Bath & the West",
+            "Cribbs Causeway Bus Station to Hengrove Bus Depot"
+          ]
+        }
+      ],
+      "validation": "public-route-metadata-only"
+    },
+    {
+      "id": "COV-11",
+      "area": "Coventry",
+      "region": "west_midlands",
+      "provider": "National Express Coventry",
+      "line": "11",
+      "endpoints": [
+        "Coventry",
+        "Leamington Spa"
+      ],
+      "via": [
+        "University of Warwick",
+        "Kenilworth"
+      ],
+      "mode": "bus",
+      "evidence": [
+        {
+          "authority": "National Express Coventry",
+          "url": "https://nxbus.co.uk/coventry/services-timetables/11-coventry-leamington-spa/",
+          "assertions": [
+            "11 Coventry to Leamington Spa",
+            "via University of Warwick and Kenilworth"
+          ]
+        },
+        {
+          "authority": "Warwickshire County Council",
+          "url": "https://www.warwickshire.gov.uk/directory-record/7476/11-leamington-spa-kenilworth-university-of-warwick-coventry",
+          "assertions": [
+            "Service 11",
+            "Operator National Express Coventry"
+          ]
+        }
+      ],
+      "validation": "public-route-metadata-only"
+    },
+    {
+      "id": "COV-12X",
+      "area": "Coventry",
+      "region": "west_midlands",
+      "provider": "National Express Coventry",
+      "line": "12X",
+      "endpoints": [
+        "Coventry",
+        "University of Warwick"
+      ],
+      "via": [],
+      "mode": "bus",
+      "evidence": [
+        {
+          "authority": "National Express Coventry",
+          "url": "https://nxbus.co.uk/coventry/services-timetables/",
+          "assertions": [
+            "12X Coventry to University of Warwick"
+          ]
+        }
+      ],
+      "validation": "public-route-metadata-only"
+    },
+    {
+      "id": "COV-9",
+      "area": "Coventry",
+      "region": "west_midlands",
+      "provider": "National Express Coventry",
+      "line": "9",
+      "endpoints": [
+        "Green Lane",
+        "University Hospital"
+      ],
+      "via": [
+        "Coventry"
+      ],
+      "mode": "bus",
+      "evidence": [
+        {
+          "authority": "National Express Coventry",
+          "url": "https://nxbus.co.uk/coventry/services-timetables/",
+          "assertions": [
+            "9 Green Lane to University Hospital via Coventry"
+          ]
+        }
+      ],
+      "validation": "public-route-metadata-only"
+    }
+  ]
+}

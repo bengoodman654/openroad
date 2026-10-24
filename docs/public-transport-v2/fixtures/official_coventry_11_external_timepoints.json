@@ -1,0 +1,40 @@
+{
+  "schema": "openroad.pt.coventry11.external-timetable-observation.v1",
+  "service_date": "2026-10-23",
+  "weekday": "Friday",
+  "time_zone": "Europe/London",
+  "line": "11",
+  "published_schedule_url": "https://bustimes.org/services/11-coventry-university-of-warwick-kenilworth-leami",
+  "transport_operator": "National Express Coventry",
+  "observation_date": "2026-10-24",
+  "limitation": "Public Bus Times printed timetable selected for 2026-10-23; may share original publisher BODS feed. Values here were manually reviewed, not derived from OpenRoad's own converter. Do not treat as independent upstream-provider verification.",
+  "direction": "University Interchange to Coventry Pool Meadow Bus Station",
+  "stop_times": [
+    {
+      "stop_ref": "43000065301",
+      "name": "University Interchange",
+      "time": "05:55"
+    },
+    {
+      "stop_ref": "43001317102",
+      "name": "Scarman Road",
+      "time": "05:56"
+    },
+    {
+      "stop_ref": "43000065102",
+      "name": "Varsity Pitches",
+      "time": "05:57"
+    },
+    {
+      "stop_ref": "43000063701",
+      "name": "Westwood Campus",
+      "time": "05:58"
+    },
+    {
+      "stop_ref": "43000005010",
+      "name": "Pool Meadow Bus Station",
+      "time": "06:21"
+    }
+  ],
+  "production_acceptance_cases_passed": 0
+}

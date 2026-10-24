@@ -1,0 +1,89 @@
+{
+  "schema": "openroad.pt.negative-source-evidence.v1",
+  "audit_date": "2026-10-24",
+  "sought": {
+    "area": "Bristol",
+    "line": "75",
+    "operator_noc": "FBRI",
+    "published_route": "Cribbs Causeway–Hengrove"
+  },
+  "warning": "Four observed service-75 source groups had different NOC codes and geographies; dataset 18422 remains unresolved. This is scoped evidence only, not proof that other XML members contain no FBRI service 75.",
+  "observed_mismatches": [
+    {
+      "dataset_id": "2154",
+      "url": "https://data.bus-data.dft.gov.uk/timetable/dataset/2154/download/",
+      "sha256": "2db92ec0434019db1112c17219f08aa92b56e570e9208c5477dde0860a792774",
+      "member_noc": "FECS",
+      "member_region_clue": "Ipswich",
+      "member_lines": [
+        "75",
+        "77"
+      ],
+      "archive_members": 33,
+      "xml_scoped_files_reviewed": 2,
+      "scope": "full archive scanned; reported 75 members Ipswich FECS",
+      "evidence_run": "https://github.com/bengoodman654/openroad/actions/runs/40079754701"
+    },
+    {
+      "dataset_id": "2157",
+      "url": "https://data.bus-data.dft.gov.uk/timetable/dataset/2157/download/",
+      "sha256": "9129e9077dd91df11390829d8bcbfff9a76317700b15907b8f693623f5e49d36",
+      "member_noc": "FESX",
+      "member_region_clue": "Colchester",
+      "member_lines": [
+        "75",
+        "375"
+      ],
+      "archive_members": 67,
+      "xml_scoped_files_reviewed": 3,
+      "scope": "filename-scoped 75 members only; full archive 444 MB uncompressed",
+      "evidence_run": "https://github.com/bengoodman654/openroad/actions/runs/40079923717"
+    },
+    {
+      "dataset_id": "2100",
+      "url": "https://data.bus-data.dft.gov.uk/timetable/dataset/2100/download/",
+      "sha256": "082dd7ff32dd37e7eb2355c2903dab6cd550b0eee9744bc7183f3d58763bf3be",
+      "member_noc": "FSYO",
+      "member_region_clue": "York",
+      "member_lines": [
+        "75",
+        "76",
+        "76A",
+        "76E"
+      ],
+      "archive_members": 203,
+      "xml_scoped_files_reviewed": 2,
+      "scope": "filename-scoped 75 members only; full archive >1.6 GB uncompressed",
+      "evidence_run": "https://github.com/bengoodman654/openroad/actions/runs/40079999035"
+    },
+    {
+      "dataset_id": "18326",
+      "url": "https://data.bus-data.dft.gov.uk/timetable/dataset/18326/download/",
+      "sha256": "9c928cd74cf6ecbab71c3fd0a08a2dfb7d6f102b8cd68c1a2079cc290f4a55ce",
+      "member_noc": "FLDS",
+      "member_region_clue": "Hunslet, Leeds",
+      "member_lines": [
+        "74",
+        "75"
+      ],
+      "archive_members": 58,
+      "xml_scoped_files_reviewed": 3,
+      "scope": "filename-scoped service-75 members only; full archive 635 MB uncompressed",
+      "evidence_run": "https://github.com/bengoodman654/openroad/actions/runs/40080246465"
+    }
+  ],
+  "test_requirement": "For any candidate, verify exact in-XML NOC, service line, stop-pattern geography, source licence, calendar, and trip data before production acceptance.",
+  "production_acceptance_cases_passed": 0,
+  "unresolved_candidates": [
+    {
+      "dataset_id": "18422",
+      "url": "https://data.bus-data.dft.gov.uk/timetable/dataset/18422/download/",
+      "sha256": "3ff8ec1415908086c9dc2528c0c85af21907e7c52bd85aaaa9d9e0296e101e79",
+      "xml_members_total": 101,
+      "xml_scoped_members_reviewed": 0,
+      "expanded_bytes_declared": 1512702815,
+      "reason": "No XML filenames matched the conservative isolated '75' token pattern. This is NOT proof that the dataset lacks Bristol 75. Investigate source registration/ATCO evidence without importing entire 1.5 GB archive.",
+      "evidence_run": "https://github.com/bengoodman654/openroad/actions/runs/40080287326"
+    }
+  ]
+}

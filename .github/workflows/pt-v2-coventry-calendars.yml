@@ -1,0 +1,15 @@
+name: PT v2 Coventry 11 calendar coverage investigation (off-host)
+on:
+  push:
+    branches: [design/public-transport-v2-2-contract]
+    paths: ['.github/workflows/pt-v2-coventry-calendars.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect both pinned-source timetable revisions, calendar groups and safe semantics
+        run: python3 tests/pt_v2/inspect_coventry_11_calendars.py

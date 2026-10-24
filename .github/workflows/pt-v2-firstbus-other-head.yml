@@ -1,0 +1,22 @@
+name: PT v2 remaining First Bus route-75 candidate sizes
+on:
+  push:
+    branches: [design/public-transport-v2-2-contract]
+    paths:
+      - '.github/workflows/pt-v2-firstbus-other-head.yml'
+permissions:
+  contents: read
+jobs:
+  head-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: HEAD only for official datasets 18326 and 18422
+        shell: bash
+        run: |
+          set -euo pipefail
+          for id in 18326 18422; do
+            echo "BODS remaining candidate $id"
+            python3 tests/pt_v2/check_dataset_headers.py --dataset "$id"
+          done
