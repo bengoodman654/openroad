@@ -1,4 +1,4 @@
-name: PT v2 authentic Coventry 11 Saturday source candidate extraction
+name: PT v2 Coventry 11 candidate strict selection diagnosis
 on:
   push:
     branches: [design/public-transport-v2-2-contract]
