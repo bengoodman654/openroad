@@ -1,4 +1,4 @@
-name: PT v2 official First Bus dataset 2157 identity verification
+name: PT v2 First Bus 2157 bounded 75-only identity verification
 on:
   push:
     branches: [design/public-transport-v2-2-contract]
