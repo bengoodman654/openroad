@@ -1,0 +1,18 @@
+name: PT v2 official First Bus candidate 18326 identity check
+on:
+  push:
+    branches: [design/public-transport-v2-2-contract]
+    paths:
+      - '.github/workflows/pt-v2-firstbus-18326.yml'
+permissions:
+  contents: read
+jobs:
+  inspect-offhost:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stream only service-75 named XML from 18326 on isolated GitHub runner
+        run: python3 tests/pt_v2/inspect_bristol_txc.py --dataset 18326
+      - name: Test interpretation
+        run: echo 'No live app/server changes; operator and geography must agree before an acceptance test.'

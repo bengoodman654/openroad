@@ -1,0 +1,50 @@
+{
+  "schema": "openroad.pt.bods-dataset-candidates.v1",
+  "audit_date": "2026-10-24",
+  "operator_noc": "FBRI",
+  "target_service": "75",
+  "region": "Bristol",
+  "observed_result": {
+    "http_status": 200,
+    "total_record_count": 35,
+    "records_on_first_page": 25,
+    "records_in_complete_response": 35,
+    "pagination_complete": true
+  },
+  "operator_dataset_candidates": [
+    {
+      "dataset_id": "2100",
+      "updated_at": "2026-10-23T16:09:03+00:00",
+      "service_start": "2026-10-16T01:00:00+00:00",
+      "download_url": "https://data.bus-data.dft.gov.uk/timetable/dataset/2100/download/"
+    },
+    {
+      "dataset_id": "2154",
+      "updated_at": "2026-10-19T16:02:15+00:00",
+      "service_start": "2026-08-30T01:00:00+00:00",
+      "download_url": "https://data.bus-data.dft.gov.uk/timetable/dataset/2154/download/"
+    },
+    {
+      "dataset_id": "2157",
+      "updated_at": "2026-10-14T16:05:32+00:00",
+      "service_start": "2026-09-06T01:00:00+00:00",
+      "download_url": "https://data.bus-data.dft.gov.uk/timetable/dataset/2157/download/"
+    },
+    {
+      "dataset_id": "18326",
+      "updated_at": "2026-10-16T16:06:08+00:00",
+      "service_start": "2026-08-30T01:00:00+00:00",
+      "download_url": "https://data.bus-data.dft.gov.uk/timetable/dataset/18326/download/"
+    },
+    {
+      "dataset_id": "18422",
+      "updated_at": "2026-10-22T16:07:12+00:00",
+      "service_start": "2026-10-18T01:00:00+00:00",
+      "download_url": "https://data.bus-data.dft.gov.uk/timetable/dataset/18422/download/"
+    }
+  ],
+  "metadata_evidence": "https://github.com/bengoodman654/openroad/actions/runs/40080140924",
+  "caution": "Five complete-metadata dataset candidates advertise service 75, but they contain First Bus group routes from other places. Four sources have inspected 75 members with NOCs unlike FBRI. Dataset 18422 has no filenames matching the cautious 75 name pattern. Do not infer absence of Bristol data from partial XML sampling.",
+  "downloaded_files": 0,
+  "production_acceptance_cases_passed": 0
+}

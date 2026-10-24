@@ -1,0 +1,18 @@
+name: PT v2 official First Bus candidate 18422 identity check
+on:
+  push:
+    branches: [design/public-transport-v2-2-contract]
+    paths:
+      - '.github/workflows/pt-v2-firstbus-18422.yml'
+permissions:
+  contents: read
+jobs:
+  inspect-offhost:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stream only named 75 XML inside candidate 18422 with 80 MiB decompressed selection cap
+        run: python3 tests/pt_v2/inspect_bristol_txc.py --dataset 18422
+      - name: Remain in design-only gate
+        run: echo 'No production acceptance without route 75 FBRI and stop-pattern evidence.'

@@ -1,0 +1,24 @@
+name: PT v2 all-file bounded Coventry TXC prefix inspection
+on:
+  push:
+    branches: [design/public-transport-v2-2-contract]
+    paths:
+      - '.github/workflows/pt-v2-txc-20442-inspection.yml'
+permissions:
+  contents: read
+concurrency:
+  group: pt-v2-txc-20442-oneshot
+  cancel-in-progress: false
+jobs:
+  inspect-offhost:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inventory and selectively inspect 36 MiB of XML while retaining full-import 180 MiB gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/pt_v2/inspect_txc_20442.py
+      - name: Record incomplete acceptance status
+        run: echo 'Real ZIP inventory only. No calendar, stop, journey or Android acceptance proven (0/105).'

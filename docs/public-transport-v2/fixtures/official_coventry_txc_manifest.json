@@ -1,0 +1,64 @@
+{
+  "schema": "openroad.pt.official-txc-source-manifest.v1",
+  "audit_date": "2026-10-24",
+  "status": "official_source_identity_verified_not_journey_acceptance",
+  "publisher": "Department for Transport Bus Open Data Service",
+  "source_url": "https://data.bus-data.dft.gov.uk/timetable/dataset/20442/download/",
+  "dataset_id": "20442",
+  "operator_noc": "TCVW",
+  "metadata_operator_label": "National Express West Midlands",
+  "licence_note": "BODS publishes open bus timetable data; verify each dataset licence and reuse conditions before redistribution",
+  "download_sha256": "5fc158d433b7eff9dc72270b8d955d00d4ae2a8e027dbf13bb1316634cec05e0",
+  "download_bytes": 11172224,
+  "archive_members": 38,
+  "uncompressed_bytes_declared": 321777152,
+  "xml_files_streamed": 38,
+  "operator_code_seen_in_files": 38,
+  "total_vehicle_journey_elements": 17259,
+  "matches": {
+    "9": [
+      {
+        "file": "BODS_PD0001111_43010138_20260920_38.xml",
+        "vehicle_journeys": 748
+      },
+      {
+        "file": "BODS_PD0001111_43010138_20261025_39.xml",
+        "vehicle_journeys": 511
+      }
+    ],
+    "11": [
+      {
+        "file": "BODS_PD0001111_813_20260920_32.xml",
+        "vehicle_journeys": 556
+      },
+      {
+        "file": "BODS_PD0001111_813_20261025_33.xml",
+        "vehicle_journeys": 286
+      }
+    ],
+    "12X": [
+      {
+        "file": "BODS_PD0001111_43010133_20260920_31.xml",
+        "vehicle_journeys": 855
+      },
+      {
+        "file": "BODS_PD0001111_43010133_20261025_32.xml",
+        "vehicle_journeys": 427
+      }
+    ]
+  },
+  "source_evidence": "https://github.com/bengoodman654/openroad/actions/runs/40079491063",
+  "inspection_limits": {
+    "compressed_max_mib": 16,
+    "total_uncompressed_stream_max_mib": 350,
+    "single_file_stream_max_mib": 40
+  },
+  "known_missing_proofs": [
+    "Calendar-valid published trips for selected dates",
+    "Official stops and ATCO codes, ordered and geolocated",
+    "TransXChange route shapes and detailed journey timings",
+    "Successful integrated routing from actual data",
+    "Android behaviour and JustHostMe performance budgets"
+  ],
+  "production_acceptance_cases_passed": 0
+}

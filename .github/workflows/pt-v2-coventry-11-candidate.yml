@@ -1,0 +1,17 @@
+name: PT v2 Coventry 11 with stop activity evidence
+on:
+  push:
+    branches: [design/public-transport-v2-2-contract]
+    paths: ['.github/workflows/pt-v2-coventry-11-candidate.yml']
+permissions:
+  contents: read
+jobs:
+  extract-offhost:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract one verified-source service-day and stop-pattern candidate under fixed bounds
+        run: python3 tests/pt_v2/extract_coventry_11_candidate.py
+      - name: No artificial acceptance pass
+        run: echo 'Real source-based fixture candidate only; no full calendar oracle, journey engine, Android, or server P0 acceptance (0/105).'

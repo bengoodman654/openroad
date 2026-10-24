@@ -1,0 +1,15 @@
+name: PT v2 real Coventry 11 TXC bounded structure inspection
+on:
+  push:
+    branches: [design/public-transport-v2-2-contract]
+    paths: ['.github/workflows/pt-v2-coventry-11-structure.yml']
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect single pinned XML file on disposable runner
+        run: python3 tests/pt_v2/inspect_coventry_txc_structure.py
