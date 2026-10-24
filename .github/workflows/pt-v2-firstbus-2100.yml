@@ -1,0 +1,21 @@
+name: PT v2 bounded official First Bus dataset 2100 service-75 identity
+on:
+  push:
+    branches: [design/public-transport-v2-2-contract]
+    paths:
+      - '.github/workflows/pt-v2-firstbus-2100.yml'
+permissions:
+  contents: read
+jobs:
+  inspect-offhost:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download only once on temporary runner and inspect service-75 XML under 80MiB streaming cap
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/pt_v2/inspect_bristol_txc.py --dataset 2100
+      - name: No production acceptance claim
+        run: echo 'This is candidate route identification, not verified Bristol trip dates, stops, times, or integrated routes.'
