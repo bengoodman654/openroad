@@ -91,12 +91,17 @@ def direct_options(snapshot,origin_ref,dest_ref,depart_after,max_results=3):
                     "verification":"SOURCE_DERIVED_MULTITRIP_OFFLINE_ONLY"
                 })
     candidates.sort(key=lambda x:(x["arrival"],x["departure"],x["trip_occurrence_id"]))
-    options=[];identities=set()
+    # Collapse equivalent published departures, preserving all original IDs.
+    groups={}
     for c in candidates:
-        if c["trip_occurrence_id"] in identities:continue
-        identities.add(c["trip_occurrence_id"])
-        options.append(c)
-        if len(options)>=max_results:break
+        signature=c.pop("_signature")
+        if signature in groups:
+            groups[signature]["source_trip_aliases"].append(c["trip_occurrence_id"])
+        else:
+            c["source_trip_aliases"]=[c["trip_occurrence_id"]]
+            groups[signature]=c
+    options=sorted(groups.values(),
+        key=lambda c:(c["arrival"],c["departure"],c["trip_occurrence_id"]))[:max_results]
     return {"outcome":"OK" if options else "NO_JOURNEY",
             "results":options,"source_snapshot":snapshot["source_zip_sha256"],
             "service_date":snapshot["service_date"],
