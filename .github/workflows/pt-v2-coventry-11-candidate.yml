@@ -1,4 +1,4 @@
-name: PT v2 Coventry 11 Friday candidate selection
+name: PT v2 Coventry 11 with stop activity evidence
 on:
   push:
     branches: [design/public-transport-v2-2-contract]
