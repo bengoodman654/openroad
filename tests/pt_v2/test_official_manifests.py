@@ -2,6 +2,7 @@
 import json
 import unittest
 from pathlib import Path
+from bods_metadata import verify_source_identity
 ROOT=Path(__file__).resolve().parents[2]/"docs/public-transport-v2/fixtures"
 
 class OfficialEvidenceManifest(unittest.TestCase):
@@ -24,4 +25,24 @@ class OfficialEvidenceManifest(unittest.TestCase):
         self.assertFalse(m["observed_result"]["pagination_complete"])
         self.assertEqual(m["downloaded_files"],0)
         self.assertEqual(m["production_acceptance_cases_passed"],0)
+    def test_lookalike_services_in_wrong_cities_are_rejected(self):
+        evidence=json.loads((ROOT/"official_bristol_negative_sources.json").read_text())
+        self.assertEqual(len(evidence["observed_mismatches"]),3)
+        for case in evidence["observed_mismatches"]:
+            self.assertNotEqual(case["member_noc"],"FBRI")
+            self.assertIn("75",case["member_lines"])
+            self.assertEqual(
+                verify_source_identity("FBRI","75",[case["member_noc"]],case["member_lines"]),
+                "REJECT_WRONG_OPERATOR")
+            self.assertEqual(len(case["sha256"]),64)
+        self.assertEqual(evidence["production_acceptance_cases_passed"],0)
+
+    def test_correct_operator_and_line_still_require_geography_and_calendar(self):
+        self.assertEqual(
+            verify_source_identity("FBRI","75",["FBRI"],["75"]),
+            "NEEDS_STOP_AND_GEOGRAPHY_EVIDENCE")
+        self.assertEqual(
+            verify_source_identity("FBRI","75",["FBRI"],["75"],True),
+            "CANDIDATE_NEEDS_CALENDAR_AND_TRIP_VALIDATION")
+
 if __name__=="__main__":unittest.main()
