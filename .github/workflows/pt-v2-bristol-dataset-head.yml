@@ -1,0 +1,22 @@
+name: PT v2 Bristol 75 dataset candidates HEAD-only
+on:
+  push:
+    branches: [design/public-transport-v2-2-contract]
+    paths:
+      - '.github/workflows/pt-v2-bristol-dataset-head.yml'
+permissions:
+  contents: read
+jobs:
+  small-head-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check official published Bristol candidate sizes without downloading bodies
+        shell: bash
+        run: |
+          set -euo pipefail
+          for id in 2100 2154 2157; do
+            echo "BODS Bristol candidate $id"
+            python3 tests/pt_v2/check_dataset_headers.py --dataset "$id"
+          done
