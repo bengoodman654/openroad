@@ -1,0 +1,82 @@
+{
+  "schema": "openroad.pt.coventry11.multiday-evidence.v1",
+  "observed_at": "2026-10-24",
+  "official_dataset": "20442",
+  "verified_source_sha256": "5fc158d433b7eff9dc72270b8d955d00d4ae2a8e027dbf13bb1316634cec05e0",
+  "note": "Off-host, source-derived candidates only. Friday has 102 exact duplicate source records. Full calendar and DST not verified. No production acceptance.",
+  "source_audit": "https://github.com/bengoodman654/openroad/actions/runs/40129397412",
+  "routing_pilot": "https://github.com/bengoodman654/openroad/actions/runs/40129631083",
+  "dates": [
+    {
+      "service_date": "2026-10-23",
+      "weekday": "Friday",
+      "xml_member": "BODS_PD0001111_813_20260920_32.xml",
+      "eligible_source_vehicle_journey_records": 204,
+      "exact_duplicates": 102,
+      "distinct_scheduled_pattern_candidates": 102,
+      "directions": {
+        "inbound": 104,
+        "outbound": 100
+      },
+      "excluded": {
+        "not_running_on_day": 298,
+        "unsupported_calendar": 54
+      },
+      "tested_offline_direct_route": "OK",
+      "displayed_options": 3
+    },
+    {
+      "service_date": "2026-10-24",
+      "weekday": "Saturday",
+      "xml_member": "BODS_PD0001111_813_20260920_32.xml",
+      "eligible_source_vehicle_journey_records": 99,
+      "exact_duplicates": 0,
+      "distinct_scheduled_pattern_candidates": 99,
+      "directions": {
+        "inbound": 52,
+        "outbound": 47
+      },
+      "excluded": {
+        "not_running_on_day": 457
+      },
+      "tested_offline_direct_route": "OK",
+      "displayed_options": 3
+    },
+    {
+      "service_date": "2026-10-25",
+      "weekday": "Sunday",
+      "xml_member": "BODS_PD0001111_813_20261025_33.xml",
+      "eligible_source_vehicle_journey_records": 62,
+      "exact_duplicates": 0,
+      "distinct_scheduled_pattern_candidates": 62,
+      "directions": {
+        "inbound": 31,
+        "outbound": 31
+      },
+      "excluded": {
+        "not_running_on_day": 224
+      },
+      "tested_offline_direct_route": "UNSUPPORTED_CALENDAR_TIME_TRANSITION",
+      "displayed_options": 0
+    },
+    {
+      "service_date": "2026-10-26",
+      "weekday": "Monday",
+      "xml_member": "BODS_PD0001111_813_20261025_33.xml",
+      "eligible_source_vehicle_journey_records": 106,
+      "exact_duplicates": 0,
+      "distinct_scheduled_pattern_candidates": 106,
+      "directions": {
+        "inbound": 54,
+        "outbound": 52
+      },
+      "excluded": {
+        "not_running_on_day": 161,
+        "unsupported_calendar": 19
+      },
+      "tested_offline_direct_route": "OK",
+      "displayed_options": 3
+    }
+  ],
+  "production_acceptance_cases_passed": 0
+}
