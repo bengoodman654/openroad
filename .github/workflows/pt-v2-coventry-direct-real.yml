@@ -14,4 +14,5 @@ jobs:
       - name: Route across all real Coventry 11 timetable candidates for controlled service days
         run: python3 tests/pt_v2/check_coventry_multitrip_routes_offhost.py
       - name: Production safety statement
-        run: echo 'Offline source-derived dry-run only: 0 of 105 production acceptance cases passed.'
+        run: |
+          echo 'Offline source-derived dry-run only: 0 of 105 production acceptance cases passed.'
