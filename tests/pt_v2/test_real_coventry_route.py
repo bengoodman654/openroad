@@ -80,6 +80,19 @@ class Coventry11SourceRoute(unittest.TestCase):
         altered=copy.deepcopy(self.f);altered["journey"]["stops"][4]["arrival_offset_seconds"]=-1
         with self.assertRaises(FixtureError):validate(altered)
 
+    def test_rejects_archive_or_member_substitution(self):
+        changed=copy.deepcopy(self.f)
+        changed["source_zip_sha256"]="0"*64
+        with self.assertRaises(FixtureError):validate(changed)
+        changed=copy.deepcopy(self.f)
+        changed["source_xml_member"]="other.xml"
+        with self.assertRaises(FixtureError):validate(changed)
+
+    def test_rejects_invalid_stop_activity(self):
+        changed=copy.deepcopy(self.f)
+        changed["journey"]["stops"][0]["activity"]="unknown"
+        with self.assertRaises(FixtureError):validate(changed)
+
     def test_timezone_aware_request_mandatory(self):
         with self.assertRaises(FixtureError):
             plan_direct(self.f,"43000065301","43000005010",datetime(2026,10,23,5,40))
