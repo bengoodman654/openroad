@@ -1,4 +1,4 @@
-name: PT v2 bounded Coventry TXC selective XML inspection
+name: PT v2 all-file bounded Coventry TXC prefix inspection
 on:
   push:
     branches: [design/public-transport-v2-2-contract]
