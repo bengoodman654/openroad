@@ -88,7 +88,10 @@ def direct_options(snapshot,origin_ref,dest_ref,depart_after,max_results=3):
                     "duration_seconds":int((arrival-departure).total_seconds()),
                     "stops_between":j-i-1,
                     "source_snapshot":snapshot["source_zip_sha256"],
-                    "verification":"SOURCE_DERIVED_MULTITRIP_OFFLINE_ONLY"
+                    "verification":"SOURCE_DERIVED_MULTITRIP_OFFLINE_ONLY",
+                    "_signature":(t["direction"],t["published_departure_time"],
+                       tuple((x["stop_ref"],x["arrival_offset_seconds"],
+                              x["departure_offset_seconds"],x["activity"]) for x in stoplist))
                 })
     candidates.sort(key=lambda x:(x["arrival"],x["departure"],x["trip_occurrence_id"]))
     # Collapse equivalent published departures, preserving all original IDs.
