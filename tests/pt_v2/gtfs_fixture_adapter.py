@@ -118,7 +118,7 @@ class GTFSFixture:
         if override is not None:return override=="1"
         c=self.calendar.get(service_id)
         return bool(c and c["start_date"]<=ds<=c["end_date"]
-                    and c[on_date.strftime("%A").lower()]=="1")
+                    and c[("monday","tuesday","wednesday","thursday","friday","saturday","sunday")[on_date.weekday()]]=="1")
 
     def services(self,line,on_date=None):
         """Service matches by operator route ID, never by number alone."""
