@@ -1,0 +1,247 @@
+{
+  "kind": "REAL_TXC_COVENTRY_11_CANDIDATE_NOT_INDEPENDENTLY_VERIFIED",
+  "operator_noc": "TCVW",
+  "service_code": "PD0001111:813",
+  "line": "11",
+  "source_dataset": "20442",
+  "source_zip_sha256": "5fc158d433b7eff9dc72270b8d955d00d4ae2a8e027dbf13bb1316634cec05e0",
+  "source_xml_member": "BODS_PD0001111_813_20260920_32.xml",
+  "service_date": "2026-10-23",
+  "weekday": "Friday",
+  "time_zone": "Europe/London",
+  "calendar_assumptions": [
+    "2026-10-23 normal Friday; government list has no public bank holiday",
+    "TXC vehicle journey RegularDayType matches Friday",
+    "special exception calendars beyond normal and BankHoliday exclusions require fuller engine"
+  ],
+  "candidate_count": 168,
+  "skipped": {
+    "dead_run_or_short_working": 52,
+    "non_friday_or_unsupported_calendar": 336
+  },
+  "journey": {
+    "journey_code": "VJ136",
+    "pattern": "JP40",
+    "direction": "inbound",
+    "destination": "Pool Meadow Bus Station",
+    "published_departure_time": "05:55:00",
+    "regular_day_tokens": [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday"
+    ],
+    "bank_holiday_exclusions": [
+      "ChristmasDay",
+      "BoxingDay",
+      "GoodFriday",
+      "NewYearsDay",
+      "LateSummerBankHolidayNotScotland",
+      "MayDay",
+      "EasterMonday",
+      "SpringBank",
+      "ChristmasDayHoliday",
+      "BoxingDayHoliday",
+      "NewYearsDayHoliday",
+      "ChristmasEve",
+      "NewYearsEve"
+    ],
+    "stop_count": 26,
+    "stops": [
+      {
+        "stop_ref": "43000065301",
+        "name": "University Interchange",
+        "locality": "University of Warwick",
+        "arrival_offset_seconds": 0,
+        "departure_offset_seconds": 0
+      },
+      {
+        "stop_ref": "43001317102",
+        "name": "Scarman Road",
+        "locality": "University of Warwick",
+        "arrival_offset_seconds": 60,
+        "departure_offset_seconds": 60
+      },
+      {
+        "stop_ref": "43000065102",
+        "name": "Varsity Pitches",
+        "locality": "University of Warwick",
+        "arrival_offset_seconds": 120,
+        "departure_offset_seconds": 120
+      },
+      {
+        "stop_ref": "43000063701",
+        "name": "Westwood Campus",
+        "locality": "Cannon Park",
+        "arrival_offset_seconds": 180,
+        "departure_offset_seconds": 180
+      },
+      {
+        "stop_ref": "43000063602",
+        "name": "Lynchgate Road",
+        "locality": "Cannon Park",
+        "arrival_offset_seconds": 240,
+        "departure_offset_seconds": 240
+      },
+      {
+        "stop_ref": "43000062402",
+        "name": "Centenary Road",
+        "locality": "Canley",
+        "arrival_offset_seconds": 300,
+        "departure_offset_seconds": 300
+      },
+      {
+        "stop_ref": "43000072902",
+        "name": "Torrington Avenue",
+        "locality": "Whoberley",
+        "arrival_offset_seconds": 420,
+        "departure_offset_seconds": 420
+      },
+      {
+        "stop_ref": "43000027802",
+        "name": "Renown Avenue",
+        "locality": "Whoberley",
+        "arrival_offset_seconds": 540,
+        "departure_offset_seconds": 540
+      },
+      {
+        "stop_ref": "43000003801",
+        "name": "Spring Place",
+        "locality": "Hearsall Common",
+        "arrival_offset_seconds": 600,
+        "departure_offset_seconds": 600
+      },
+      {
+        "stop_ref": "43000071701",
+        "name": "Hearsall Court",
+        "locality": "Hearsall Common",
+        "arrival_offset_seconds": 660,
+        "departure_offset_seconds": 660
+      },
+      {
+        "stop_ref": "43000023401",
+        "name": "Hearsall Common",
+        "locality": "Hearsall Common",
+        "arrival_offset_seconds": 720,
+        "departure_offset_seconds": 720
+      },
+      {
+        "stop_ref": "43001052002",
+        "name": "Kingston Road",
+        "locality": "Earlsdon",
+        "arrival_offset_seconds": 780,
+        "departure_offset_seconds": 780
+      },
+      {
+        "stop_ref": "43000070701",
+        "name": "Highland Road",
+        "locality": "Earlsdon",
+        "arrival_offset_seconds": 840,
+        "departure_offset_seconds": 840
+      },
+      {
+        "stop_ref": "43001051501",
+        "name": "Earlsdon Library",
+        "locality": "Earlsdon",
+        "arrival_offset_seconds": 900,
+        "departure_offset_seconds": 900
+      },
+      {
+        "stop_ref": "43000061801",
+        "name": "Warwick Avenue",
+        "locality": "Earlsdon",
+        "arrival_offset_seconds": 960,
+        "departure_offset_seconds": 960
+      },
+      {
+        "stop_ref": "43000060102",
+        "name": "Mickleton Road",
+        "locality": "Earlsdon",
+        "arrival_offset_seconds": 1020,
+        "departure_offset_seconds": 1020
+      },
+      {
+        "stop_ref": "43000062001",
+        "name": "Huntingdon Road",
+        "locality": "Earlsdon",
+        "arrival_offset_seconds": 1020,
+        "departure_offset_seconds": 1020
+      },
+      {
+        "stop_ref": "43000060001",
+        "name": "Spencer Park",
+        "locality": "Earlsdon",
+        "arrival_offset_seconds": 1080,
+        "departure_offset_seconds": 1080
+      },
+      {
+        "stop_ref": "43000052102",
+        "name": "King Henry VIII School",
+        "locality": "Earlsdon",
+        "arrival_offset_seconds": 1140,
+        "departure_offset_seconds": 1140
+      },
+      {
+        "stop_ref": "43000008203",
+        "name": "Rail Station Bridge",
+        "locality": "Coventry",
+        "arrival_offset_seconds": 1200,
+        "departure_offset_seconds": 1200
+      },
+      {
+        "stop_ref": "43000002102",
+        "name": "Quadrant",
+        "locality": "Coventry",
+        "arrival_offset_seconds": 1260,
+        "departure_offset_seconds": 1260
+      },
+      {
+        "stop_ref": "43000007201",
+        "name": "Magistrates Court",
+        "locality": "Coventry",
+        "arrival_offset_seconds": 1320,
+        "departure_offset_seconds": 1320
+      },
+      {
+        "stop_ref": "43000007102",
+        "name": "Herbert Gallery",
+        "locality": "Coventry",
+        "arrival_offset_seconds": 1380,
+        "departure_offset_seconds": 1380
+      },
+      {
+        "stop_ref": "43001053502",
+        "name": "Starley Gardens",
+        "locality": "Coventry",
+        "arrival_offset_seconds": 1440,
+        "departure_offset_seconds": 1440
+      },
+      {
+        "stop_ref": "43000006301",
+        "name": "Code Building",
+        "locality": "Coventry",
+        "arrival_offset_seconds": 1440,
+        "departure_offset_seconds": 1440
+      },
+      {
+        "stop_ref": "43000005010",
+        "name": "Pool Meadow Bus Station",
+        "locality": "Coventry",
+        "arrival_offset_seconds": 1560,
+        "departure_offset_seconds": 1560
+      }
+    ],
+    "timing_semantics": "derived stop offsets from TXC RunTime and From/WaitTime; unverified by independent published stop timetable",
+    "unhandled_special_rules": false
+  },
+  "production_acceptance_cases_passed": 0,
+  "provenance": {
+    "source": "DfT BODS",
+    "dataset": "20442",
+    "source_url": "https://data.bus-data.dft.gov.uk/timetable/dataset/20442/download/",
+    "extraction_run": "https://github.com/bengoodman654/openroad/actions/runs/40085248431",
+    "independent_operator_timing_oracle": "PENDING",
+    "note": "Stop arrival/departure offsets are candidate outputs of the first-run TXC timing interpreter. Verify against published operator stop-by-stop timetable before passenger use."
+  }
+}
