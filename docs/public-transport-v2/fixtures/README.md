@@ -31,7 +31,24 @@ Authoritative timetable information changes. These route descriptions are witnes
 
 The isolated GitHub job [run #40075012766](https://github.com/bengoodman654/openroad/actions/runs/40075012766) performed one bounded public-region GTFS download attempt on 24 October 2026. It terminated after the compressed response exceeded **140 MiB**, without retaining a complete archive. No official route/trip rows were parsed. This is **an observed acquisition size failure**, not a failed service lookup and not a production test.
 
-Do not raise that limit simply to force a test through. The next approach should use the DfT BODS timetable metadata API, which permits NOC/operator filtering and links to relevant operator-submitted dataset files. Verify API authorization and response schemas before implementing an operator-scoped importer.
+Do not raise that limit simply to force a test through. Smaller official operator-scoped BODS metadata and ZIP files were obtained instead, with the BODS key remaining on the production server and all substantial XML processing taking place on disposable GitHub runners.
+
+## Verified real official dataset acquisition
+
+**Coventry:** BODS operator NOC `TCVW` returned an authorised metadata page containing dataset **20442**, modified 19 October 2026. Its public 11,172,224-byte ZIP is pinned to SHA-256 `5fc158d433b7eff9dc72270b8d955d00d4ae2a8e027dbf13bb1316634cec05e0`. All **38 TXC XML members** were processed with a bounded-memory streaming parser, confirming in-file NOC `TCVW` and line names **9, 11 and 12X** in their own XML members. The 321,777,152-byte declared expanded total was **never extracted into a directory**. See `official_coventry_txc_manifest.json` and [the successful full streaming audit](https://github.com/bengoodman654/openroad/actions/runs/40079491063). These observations validate source identity, **not** date-specific trip selection or passenger journey correctness.
+
+**Bristol:** The full `FBRI` metadata response contains 35 datasets. Five advertise service 75. Four sources' **inspected service-75 XML members** proved to be Ipswich (`FECS`), Colchester (`FESX`), York (`FSYO`) or Hunslet (`FLDS`). They must not be used as Bristol route 75. The fifth dataset, **18422**, remains unresolved because the conservative filename selector found no 75-labelled members. Do **not** infer that uninspected XML members contain no Bristol routes. See `official_bristol_candidates.json` and `official_bristol_negative_sources.json` for the exact source hashes, URLs and limits.
+
+**Mandatory source acceptance gate:** A route-number match and even a BODS operator-group metadata NOC are insufficient. Verify the **service-bearing XML member's** own National Operator Code, the exact operator identity, the route's ATCO/NaPTAN stop pattern and geography, its service calendar and its trip times against an independent oracle before approving the input to a journey planner.
+
+All substantial downloads and XML processing were off-host. JustHostMe executed only bounded, one-shot *metadata* GETs using its existing private key; no Android or deployed PHP files changed.
+
+## Next real-engine fixture work
+
+1. Extract a compact, version-pinned golden dataset for one confirmed Coventry service, including TransXChange calendar, service-day rules, ordered stops, route and trip identities, and departures.
+2. Select Bristol route 75 by the official `FBRI` and `PH0000132` operator/registration plus Cribbs Causeway–Hengrove stop references, **not merely the string “75”**. Probe only bounded source members.
+3. Test actual origin/destination queries and re-check against a separately published timetable. Validate server memory/time budget before enabling a production transport API.
+4. Only then increment production acceptance test counts. The real Android and PHP integration suite remains **0/105 passed**.
 
 ## Requirements and acceptance crosswalk
 
@@ -42,7 +59,7 @@ Do not raise that limit simply to force a test through. The next approach should
 | RTE-05, ROUT-02 | Synthetic GTFS after-midnight service-date test | NOT RUN |
 | REL-01 | Restricted-scope release-gate model | NOT RUN |
 
-**21 reference contract tests + 20 fixture and inspection tests = 41 passing offline tests.** All **105** acceptance cases remain **NOT RUN / NOT IMPLEMENTED** against the rebuilt transport engine.
+The offline unit suite has expanded since the original 41-test run; consult the latest GitHub Actions log for the current count. The **105 production acceptance cases remain NOT RUN / NOT IMPLEMENTED** against the rebuilt transport engine.
 
 ## Safety constraints for follow-up
 
