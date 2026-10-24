@@ -22,12 +22,13 @@ class OfficialEvidenceManifest(unittest.TestCase):
         self.assertEqual(m["operator_noc"],"FBRI")
         self.assertEqual(m["target_service"],"75")
         self.assertGreater(m["observed_result"]["total_record_count"],m["observed_result"]["records_on_first_page"])
-        self.assertFalse(m["observed_result"]["pagination_complete"])
+        self.assertTrue(m["observed_result"]["pagination_complete"])
+        self.assertEqual(len(m["operator_dataset_candidates"]),5)
         self.assertEqual(m["downloaded_files"],0)
         self.assertEqual(m["production_acceptance_cases_passed"],0)
     def test_lookalike_services_in_wrong_cities_are_rejected(self):
         evidence=json.loads((ROOT/"official_bristol_negative_sources.json").read_text())
-        self.assertEqual(len(evidence["observed_mismatches"]),3)
+        self.assertEqual(len(evidence["observed_mismatches"]),4)
         for case in evidence["observed_mismatches"]:
             self.assertNotEqual(case["member_noc"],"FBRI")
             self.assertIn("75",case["member_lines"])
@@ -36,6 +37,7 @@ class OfficialEvidenceManifest(unittest.TestCase):
                 "REJECT_WRONG_OPERATOR")
             self.assertEqual(len(case["sha256"]),64)
         self.assertEqual(evidence["production_acceptance_cases_passed"],0)
+        self.assertEqual(evidence["unresolved_candidates"][0]["dataset_id"],"18422")
 
     def test_correct_operator_and_line_still_require_geography_and_calendar(self):
         self.assertEqual(
