@@ -23,10 +23,20 @@ def main():
         directions=Counter(j["direction"] for j in trips)
         hourbins=Counter(j["published_departure_time"][:2] for j in trips)
         dead=sum(j["has_positioning_dead_run"] for j in trips)
+        duplicate_groups={}
+        for trip in trips:
+            signature=(trip["published_departure_time"],trip["direction"],
+                       tuple((s["stop_ref"],s["arrival_offset_seconds"],
+                              s["departure_offset_seconds"],s["activity"]) for s in trip["stops"]))
+            duplicate_groups.setdefault(signature,[]).append(trip["journey_code"])
+        duplicated=[v for v in duplicate_groups.values() if len(v)>1]
         identifiers={t["journey_code"] for t in trips}
         sample=next((t for t in trips if t["journey_code"]=="VJ136"),None)
         day_summaries.append({
             "date":d.isoformat(),"weekday":d.strftime("%A"),"selected_member":selected,
+            "exact_duplicate_groups":len(duplicated),
+            "redundant_candidate_records":sum(len(g)-1 for g in duplicated),
+            "duplicate_examples":duplicated[:5],
             "candidates":len(trips),"unique_journey_codes":len(identifiers),
             "directions":dict(directions),"first_departure":min((t["published_departure_time"] for t in trips),default=None),
             "last_departure":max((t["published_departure_time"] for t in trips),default=None),
