@@ -105,7 +105,10 @@ def direct_options(snapshot,origin_ref,dest_ref,depart_after,max_results=3):
             groups[signature]=c
     options=sorted(groups.values(),
         key=lambda c:(c["arrival"],c["departure"],c["trip_occurrence_id"]))[:max_results]
-    return {"outcome":"OK" if options else "NO_JOURNEY",
+    unverified=snapshot.get("rejected",{}).get("unsupported_calendar",0)
+    status="OK" if options else ("PARTIAL_NO_VERIFIED_JOURNEY" if unverified else "NO_JOURNEY")
+    return {"outcome":status,
+            "warnings":["Some calendar rules remain unsupported; alternatives may be missing"] if unverified else [],
             "results":options,"source_snapshot":snapshot["source_zip_sha256"],
             "service_date":snapshot["service_date"],
             "origin_stop":origin_ref,"destination_stop":dest_ref}
