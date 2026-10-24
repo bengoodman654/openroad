@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """One-off HEAD-only probe of official BODS dataset 20442, run on a disposable GitHub runner."""
+import argparse
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 from urllib.error import HTTPError
 from urllib.parse import urljoin, urlsplit
 import json
 
-START="https://data.bus-data.dft.gov.uk/timetable/dataset/20442/download/"
+ALLOWED_DATASETS=("20442","2100","2154","2157")
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self,req,fp,code,msg,headers,newurl):
         return None
@@ -17,8 +18,11 @@ def allowed(url):
     return host=="data.bus-data.dft.gov.uk" or host in ("storage.googleapis.com",) or host.endswith((".amazonaws.com",".cloudfront.net",".digitaloceanspaces.com"))
 
 def main():
+    ap=argparse.ArgumentParser()
+    ap.add_argument("--dataset",choices=ALLOWED_DATASETS,default="20442")
+    args=ap.parse_args()
     op=build_opener(NoRedirect())
-    url=START
+    url=f"https://data.bus-data.dft.gov.uk/timetable/dataset/{args.dataset}/download/"
     for i in range(4):
         if not allowed(url):
             print("STOP: redirect host is outside reviewed provider/CDN hosts.")
