@@ -91,6 +91,17 @@ class MultiTripDirectContracts(unittest.TestCase):
         result=direct_options(a,"43000065301","43000005010",q)
         self.assertEqual(len(result["results"]),2)
 
+    def test_incomplete_calendar_must_not_make_false_no_journey_claim(self):
+        a=synthetic()
+        a["rejected"]={"unsupported_calendar":12}
+        q=datetime(2026,10,23,5,40,tzinfo=ZONE)
+        found=direct_options(a,"43000065301","43000005010",q)
+        self.assertEqual(found["outcome"],"OK")
+        self.assertTrue(found["warnings"])
+        absent=direct_options(a,"UNKNOWN","43000005010",q)
+        self.assertEqual(absent["outcome"],"PARTIAL_NO_VERIFIED_JOURNEY")
+        self.assertEqual(len(absent["results"]),0)
+
     def test_naive_date_and_invalid_request_limits(self):
         a=synthetic()
         with self.assertRaises(UnsupportedTXC):direct_options(a,"A","B",datetime(2026,10,23,5,0))
