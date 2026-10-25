@@ -1,0 +1,59 @@
+# OpenRoad PT v2 — scheduled-bus pilot (research only)
+
+This isolated Python prototype was built from the approved v2.2 public-transport design. It does **not** modify the existing Android application, shared-hosted transport server or automatic updater. It uses the Python 3 standard library only.
+
+## Scope
+
+- Parses official DfT Bus Open Data Service (BODS) regional GTFS archives as streamed ZIPs.
+- Selects a chosen service date, applying weekly calendars and `calendar_dates.txt` exceptions.
+- Restricts the pilot to a 15-km radius around Bristol or Coventry, and to GTFS `route_type=3` buses.
+- Maintains distinct source route, trip and stop identifiers (not just public bus numbers).
+- Constructs scheduled stop-to-stop connections and a simple one-earliest-arrival connection-scan search with configurable transfer buffers.
+- Checks boarding/alighting permissions, hard transfer limits, late-night 24+ times and DST time conversion.
+- Provides explicitly **approximate** first/last-mile walk distances, not verified pedestrian paths.
+- Builds a compact, release-pinned SQLite index using integer keys. Dataset preparation belongs on an external builder, never on the user's shared host during a search.
+
+**This is a deliberately limited research engine.** It cannot be used as the production public transport planner until the wider v2.2 release gates pass.
+
+## Official input datasets
+
+- Coventry: https://data.bus-data.dft.gov.uk/timetable/download/gtfs-file/west_midlands/
+- Bristol: https://data.bus-data.dft.gov.uk/timetable/download/gtfs-file/south_west/
+- GTFS semantics: https://gtfs.org/documentation/schedule/reference/
+
+Download each ZIP to a *temporary folder outside the repository*. The ZIPs are large. Do not commit them or any API keys.
+
+## Execute
+
+Requires Python 3.11+; no third-party packages.
+
+Synthetic tests (no downloads or server access required):
+
+    python3 -m unittest discover -s pilot -p 'test_*.py' -v
+
+Real-data, read-only integration probe:
+
+    python3 -m pilot.gtfs_engine \
+      --west /path/to/west_midlands_gtfs.zip \
+      --south /path/to/south_west_gtfs.zip \
+      --date 2026-10-26
+
+This prints two JSON records: source inventory and one independently reconstructed *within-feed* sample itinerary per city. The sample oracle compares the search with a feasible trip from the **same** published feed; it is not independent corroboration by an operator.
+
+For an off-host builder, call `populate_sqlite(snapshot, sqlite_connection)` with an empty SQLite database. Never run a heavy GTFS import interactively on the shared host. Release/promotion requires separate integrity, licensing, size and performance checks.
+
+## Test evidence
+
+See [real-feed-evidence-2026-10-26.json](real-feed-evidence-2026-10-26.json) for the exact feed versions, SHA-256 hashes, route examples, measured local index sizes and executed-check counts.
+
+## Unimplemented / blocking work
+
+- The 105 v2.2 production acceptance cases are **not** marked passed.
+- A one-best-arrival scanner is not yet a robust multicriteria / Pareto journey planner.
+- No full map-matched pedestrian graph, intermediate walking transfer graph or wheelchair-accessibility proof.
+- No cross-region routing, national rail graph, realtime predictions, verified disruptions, identity crosswalk to NaPTAN, fares, complete bus-operator coverage audit, provider licences per feed, or multi-day journey enquiry.
+- No API request lifecycle, authenticated server cancellation/tombstones, concurrency tests or actual shared-host safety measurements.
+- No end-to-end 20-second SLA proof, Android UI tests or field validation.
+- Regional geometry is clipped. A service going outside the test radius may not be routable through its full journey; such a route is not fabricated.
+
+No files in this pilot should be deployed or executed on the live server without further review.
