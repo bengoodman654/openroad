@@ -1,0 +1,80 @@
+{
+  "title": "OpenRoad PT v2 pilot real-feed evidence",
+  "measuredOn": "2026-10-25",
+  "serviceDate": "2026-10-26",
+  "state": "RESEARCH_ONLY_NOT_PRODUCTION_ACCEPTED",
+  "syntheticTests": {
+    "executed": 23,
+    "passed": 23,
+    "failed": 0,
+    "kind": "in-memory synthetic fixture tests"
+  },
+  "realTests": {
+    "executed": 2,
+    "passed": 2,
+    "kind": "within-feed itinerary reconstruction; not independent source corroboration"
+  },
+  "sources": [
+    {
+      "city": "Coventry",
+      "region": "west_midlands",
+      "url": "https://data.bus-data.dft.gov.uk/timetable/download/gtfs-file/west_midlands/",
+      "feedVersion": "20261022_035151",
+      "sha256": "56e2f73ee49f77023c49f35f59d9e51a264f5e3d2dfb275a3a80151806a8d27e",
+      "activeServices": 167,
+      "stopsWithin15km": 2798,
+      "dateValidBusTripsWithLocalStop": 7519,
+      "tripKeysInConnectedGraph": 7516,
+      "connections": 248929,
+      "indexMiB": 14.9,
+      "zipLoadSec": 14.82,
+      "sqliteBuildSec": 0.59,
+      "indexedLookupMs": 0.08,
+      "sample": {
+        "publicLine": "17",
+        "from": "Vernon Court",
+        "fromStopId": "43000031201",
+        "to": "St Johns Church",
+        "toStopId": "43000003203",
+        "scheduledDeparture": "10:00",
+        "scheduledArrival": "10:14",
+        "searchArrival": "10:14",
+        "tripSourceId": "VJ3799cf079126768238edc4d70c448eb3494bf5d6"
+      }
+    },
+    {
+      "city": "Bristol",
+      "region": "south_west",
+      "url": "https://data.bus-data.dft.gov.uk/timetable/download/gtfs-file/south_west/",
+      "feedVersion": "20261022_033727",
+      "sha256": "61417fea64467afe1396ecc7557f1cfa85e992ea46f6254587b6b6ca8d1b2e20",
+      "activeServices": 192,
+      "stopsWithin15km": 2705,
+      "dateValidBusTripsWithLocalStop": 12692,
+      "tripKeysInConnectedGraph": 12029,
+      "connections": 402788,
+      "indexMiB": 24,
+      "zipLoadSec": 19.85,
+      "sqliteBuildSec": 0.88,
+      "indexedLookupMs": 0.05,
+      "sample": {
+        "publicLine": "1",
+        "from": "Henbury Road",
+        "fromStopId": "0100BRP91045",
+        "to": "Durdham Park",
+        "toStopId": "0100BRP91028",
+        "scheduledDeparture": "10:00",
+        "scheduledArrival": "10:11",
+        "searchArrival": "10:11",
+        "tripSourceId": "VJ17e8aaf07e9cbbac2a7798fb6708571275e2d245"
+      }
+    }
+  ],
+  "notes": [
+    "Measurements are from an isolated temporary runner and in-memory SQLite, not the JustHostMe server.",
+    "Source data published 2026-10-22; regional dataset not uploaded to GitHub.",
+    "The automatic real-case oracle derives expected route from same GTFS feed.",
+    "Validation of published operator timetable and source-specific permissions still outstanding.",
+    "Actual rollout gate remains 0 of 105 production acceptance cases confirmed."
+  ]
+}
