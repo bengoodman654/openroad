@@ -45,8 +45,8 @@ For an off-host builder, call `populate_sqlite(snapshot, sqlite_connection)` wit
 
 Version-pinned real-data verification (four stored oracles: direct and transfer in each city):
 
-    python3 -m pilot.verify_real \\
-      --west /path/to/west_midlands_gtfs.zip \\
+    python3 -m pilot.verify_real \
+      --west /path/to/west_midlands_gtfs.zip \
       --south /path/to/south_west_gtfs.zip
 
 This checks the SHA-256 hashes of the original archives, exact trip IDs, service lines, change stops, scheduled arrival times and SQLite connection counts. When BODS publishes a newer archive, this test must fail until a new validated fixture is recorded.
