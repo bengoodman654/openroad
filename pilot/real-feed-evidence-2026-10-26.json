@@ -10,9 +10,9 @@
     "kind": "in-memory synthetic fixture tests"
   },
   "realTests": {
-    "executed": 2,
-    "passed": 2,
-    "kind": "within-feed itinerary reconstruction; not independent source corroboration"
+    "executed": 4,
+    "passed": 4,
+    "kind": "two direct plus two transferring journeys, all version-pinned within-feed; no independent operator verification"
   },
   "sources": [
     {
@@ -40,6 +40,26 @@
         "scheduledArrival": "10:14",
         "searchArrival": "10:14",
         "tripSourceId": "VJ3799cf079126768238edc4d70c448eb3494bf5d6"
+      },
+      "transferSample": {
+        "publicLines": [
+          "3",
+          "17"
+        ],
+        "from": "Callice Court",
+        "to": "Quadrant",
+        "transferStop": "Sainsbury's",
+        "fromStopId": "43000008601",
+        "transferStopId": "43000001002",
+        "toStopId": "43000002101",
+        "firstDeparture": "11:27",
+        "transferArrival": "11:33",
+        "secondDeparture": "11:41",
+        "finalArrival": "11:47",
+        "expectedTripSourceIds": [
+          "VJ0029c45cb74f11be6a655c51e74ba6b9d2eaa59f",
+          "VJ3a97aa7c6d2f1b2f41d72d9bc5766f5fe9090ac2"
+        ]
       }
     },
     {
@@ -67,6 +87,26 @@
         "scheduledArrival": "10:11",
         "searchArrival": "10:11",
         "tripSourceId": "VJ17e8aaf07e9cbbac2a7798fb6708571275e2d245"
+      },
+      "transferSample": {
+        "publicLines": [
+          "24",
+          "43"
+        ],
+        "from": "Queen Square",
+        "to": "Lawrence Hill Station",
+        "transferStop": "Old Market Street",
+        "fromStopId": "0100BRX32922",
+        "transferStopId": "0100BRA46646",
+        "toStopId": "0100BRA10454",
+        "firstDeparture": "12:06",
+        "transferArrival": "12:17",
+        "secondDeparture": "12:23",
+        "finalArrival": "12:33",
+        "expectedTripSourceIds": [
+          "VJ0073aeeafdc235ae9404045ceb9b80d2676bb105",
+          "VJ867a8378a832a5be147505789bcb05410e61d9c0"
+        ]
       }
     }
   ],
@@ -75,6 +115,7 @@
     "Source data published 2026-10-22; regional dataset not uploaded to GitHub.",
     "The automatic real-case oracle derives expected route from same GTFS feed.",
     "Validation of published operator timetable and source-specific permissions still outstanding.",
-    "Actual rollout gate remains 0 of 105 production acceptance cases confirmed."
+    "Actual rollout gate remains 0 of 105 production acceptance cases confirmed.",
+    "Version-pinned real-data rerun executed on 25 October 2026 and passed all four itinerary oracles."
   ]
 }
