@@ -42,6 +42,15 @@ This prints two JSON records: source inventory and one independently reconstruct
 
 For an off-host builder, call `populate_sqlite(snapshot, sqlite_connection)` with an empty SQLite database. Never run a heavy GTFS import interactively on the shared host. Release/promotion requires separate integrity, licensing, size and performance checks.
 
+
+Version-pinned real-data verification (four stored oracles: direct and transfer in each city):
+
+    python3 -m pilot.verify_real \\
+      --west /path/to/west_midlands_gtfs.zip \\
+      --south /path/to/south_west_gtfs.zip
+
+This checks the SHA-256 hashes of the original archives, exact trip IDs, service lines, change stops, scheduled arrival times and SQLite connection counts. When BODS publishes a newer archive, this test must fail until a new validated fixture is recorded.
+
 ## Test evidence
 
 See [real-feed-evidence-2026-10-26.json](real-feed-evidence-2026-10-26.json) for the exact feed versions, SHA-256 hashes, route examples, measured local index sizes and executed-check counts.
