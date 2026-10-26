@@ -110,6 +110,7 @@ class PedestrianGraph:
         self.blocked_nodes: set[str] = set()
         self.accepted_ways = 0
         self.discarded_ways = 0
+        self.transit_stops: dict[str, dict] = {}
 
     def block_node(self, node_id: str):
         self.blocked_nodes.add(str(node_id))
@@ -348,7 +349,9 @@ def propose_stop_anchors(graph: PedestrianGraph, snapshot,
     return candidates
 
 
-def load_osm_pbf_offhost(path: str, source_sha256: str | None = None
+def load_osm_pbf_offhost(path: str, source_sha256: str | None = None,
+                         centre: tuple[float, float] | None = None,
+                         radius_m: int = 2500
                         ) -> PedestrianGraph:
     """Optional pyosmium adapter: run ONLY on a small, complete-ways extract.
 
@@ -360,6 +363,8 @@ def load_osm_pbf_offhost(path: str, source_sha256: str | None = None
         import osmium
     except ImportError as e:
         raise RuntimeError("Off-host builder needs optional pyosmium") from e
+    if centre is not None and (radius_m < 100 or radius_m > 15000):
+        raise ValueError("Invalid city extract radius")
     if not source_sha256:
         sha = hashlib.sha256()
         with open(path, "rb") as stream:
@@ -375,6 +380,26 @@ def load_osm_pbf_offhost(path: str, source_sha256: str | None = None
                     (tags.get("barrier") == "gate" and
                      (tags.get("access") in NO or tags.get("foot") in NO))):
                 graph.block_node(str(n.id))
+            # An OSM bus-stop tag is only an UNVERIFIED crosswalk candidate.
+            # It is never promoted to a GTFS stop-access connector.
+            if (tags.get("highway") == "bus_stop" or
+                    (tags.get("public_transport") == "platform" and
+                     tags.get("bus") == "yes")):
+                try:
+                    if not n.location.valid():
+                        return
+                    point = (float(n.location.lat), float(n.location.lon))
+                except (ValueError, TypeError, RuntimeError):
+                    return
+                if centre is not None and distance_m(point,centre) > radius_m:
+                    return
+                graph.transit_stops[str(n.id)] = {
+                    "osmNode": str(n.id),
+                    "atcoCode": tags.get("naptan:AtcoCode", ""),
+                    "name": tags.get("name", ""),
+                    "lat": point[0], "lon": point[1],
+                    "crosswalk": "UNVERIFIED_OSM_TAG",
+                }
 
         def way(self, way):
             tags = dict(way.tags)
@@ -390,6 +415,10 @@ def load_osm_pbf_offhost(path: str, source_sha256: str | None = None
                                      float(node.location.lon)))
                 except (ValueError, TypeError, RuntimeError):
                     return
+            if centre is not None and not any(
+                    distance_m((lat,lon),centre) <= radius_m
+                    for _,lat,lon in vertices):
+                return
             graph.add_way(str(way.id), vertices, tags)
 
     Loader().apply_file(path, locations=True, idx="flex_mem")

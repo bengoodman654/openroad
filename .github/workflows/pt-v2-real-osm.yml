@@ -1,0 +1,50 @@
+name: OpenRoad real OSM pedestrian pilot (off-host)
+on:
+  push:
+    branches: [pt-v2-planner-hardening]
+    paths:
+      - 'pilot/real_osm_probe.py'
+      - 'pilot/pedestrian_graph.py'
+      - '.github/workflows/pt-v2-real-osm.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  city-pilot:
+    if: contains(github.event.head_commit.message, '[real-osm-probe]') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - city: Bristol
+            region: bristol
+          - city: Coventry
+            region: west-midlands
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install isolated PBF parser
+        run: python3 -m pip install 'osmium==4.3.2'
+      - name: Download public county OSM extract to temporary GitHub runner
+        shell: bash
+        run: |
+          curl --fail --location --retry 2 --max-time 180 --max-filesize 100000000 \
+            --user-agent 'OpenRoad-offhost-research/0.1' \
+            --output "$RUNNER_TEMP/city.osm.pbf" \
+            "https://download.geofabrik.de/europe/united-kingdom/england/${{ matrix.region }}-latest.osm.pbf"
+      - name: Audit real mapped walking topology (not stop-access verification)
+        shell: bash
+        run: |
+          python3 -m pilot.real_osm_probe --city "${{ matrix.city }}" \
+            --pbf "$RUNNER_TEMP/city.osm.pbf" --radius 2500 \
+            | tee "$RUNNER_TEMP/${{ matrix.region }}-probe.log"
+      - name: Save evidence off-repository
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-osm-probe-${{ matrix.region }}
+          path: ${{ runner.temp }}/${{ matrix.region }}-probe.log
+          retention-days: 14
