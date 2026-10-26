@@ -51,6 +51,21 @@ Version-pinned real-data verification (four stored oracles: direct and transfer 
 
 This checks the SHA-256 hashes of the original archives, exact trip IDs, service lines, change stops, scheduled arrival times and SQLite connection counts. When BODS publishes a newer archive, this test must fail until a new validated fixture is recorded.
 
+## Experimental stage 4: walking transfers and journey alternatives
+
+`journey_options.py` implements a separate, bounded multi-label scheduled journey search. It accepts **explicit directional pedestrian links**, specified in metres and seconds, and can keep feasible journeys with different time/change/walking trade-offs. It does not infer walkable roads from nearby straight-line coordinates.
+
+Example for a data loader or external path router:
+
+    from pilot.journey_options import Footpath, journey_options
+    result = journey_options(snapshot, "STOP_A", "STOP_D", 8 * 3600,
+        footpaths=[Footpath("STOP_B", "STOP_C", 120, 120, verified=False)],
+        max_walk_m=800, max_transfers=2)
+
+Walk links that have not been independently checked must retain `geometryValidated: false` and the warnings `UNVERIFIED_WALK_GEOMETRY` and `NO_ACCESSIBILITY_PROOF`. The search has a bounded horizon and label budget; an exhausted budget returns `SEARCH_LIMIT`, **never** `NO_JOURNEY`.
+
+This is not a vetted national Pareto journey planner, and there is no production-grade pedestrian graph or geographic stop matching. The existing `plan_stops` baseline is retained unchanged. GitHub Actions runs the existing 23 synthetic cases and the new independent transfer/alternative assertions.
+
 ## Test evidence
 
 See [real-feed-evidence-2026-10-26.json](real-feed-evidence-2026-10-26.json) for the exact feed versions, SHA-256 hashes, route examples, measured local index sizes and executed-check counts.
