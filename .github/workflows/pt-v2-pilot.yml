@@ -37,3 +37,15 @@ jobs:
           python-version: '3.11'
       - name: Run all isolated PT regression cases
         run: python3 -m unittest discover -s pilot -p 'test_*.py' -v
+
+  osm-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install off-host OSM parser on isolated runner
+        run: python3 -m pip install 'osmium==4.3.2'
+      - name: Parse tiny reference-complete OSM fixture
+        run: python3 -m unittest pilot.test_osm_adapter -v

@@ -87,7 +87,9 @@ class OptionsTests(unittest.TestCase):
 
     def test_explicit_footpath_geometry_is_not_accessibility_proof(self):
         r=journey_options(self.snapshot,"B","D",8*3600+10*60,
-                          footpaths=[Footpath("B","C",120,120,True)])
+                          footpaths=[Footpath("B","C",120,120,True,
+                              ((52.4090,-1.5106),(52.4100,-1.5106)),
+                              "fixture","synthetic")])
         self.assertEqual(r["outcome"],"OK")
         self.assertIn("NO_ACCESSIBILITY_PROOF",r["results"][0]["warnings"])
         self.assertNotIn("UNVERIFIED_WALK_GEOMETRY",r["results"][0]["warnings"])

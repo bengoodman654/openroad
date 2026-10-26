@@ -131,3 +131,71 @@ rail planning, complete stop/source crosswalk, provider rights, cancellation,
 Android UI, shared-host memory/load, security and field validation remain
 unimplemented or unproved. Keep this branch isolated from both production
 apps and the hosting account.
+
+
+## 26 October 2026 — pedestrian topology prototype (not field validated)
+
+`pedestrian_graph.py` is an additional **OFF-HOST** research module.
+It creates a directional walking network from consecutive, shared OSM node
+identities; geometric lines that cross without sharing a real node are **not**
+joined. It checks tagged walking permissions and pedestrian-only one-way
+restrictions, blocks known barrier nodes, and rejects missing or misleading
+topology. It has a step-avoidance option but does **not** assert wheelchair
+accessibility (kerbs, widths, dropped crossings, surfaces and obstructions are
+not independently checked).
+
+Crucially, **GTFS stops are not automatically snapped to pavements**.
+`propose_stop_anchors` generates *non-routable*, explicitly unverified
+candidate graph nodes. To make a stop usable, an independent validator must
+supply a `StopAnchor` with checked, directional pavement-side access,
+provenance and a geometry that actually reaches both endpoints. If there is
+no verified connector, the search must not invent one.
+
+Given those vetted connectors, `link_stops` computes an actual graph route
+and returns a directional `Footpath` containing its original geometry,
+travel distance/time, source name, source snapshot hash, mapped steps and a
+geometry confidence flag. `journey_options` can now carry this geometry into
+its WALK legs for future Android rendering. The flag says the supplied
+network *geometry* is continuous; it **does not** mean the real-world route
+has been surveyed, is currently open or is accessible to all users. Road
+centre-line approximations are flagged as unverified.
+
+### Build inputs and licensing
+
+The optional loader `load_osm_pbf_offhost` uses `pyosmium` and expects a
+small, reference-complete geographic `.osm.pbf` extract. Prepare such
+extracts on a proper development computer/build worker using Osmium's
+`extract --strategy complete_ways`, with a surrounding buffer to include
+way nodes at the city boundary. Do **not** load large OSM PBFs, run graph
+generation, download fresh extracts or calculate inter-stop footpaths on
+the shared JustHostMe server. The importer has **not yet been exercised with
+a real OSM PBF** in this stage; `pyosmium` was unavailable in the isolated
+test runtime. The Bristol/Coventry ground-truth stop-side link audit remains
+a release blocker.
+
+The OpenStreetMap database is ODbL-licensed. Attribution and any applicable
+derived-database sharing obligations must be handled before public release:
+- https://osmfoundation.org/wiki/Licence/Attribution_Guidelines
+- https://osmfoundation.org/wiki/Licence/Licence_and_Legal_FAQ
+- https://docs.osmcode.org/osmium/latest/osmium-extract.html
+- https://docs.osmcode.org/pyosmium/latest/user_manual/03-Working-with-Geometries/
+
+### Proof status
+
+**67 deterministic synthetic tests passed in the isolated runtime on
+26 October 2026** (the previous 44 plus 23 new pedestrian/geometry safety
+tests). These include nearby but disconnected stop pairs, no imaginary road
+crossings, pedestrian one-way rules, steps, blocked barriers, excessive
+detours, impossible or unverifiable stop connectors, truthful route geometry,
+provenance and walking warnings. The actual OSM PBF ingest, independently
+checked Bristol/Coventry walking paths, fresh GTFS full integration, shared
+host capacity, cancellation and Android integration remain **unverified**.
+
+**Production acceptance remains 0/105; no deployment is authorised by this
+research result.**
+
+The isolated `osm-smoke` CI job additionally installs pinned pyosmium
+4.3.2 and parses a tiny reference-complete **OSM XML** fixture, checking
+node coordinates, access filtering, barriers and source hashing. This tests
+the parser adapter independently of city-sized `.osm.pbf` import; a Bristol
+or Coventry extract has still not been ingested.

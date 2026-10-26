@@ -10,6 +10,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from heapq import heappop, heappush
 from itertools import count
+import math
 
 
 @dataclass(frozen=True)
@@ -19,6 +20,10 @@ class Footpath:
     metres: int
     seconds: int
     verified: bool = False
+    geometry: tuple[tuple[float, float], ...] = ()
+    provider: str = ""
+    source_sha256: str = ""
+    includes_steps: bool = False
 
 
 @dataclass(eq=False, frozen=True)
@@ -78,6 +83,22 @@ def journey_options(snapshot, origin: str, destination: str, start_sec: int,
         if (w.metres < 0 or w.seconds <= 0 or w.a == w.b or
                 not isinstance(w.verified, bool)):
             raise ValueError("Invalid footpath")
+        if w.verified:
+            if len(w.geometry) < 2 or not w.provider or not w.source_sha256:
+                raise ValueError("Verified footpath lacks geometry provenance")
+            from pilot.gtfs_engine import distance_m
+            a, b = snapshot.stops[w.a], snapshot.stops[w.b]
+            if any(not (math.isfinite(lat) and math.isfinite(lon) and
+                        -90 <= lat <= 90 and -180 <= lon <= 180)
+                   for lat, lon in w.geometry):
+                raise ValueError("Invalid footpath geometry coordinates")
+            if (distance_m(w.geometry[0], (a.lat,a.lon)) > 2.0 or
+                    distance_m(w.geometry[-1], (b.lat,b.lon)) > 2.0):
+                raise ValueError("Footpath geometry does not reach GTFS stops")
+            length = sum(distance_m(x, y) for x, y in
+                         zip(w.geometry, w.geometry[1:]))
+            if abs(length - w.metres) > max(5.0, 0.12*w.metres):
+                raise ValueError("Footpath geometry length disagrees with distance")
         walks[w.a].append(w)
 
     end_time = start_sec + max_horizon_sec
@@ -117,6 +138,12 @@ def journey_options(snapshot, origin: str, destination: str, start_sec: int,
                         "depart": p.arrival, "arrive": arrival,
                         "metres": w.metres,
                         "geometryValidated": w.verified}
+                if w.geometry:
+                    step["geometry"] = list(w.geometry)
+                    step["geometrySource"] = w.provider
+                    step["geometrySnapshot"] = w.source_sha256
+                if w.includes_steps:
+                    step["stepsPresent"] = True
                 offer(Label(w.b, arrival, max(arrival, p.ready),
                             p.boardings, p.walked + w.metres,
                             p.steps + (step,)))
@@ -212,6 +239,8 @@ def journey_options(snapshot, origin: str, destination: str, start_sec: int,
                 result["warnings"].append("UNVERIFIED_WALK_GEOMETRY")
             # A verified path shape is NOT evidence of step-free access.
             result["warnings"].append("NO_ACCESSIBILITY_PROOF")
+            if any(step.get("stepsPresent") for step in walked_legs):
+                result["warnings"].append("STEPS_PRESENT")
         results.append(result)
         if len(results) >= max_results:
             break
