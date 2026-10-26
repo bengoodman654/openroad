@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        case: [test_direct_bus, test_transfer_without_footpaths, test_explicit_footpath_transfer, test_hard_walk_limit, test_invalid_footpath_rejected, test_unknown_stop, test_zero_transfers_means_one_bus, test_a_budget_failure_is_not_no_service]
+        case: [test_direct_bus, test_transfer_without_footpaths, test_explicit_footpath_transfer, test_footpath_outcome_only, test_footpath_arrival_only, test_footpath_warning_only, test_footpath_metres_only, test_hard_walk_limit, test_invalid_footpath_rejected, test_unknown_stop, test_zero_transfers_means_one_bus, test_a_budget_failure_is_not_no_service]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
