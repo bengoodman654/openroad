@@ -1,23 +1,29 @@
 name: OpenRoad PT v2 pilot fixture tests
 on:
   push:
-    branches:
-      - pt-v2-coverage-gates
-    paths:
-      - 'pilot/**'
-      - '.github/workflows/pt-v2-pilot.yml'
+    branches: [pt-v2-coverage-gates]
+    paths: ['pilot/**', '.github/workflows/pt-v2-pilot.yml']
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
-  synthetic:
+  baseline:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Check 23 synthetic PT scenarios
-        run: python3 -m unittest discover -s pilot -p 'test_*.py' -v
+      - run: python3 -m unittest pilot.test_gtfs_engine -v
+  journey:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [test_direct_bus, test_transfer_without_footpaths, test_explicit_footpath_transfer, test_hard_walk_limit, test_invalid_footpath_rejected, test_unknown_stop, test_zero_transfers_means_one_bus, test_a_budget_failure_is_not_no_service]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python3 -m unittest pilot.test_journey_options.OptionsTests.${{ matrix.case }} -v
