@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "recordedDate": "2026-10-26",
+  "stage": "REAL_OSM_TOPOLOGY_RECONNAISSANCE",
+  "codeBranch": "pt-v2-planner-hardening",
+  "codeCommit": "00502ea4c246762b78afa9660d7c3e92932712bd",
+  "githubActionsRun": "https://github.com/bengoodman654/openroad/actions/runs/40392894775",
+  "testRun": "https://github.com/bengoodman654/openroad/actions/runs/40392894683",
+  "regionalSources": {
+    "Bristol": "https://download.geofabrik.de/europe/united-kingdom/england/bristol-latest.osm.pbf",
+    "Coventry": "https://download.geofabrik.de/europe/united-kingdom/england/west-midlands-latest.osm.pbf"
+  },
+  "cities": [
+    {
+      "acceptedWalkWays": 7791,
+      "accessibleWalkingProof": false,
+      "blockedBarrierNodes": 285,
+      "centre": [
+        51.4545,
+        -2.5879
+      ],
+      "city": "Bristol",
+      "diagnosticStopPairs": 40,
+      "directedWalkEdges": 62940,
+      "examples": [
+        {
+          "from": "osm:12118663904",
+          "mappedGeometryOnly": true,
+          "pathNodes": 17,
+          "to": "osm:9914908317",
+          "walkMetres": 234
+        },
+        {
+          "from": "osm:12227866813",
+          "mappedGeometryOnly": true,
+          "pathNodes": 3,
+          "to": "osm:485403924",
+          "walkMetres": 10
+        },
+        {
+          "from": "osm:12643071251",
+          "mappedGeometryOnly": false,
+          "pathNodes": 3,
+          "to": "osm:12643071252",
+          "walkMetres": 62
+        },
+        {
+          "from": "osm:12643071252",
+          "mappedGeometryOnly": false,
+          "pathNodes": 3,
+          "to": "osm:12643071251",
+          "walkMetres": 62
+        },
+        {
+          "from": "osm:12643071255",
+          "mappedGeometryOnly": false,
+          "pathNodes": 4,
+          "to": "osm:12643071256",
+          "walkMetres": 64
+        }
+      ],
+      "gtfsCrosswalkVerified": false,
+      "mappedOSMBusStopNodes": 391,
+      "nodesInWalkingGraph": 30087,
+      "osmStopsWithAtcoTags": 382,
+      "osmStopsWithNearbyWalkNode": 361,
+      "productionReleaseReady": false,
+      "radiusM": 2500,
+      "source": "OpenStreetMap via Geofabrik",
+      "sourceBytes": 13362507,
+      "sourceSHA256": "61b4050e994692ceb7d8f82d6b21b85ee965d55a9683ba107c45a29bf9894697",
+      "status": "RESEARCH_ONLY_UNVERIFIED_STOP_ACCESS",
+      "streetAccessFieldVerified": false,
+      "topologicallyConnectedPairs": 31,
+      "topologicallyUnconnectedPairs": 9,
+      "unverifiedAnchorCandidates": 1031
+    },
+    {
+      "acceptedWalkWays": 3547,
+      "accessibleWalkingProof": false,
+      "blockedBarrierNodes": 1379,
+      "centre": [
+        52.4081,
+        -1.5106
+      ],
+      "city": "Coventry",
+      "diagnosticStopPairs": 40,
+      "directedWalkEdges": 37002,
+      "examples": [
+        {
+          "from": "osm:14134661187",
+          "mappedGeometryOnly": false,
+          "pathNodes": 8,
+          "to": "osm:370817796",
+          "walkMetres": 103
+        },
+        {
+          "from": "osm:1644854778",
+          "mappedGeometryOnly": false,
+          "pathNodes": 2,
+          "to": "osm:1644854780",
+          "walkMetres": 71
+        },
+        {
+          "from": "osm:1644854780",
+          "mappedGeometryOnly": false,
+          "pathNodes": 2,
+          "to": "osm:1644854778",
+          "walkMetres": 71
+        },
+        {
+          "from": "osm:1769864769",
+          "mappedGeometryOnly": false,
+          "pathNodes": 10,
+          "to": "osm:370817662",
+          "walkMetres": 79
+        },
+        {
+          "from": "osm:2196422942",
+          "mappedGeometryOnly": false,
+          "pathNodes": 18,
+          "to": "osm:370818338",
+          "walkMetres": 84
+        }
+      ],
+      "gtfsCrosswalkVerified": false,
+      "mappedOSMBusStopNodes": 436,
+      "nodesInWalkingGraph": 17833,
+      "osmStopsWithAtcoTags": 433,
+      "osmStopsWithNearbyWalkNode": 390,
+      "productionReleaseReady": false,
+      "radiusM": 2500,
+      "source": "OpenStreetMap via Geofabrik",
+      "sourceBytes": 59724217,
+      "sourceSHA256": "44cfefbc30eac1afc9a699aab40e95c2b73669862fa188e68130ec20ebf64f3d",
+      "status": "RESEARCH_ONLY_UNVERIFIED_STOP_ACCESS",
+      "streetAccessFieldVerified": false,
+      "topologicallyConnectedPairs": 17,
+      "topologicallyUnconnectedPairs": 23,
+      "unverifiedAnchorCandidates": 1066
+    }
+  ],
+  "interpretation": {
+    "sampledPairs": "Per-city 40 nearby OSM-tagged bus-stop pairs chosen by an ID-ordered deterministic diagnostic. Not a statistically representative coverage estimate.",
+    "stopCandidates": "Nearest OSM walking-network nodes within 40 metres are unverified proposals, not usable boarding connectors or verified pedestrian paths.",
+    "geometry": "Connected-graph diagnostic may traverse approximated road-centre segments, marked unverified. Never treat as pedestrian field validation.",
+    "gtfs": "No BODS GTFS-to-OSM/NaPTAN crosswalk proved in this trial; mapped OSM Atco tags are candidates only.",
+    "accessibility": "No wheelchair or step-free access conclusion.",
+    "production": "0 of 105 v2.2 acceptance gates passed; live app and server unchanged."
+  }
+}

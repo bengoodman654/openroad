@@ -168,10 +168,10 @@ extracts on a proper development computer/build worker using Osmium's
 `extract --strategy complete_ways`, with a surrounding buffer to include
 way nodes at the city boundary. Do **not** load large OSM PBFs, run graph
 generation, download fresh extracts or calculate inter-stop footpaths on
-the shared JustHostMe server. The importer has **not yet been exercised with
-a real OSM PBF** in this stage; `pyosmium` was unavailable in the isolated
-test runtime. The Bristol/Coventry ground-truth stop-side link audit remains
-a release blocker.
+the shared JustHostMe server. The first city-scale PBF imports have
+since run successfully on isolated GitHub runners (see the dated
+reconnaissance report below). The Bristol/Coventry ground-truth stop-side
+link audit remains a release blocker.
 
 The OpenStreetMap database is ODbL-licensed. Attribution and any applicable
 derived-database sharing obligations must be handled before public release:
@@ -187,9 +187,10 @@ derived-database sharing obligations must be handled before public release:
 tests). These include nearby but disconnected stop pairs, no imaginary road
 crossings, pedestrian one-way rules, steps, blocked barriers, excessive
 detours, impossible or unverifiable stop connectors, truthful route geometry,
-provenance and walking warnings. The actual OSM PBF ingest, independently
-checked Bristol/Coventry walking paths, fresh GTFS full integration, shared
-host capacity, cancellation and Android integration remain **unverified**.
+provenance and walking warnings. The real OSM PBF import was subsequently
+tested as described below; independently checked Bristol/Coventry stop access,
+fresh GTFS full integration, shared-host capacity, cancellation and Android
+integration remain **unverified**.
 
 **Production acceptance remains 0/105; no deployment is authorised by this
 research result.**
@@ -197,5 +198,43 @@ research result.**
 The isolated `osm-smoke` CI job additionally installs pinned pyosmium
 4.3.2 and parses a tiny reference-complete **OSM XML** fixture, checking
 node coordinates, access filtering, barriers and source hashing. This tests
-the parser adapter independently of city-sized `.osm.pbf` import; a Bristol
-or Coventry extract has still not been ingested.
+the parser adapter independently of city-sized `.osm.pbf` import. The
+separate real-data run subsequently ingested both Bristol and West Midlands.
+
+
+## 26 October 2026 — first actual Bristol/Coventry OSM reconnaissance
+
+A one-off, explicitly gated GitHub Actions workflow downloaded official
+Geofabrik **Bristol** and **West Midlands** OSM PBF extracts to temporary
+GitHub runners. The pilot parsed walking networks within **2.5 km of each
+city centre**. Source file hashes and both reports are preserved in
+[`real-osm-evidence-2026-10-26.json`](real-osm-evidence-2026-10-26.json).
+
+| Diagnostic quantity | Bristol | Coventry |
+|---|---:|---:|
+| Walking-network nodes | 30,087 | 17,833 |
+| Directed walking edges | 62,940 | 37,002 |
+| OSM bus-stop nodes | 391 | 436 |
+| OSM stops with an **unverified** graph-node candidate within 40 m | 361 | 390 |
+| Connected nearby stop-pair graph trials (out of 40) | 31 | 17 |
+| Trials with no bounded graph path (out of 40) | 9 | 23 |
+
+These 40 pairs are deterministic, **not randomly selected** and are not a
+city-wide coverage sample. A connected route in this table only means the
+proposed *graph nodes* are connected; it does **not** validate foot access
+between the real boarding points and graph nodes. Some included road centre
+lines are explicitly labelled as approximate. Conversely, a rejected route
+might reflect incomplete OSM mapping or a conservative tag filter.
+
+OSM stop tags include 382 candidate Atco codes in Bristol and 433 in
+Coventry, but **none has yet been independently cross-checked against the
+real GTFS stop identifier, pavement side, crossing or entrance**. This must
+happen before these routes can be offered to people. Zero of the 105
+production acceptance criteria are passed.
+
+The one-off workflow:
+https://github.com/bengoodman654/openroad/actions/runs/40392894775
+
+Both the real-data probe and the separate synthetic-regression workflow
+completed successfully. No PBF files were committed to GitHub, and neither
+the Android app nor the live shared server was touched.
