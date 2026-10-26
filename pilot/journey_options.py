@@ -109,7 +109,7 @@ def journey_options(snapshot, origin: str, destination: str, start_sec: int,
                   "depart":p.arrival,"arrive":p.arrival+w.seconds,
                   "metres":w.metres,"geometryValidated":w.verified}
             offer(Label(w.b,p.arrival+w.seconds,p.boardings,
-                        p.walked,None,p.steps+(step,)))
+                        p.walked+w.metres,None,p.steps+(step,)))
         if p.boardings>max_transfers:
             continue
         for dep,arr,trip,to_stop in departures[p.stop]:
