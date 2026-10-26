@@ -30,6 +30,26 @@ class OptionsTests(unittest.TestCase):
         self.assertIn("UNVERIFIED_WALK_GEOMETRY",r["results"][0]["warnings"], repr(r))
         self.assertEqual(r["results"][0]["walkedMetres"],120, repr(r))
 
+    def test_footpath_outcome_only(self):
+        r=journey_options(self.snapshot,"B","D",8*3600+10*60,
+            footpaths=[Footpath("B","C",120,120,False)])
+        self.assertEqual(r["outcome"],"OK")
+
+    def test_footpath_arrival_only(self):
+        r=journey_options(self.snapshot,"B","D",8*3600+10*60,
+            footpaths=[Footpath("B","C",120,120,False)])
+        self.assertEqual(r["results"][0]["arrival"],8*3600+32*60)
+
+    def test_footpath_warning_only(self):
+        r=journey_options(self.snapshot,"B","D",8*3600+10*60,
+            footpaths=[Footpath("B","C",120,120,False)])
+        self.assertIn("UNVERIFIED_WALK_GEOMETRY",r["results"][0]["warnings"])
+
+    def test_footpath_metres_only(self):
+        r=journey_options(self.snapshot,"B","D",8*3600+10*60,
+            footpaths=[Footpath("B","C",120,120,False)])
+        self.assertEqual(r["results"][0]["walkedMetres"],120)
+
     def test_hard_walk_limit(self):
         r=journey_options(self.snapshot,"B","D",8*3600+10*60,
             footpaths=[Footpath("B","C",120,120)],max_walk_m=100)
