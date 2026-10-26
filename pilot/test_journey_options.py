@@ -19,8 +19,9 @@ class OptionsTests(unittest.TestCase):
     def test_transfer_without_footpaths(self):
         r=journey_options(self.snapshot,"A","D",7*3600+55*60)
         self.assertEqual(r["outcome"],"OK")
-        self.assertEqual(r["results"][0]["arrival"],8*3600+32*60)
+        self.assertEqual(r["results"][0]["arrival"],8*3600+33*60)
         self.assertEqual(r["results"][0]["transfers"],1)
+        self.assertNotIn("T4",repr(r["results"][0]["legs"]))
 
     def test_explicit_footpath_transfer(self):
         r=journey_options(self.snapshot,"B","D",8*3600+10*60,
@@ -71,6 +72,92 @@ class OptionsTests(unittest.TestCase):
     def test_a_budget_failure_is_not_no_service(self):
         r=journey_options(self.snapshot,"A","D",7*3600+55*60,max_labels=1)
         self.assertEqual(r["outcome"],"SEARCH_LIMIT")
+
+    def test_transfer_buffer_can_be_configured(self):
+        default=journey_options(self.snapshot,"A","D",7*3600+55*60)
+        self.assertEqual(default["results"][0]["arrival"],8*3600+33*60)
+        zero=journey_options(self.snapshot,"A","D",7*3600+55*60,
+                             transfer_seconds=0)
+        self.assertEqual(zero["results"][0]["arrival"],8*3600+32*60)
+
+    def test_transfer_limit_cannot_be_bypassed_by_boarding_same_trip(self):
+        result=journey_options(self.snapshot,"A","D",7*3600+55*60,
+                               max_transfers=0)
+        self.assertEqual(result["outcome"],"NO_JOURNEY")
+
+    def test_explicit_footpath_geometry_is_not_accessibility_proof(self):
+        r=journey_options(self.snapshot,"B","D",8*3600+10*60,
+                          footpaths=[Footpath("B","C",120,120,True)])
+        self.assertEqual(r["outcome"],"OK")
+        self.assertIn("NO_ACCESSIBILITY_PROOF",r["results"][0]["warnings"])
+        self.assertNotIn("UNVERIFIED_WALK_GEOMETRY",r["results"][0]["warnings"])
+
+    def test_different_transfer_tradeoffs_are_both_returned(self):
+        from pilot.gtfs_engine import Connection
+        s=self.snapshot
+        original=list(s.connections)
+        s.routes["RD"]=("Direct","OP_A")
+        s.trips["DIRECT"]=("RD","WEEK")
+        s.connections=sorted(original+[Connection(
+            "DIRECT","A","D",8*3600,8*3600+45*60,
+            True,True,1,2)],key=lambda c:(c.depart,c.arrive,c.trip,c.a,c.b))
+        try:
+            r=journey_options(s,"A","D",7*3600+55*60)
+        finally:
+            s.connections=original
+            del s.routes["RD"]
+            del s.trips["DIRECT"]
+        self.assertEqual(r["outcome"],"OK")
+        self.assertEqual([(x["arrival"],x["transfers"]) for x in r["results"]],
+                         [(8*3600+33*60,1),(8*3600+45*60,0)])
+
+    def test_clipped_loop_cannot_continue_through_missing_section(self):
+        from pilot.gtfs_engine import Connection
+        s=self.snapshot
+        original=s.connections
+        s.connections=[
+            Connection("T1","A","B",8*3600,8*3600+5*60,
+                       True,True,1,2),
+            Connection("T1","B","D",8*3600+20*60,8*3600+25*60,
+                       False,True,4,5),
+        ]
+        try:
+            r=journey_options(s,"A","D",7*3600+55*60)
+        finally:
+            s.connections=original
+        self.assertEqual(r["outcome"],"NO_JOURNEY")
+
+    def test_many_stops_do_not_expand_into_all_pairs(self):
+        from pilot.gtfs_engine import Stop, Connection, Snapshot
+        from datetime import date
+        s=self.snapshot
+        from dataclasses import replace
+        stops={f"S{i}":Stop(f"S{i}",f"Stop {i}",52.4081,-1.5106)
+               for i in range(301)}
+        connections=[Connection("LONG",f"S{i}",f"S{i+1}",
+                        10*3600+i*60,10*3600+(i+1)*60,
+                        True,True,i+1,i+2) for i in range(300)]
+        x=replace(s, stops=stops, routes={"RL":("Long","OP_A")},
+                  trips={"LONG":("RL","WEEK")}, connections=connections)
+        r=journey_options(x,"S0","S300",10*3600,max_horizon_sec=20000)
+        self.assertEqual(r["outcome"],"OK")
+        self.assertEqual(r["results"][0]["arrival"],10*3600+300*60)
+        self.assertEqual(r["results"][0]["transfers"],0)
+        self.assertLess(r["expandedLabels"],1000)
+        self.assertEqual(len(r["results"][0]["legs"]),1)
+
+    def test_no_footpath_can_be_inferred_from_proximity(self):
+        # B and C are physically close but cannot be walked between unless
+        # an explicit directional footpath is supplied.
+        from pilot.gtfs_engine import Connection
+        s=self.snapshot
+        original=s.connections
+        s.connections=[c for c in original if c.trip in ("T3","T4")]
+        try:
+            r=journey_options(s,"B","D",8*3600+10*60)
+        finally:
+            s.connections=original
+        self.assertEqual(r["outcome"],"NO_JOURNEY")
 
 if __name__=="__main__":
     unittest.main()

@@ -187,6 +187,10 @@ class PilotTests(unittest.TestCase):
         self.assertEqual(db.execute(
             "SELECT COUNT(*) FROM connections WHERE snapshot_key=?",
             (sid,)).fetchone()[0],len(s.connections))
+        self.assertEqual(db.execute(
+            "SELECT from_sequence,to_sequence FROM connections "
+            "WHERE snapshot_key=? AND depart=? LIMIT 1",
+            (sid,8*3600)).fetchone(),(1,2))
         with self.assertRaisesRegex(ValueError,"Duplicate immutable"):
             populate_sqlite(s,db)
         db.close()
@@ -207,6 +211,41 @@ class PilotTests(unittest.TestCase):
         self.assertEqual(r["outcome"],"OK")
         self.assertEqual(r["legs"],[])
 
+
+    def test_24_nonconsecutive_gtfs_sequences_are_valid(self):
+        # stop_sequence 10,20,30 is valid GTFS; there is no skipped stop.
+        src = make_feed()
+        with ZipFile(src) as old:
+            tables = {name: old.read(name) for name in old.namelist()}
+        text = tables["stop_times.txt"].decode()
+        reader = csv.DictReader(io.StringIO(text))
+        keys = reader.fieldnames
+        event_rows = []
+        for row in reader:
+            if row["trip_id"] == "T1":
+                row["stop_sequence"] = str(10 * int(row["stop_sequence"]))
+            event_rows.append([row[k] for k in keys])
+        tables["stop_times.txt"] = gtfs_csv(keys, event_rows).encode()
+        memory = io.BytesIO()
+        with ZipFile(memory, "w", compression=ZIP_DEFLATED) as z:
+            for name, content in tables.items():
+                z.writestr(name, content)
+        memory.seek(0)
+        s = load_region(memory, "Coventry", "fixture", date(2026,10,26),
+                        sha256="nonconsecutive")
+        matches = [c for c in s.connections if c.trip == "T1"]
+        self.assertEqual(len(matches), 2)
+        self.assertEqual([(c.from_sequence,c.to_sequence) for c in matches],
+                         [(10,20),(20,30)])
+        result = plan_stops(s,"A","C",gtfs_seconds("07:55:00"))
+        self.assertEqual(result["outcome"], "OK")
+        self.assertEqual(result["arrival"],gtfs_seconds("08:20:00"))
+
+    def test_25_original_clipped_stop_is_not_stitched(self):
+        # An intervening OFF-RADIUS stop is retained in the sequence check.
+        s = load_region(make_feed(extra_trip=True), "Coventry", "fixture",
+                        date(2026,10,26), sha256="clipped")
+        self.assertFalse(any(c.trip == "T7" for c in s.connections))
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

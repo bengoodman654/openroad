@@ -1,13 +1,16 @@
-"""Research-only multicriteria scheduled bus planner with explicit footpaths.
+"""Research-only, bounded Pareto bus planner using an on-demand scan.
 
-Walk edges are supplied by a separate pedestrian router. This module does not
-create them from straight-line proximity, and does not imply accessibility.
+Walking transfers are accepted ONLY as explicit directional footpath edges from
+a separate pedestrian data source; none are invented from straight-line range.
+No rail, realtime, mobility-accessibility or production-SLA claims.
 """
 from __future__ import annotations
+
 from collections import defaultdict
 from dataclasses import dataclass
-from heapq import heappush, heappop
+from heapq import heappop, heappush
 from itertools import count
+
 
 @dataclass(frozen=True)
 class Footpath:
@@ -17,135 +20,204 @@ class Footpath:
     seconds: int
     verified: bool = False
 
-@dataclass(frozen=True)
+
+@dataclass(eq=False, frozen=True)
 class Label:
     stop: str
     arrival: int
+    ready: int
     boardings: int
     walked: int
-    last_trip: str | None
     steps: tuple
+    trip: str | None = None
+    last_sequence: int = 0
+
+
+class _BudgetExceeded(Exception):
+    pass
+
+
+def _dominates(a: Label, b: Label) -> bool:
+    # Earlier stop arrival is not enough: readiness for the next boarding
+    # also reflects time spent meeting the interchange buffer.
+    return (a.arrival <= b.arrival and a.ready <= b.ready and
+            a.boardings <= b.boardings and a.walked <= b.walked)
+
 
 def journey_options(snapshot, origin: str, destination: str, start_sec: int,
                     footpaths=(), max_walk_m: int = 800,
                     max_transfers: int = 2, max_horizon_sec: int = 7200,
-                    max_results: int = 3, max_labels: int = 40000):
-    """Pareto-label pilot. Uses exact GTFS stops and supplied directional links.
+                    max_results: int = 3, max_labels: int = 40000,
+                    transfer_seconds: int = 120) -> dict:
+    """Find bounded Pareto scheduled-bus paths between exact stop IDs.
 
-    Output is a range of feasible journeys, not yet a production Pareto proof.
-    Boarding restrictions apply at the boarding stop, and alighting
-    restrictions apply at the eventual disembarkation stop.
+    Every GTFS connection is scanned once; there is no quadratic expansion
+    into all possible onboard origin/destination pairs. For a new trip, a
+    boarding consumes one permitted bus. Staying onboard never consumes a
+    transfer, including while passing stops with no alighting permission.
+
+    Result is provisional research, NOT a production route recommendation.
     """
     if origin not in snapshot.stops or destination not in snapshot.stops:
-        return {"outcome":"COVERAGE_MISSING","reasonCode":"STOP_OUTSIDE_PILOT_AREA"}
-    if start_sec < 0 or max_horizon_sec <= 0 or max_labels <= 0:
+        return {"outcome": "COVERAGE_MISSING",
+                "reasonCode": "STOP_OUTSIDE_PILOT_AREA"}
+    if (start_sec < 0 or max_horizon_sec <= 0 or max_labels <= 0 or
+            max_results <= 0 or max_walk_m < 0 or max_transfers < 0 or
+            transfer_seconds < 0):
         raise ValueError("Invalid search bounds")
     if origin == destination:
-        return {"outcome":"OK","results":[{"arrival":start_sec,"legs":[],"transfers":0,"walkedMetres":0}]}
+        return {"outcome": "OK", "results": [{
+            "arrival": start_sec, "legs": [], "transfers": 0,
+            "walkedMetres": 0, "warnings": ["SCHEDULED_ONLY"]}],
+            "expandedLabels": 0, "researchOnly": True}
+
     walks = defaultdict(list)
     for w in footpaths:
         if w.a not in snapshot.stops or w.b not in snapshot.stops:
             raise ValueError("Footpath endpoint outside snapshot")
-        if w.metres < 0 or w.seconds <= 0 or w.a == w.b:
+        if (w.metres < 0 or w.seconds <= 0 or w.a == w.b or
+                not isinstance(w.verified, bool)):
             raise ValueError("Invalid footpath")
         walks[w.a].append(w)
-    # Consecutive GTFS edges of a trip are grouped before generating
-    # alighting choices. Never leap over a missing/clipped connection.
-    by_trip = defaultdict(list)
-    for c in snapshot.connections:
-        by_trip[c.trip].append(c)
-    departures = defaultdict(list)
-    for trip, segments in by_trip.items():
-        segments.sort(key=lambda x:(x.depart,x.arrive,x.a))
-        for i,c in enumerate(segments):
-            if not c.pickup:
-                continue
-            t = c.depart
-            prev = c.a
-            for edge in segments[i:]:
-                if edge.a != prev or edge.depart < t:
-                    break
-                if edge.dropoff and edge.arrive >= c.depart:
-                    departures[c.a].append((c.depart,edge.arrive,trip,edge.b))
-                prev = edge.b
-                t = edge.arrive
-    for values in departures.values():
-        values.sort()
-    seq=count()
-    root=Label(origin,start_sec,0,0,None,())
-    queue=[(start_sec,next(seq),root)]
-    frontier=defaultdict(list)
-    frontier[(origin,None)].append(root)
-    solutions=[]
-    expanded=0
-    end_time=start_sec+max_horizon_sec
-    def offer(new):
-        key=(new.stop,new.last_trip)
-        existing=frontier[key]
-        # Equal arrival, boarding and walking totals cannot justify keeping
-        # another label at this particular state.
-        if any(q.arrival<=new.arrival and q.boardings<=new.boardings
-               and q.walked<=new.walked for q in existing):
+
+    end_time = start_sec + max_horizon_sec
+    serial = count()
+    walking_queue = []
+    frontier = defaultdict(list)  # stop -> nondominated offboard labels
+    onboard = {}  # trip -> labels that rode its immediately preceding edge
+    accepted_labels = 0
+    root = Label(origin, start_sec, start_sec, 0, 0, ())
+    frontier[origin].append(root)
+
+    def offer(p: Label):
+        nonlocal accepted_labels
+        labels = frontier[p.stop]
+        if p.arrival > end_time or any(_dominates(q, p) for q in labels):
             return
-        frontier[key]=[q for q in existing if not (
-            new.arrival<=q.arrival and new.boardings<=q.boardings
-            and new.walked<=q.walked)]+[new]
-        heappush(queue,(new.arrival,next(seq),new))
-    while queue:
-        _,_,p=heappop(queue)
-        if p not in frontier[(p.stop,p.last_trip)]:
-            continue
-        expanded+=1
-        if expanded>max_labels:
-            return {"outcome":"SEARCH_LIMIT","reasonCode":"LABEL_BUDGET",
-                    "expandedLabels":expanded}
-        if p.stop==destination:
-            solutions.append(p)
-            continue
-        for w in walks[p.stop]:
-            if p.walked+w.metres>max_walk_m or p.arrival+w.seconds>end_time:
+        frontier[p.stop] = [q for q in labels if not _dominates(p, q)] + [p]
+        accepted_labels += 1
+        if accepted_labels > max_labels:
+            raise _BudgetExceeded()
+        heappush(walking_queue, (p.arrival, next(serial), p))
+
+    def walk_closure():
+        # Reachability through multiple directional, explicitly supplied
+        # pedestrian links, including after getting off a bus.
+        while walking_queue:
+            _, _, p = heappop(walking_queue)
+            if p not in frontier[p.stop]:
                 continue
-            step={"mode":"WALK","from":w.a,"to":w.b,
-                  "depart":p.arrival,"arrive":p.arrival+w.seconds,
-                  "metres":w.metres,"geometryValidated":w.verified}
-            offer(Label(w.b,p.arrival+w.seconds,p.boardings,
-                        p.walked+w.metres,None,p.steps+(step,)))
-        if p.boardings>max_transfers:
-            continue
-        for dep,arr,trip,to_stop in departures[p.stop]:
-            if dep<p.arrival or arr>end_time:
+            for w in walks[p.stop]:
+                if p.walked + w.metres > max_walk_m:
+                    continue
+                arrival = p.arrival + w.seconds
+                if arrival > end_time:
+                    continue
+                step = {"mode": "WALK", "from": w.a, "to": w.b,
+                        "depart": p.arrival, "arrive": arrival,
+                        "metres": w.metres,
+                        "geometryValidated": w.verified}
+                offer(Label(w.b, arrival, max(arrival, p.ready),
+                            p.boardings, p.walked + w.metres,
+                            p.steps + (step,)))
+
+    def prune_onboard(labels):
+        # All candidates reach the same scheduled trip edge endpoint and
+        # have the same departure/arrival; preserve cost-distinct histories.
+        keep = []
+        for p in labels:
+            if any(_dominates(q, p) for q in keep):
                 continue
-            boardings=p.boardings+1
-            if boardings>max_transfers+1:
+            keep = [q for q in keep if not _dominates(p, q)]
+            keep.append(p)
+        return keep
+
+    try:
+        heappush(walking_queue, (root.arrival, next(serial), root))
+        walk_closure()
+        # Snapshot connections are already sorted by departure in load_region.
+        for con in snapshot.connections:
+            if con.depart < start_sec:
                 continue
-            route=snapshot.trips[trip][0]
-            leg={"mode":"BUS","from":p.stop,"to":to_stop,
-                 "depart":dep,"arrive":arr,"tripOccurrence":
-                 f"{snapshot.region}:{trip}:{snapshot.service_day}",
-                 "publicLine":snapshot.routes[route][0]}
-            offer(Label(to_stop,arr,boardings,p.walked,trip,p.steps+(leg,)))
-    candidates=[]
-    seen=set()
-    for p in sorted(solutions,key=lambda p:(p.arrival,p.boardings,p.walked)):
-        sig=tuple((s["mode"],s.get("tripOccurrence"),s["from"],s["to"]) for s in p.steps)
-        if sig in seen:
+            if con.depart > end_time:
+                break
+            if con.arrive > end_time:
+                continue
+            boarding = []
+            if con.pickup:
+                for p in frontier.get(con.a, ()):
+                    if p.ready > con.depart or p.boardings >= max_transfers + 1:
+                        continue
+                    route = snapshot.trips[con.trip][0]
+                    step = {"mode": "BUS", "from": con.a, "to": con.b,
+                            "fromName": snapshot.stops[con.a].name,
+                            "toName": snapshot.stops[con.b].name,
+                            "depart": con.depart, "arrive": con.arrive,
+                            "tripOccurrence": (
+                                f"{snapshot.region}:{con.trip}:{snapshot.service_day}"),
+                            "publicLine": snapshot.routes[route][0],
+                            "routeKey": f"{snapshot.region}:{route}"}
+                    boarding.append(Label(con.b, con.arrive,
+                                          con.arrive + transfer_seconds,
+                                          p.boardings + 1, p.walked,
+                                          p.steps + (step,), con.trip,
+                                          con.to_sequence))
+            # Continuing is independent of pickup/dropoff restrictions. The
+            # sequence IDs rule out skipping a clipped outside-area section,
+            # even when the same stop appears twice on a circular service.
+            continuing = []
+            for p in onboard.get(con.trip, ()):
+                if (p.stop != con.a or p.arrival > con.depart or
+                        (p.last_sequence and con.from_sequence and
+                         p.last_sequence != con.from_sequence)):
+                    continue
+                prior = p.steps[-1]
+                step = {**prior, "to": con.b,
+                        "toName": snapshot.stops[con.b].name,
+                        "arrive": con.arrive}
+                continuing.append(Label(con.b, con.arrive,
+                                        con.arrive + transfer_seconds,
+                                        p.boardings, p.walked,
+                                        p.steps[:-1] + (step,), con.trip,
+                                        con.to_sequence))
+            next_onboard = prune_onboard(boarding + continuing)
+            if next_onboard:
+                accepted_labels += len(next_onboard)
+                if accepted_labels > max_labels:
+                    raise _BudgetExceeded()
+                onboard[con.trip] = next_onboard
+            else:
+                onboard.pop(con.trip, None)
+            if con.dropoff:
+                for p in next_onboard:
+                    # The stop is usable only when alighting is permitted.
+                    offer(p)
+                walk_closure()
+    except _BudgetExceeded:
+        return {"outcome": "SEARCH_LIMIT", "reasonCode": "LABEL_BUDGET",
+                "expandedLabels": accepted_labels, "researchOnly": True}
+
+    results = []
+    for p in sorted(frontier.get(destination, ()),
+                    key=lambda q: (q.arrival, q.boardings, q.walked)):
+        if any(_dominates(q, p) for q in frontier[destination] if q is not p):
             continue
-        seen.add(sig)
-        candidates.append({"arrival":p.arrival,"legs":list(p.steps),
-                           "transfers":max(0,p.boardings-1),
-                           "walkedMetres":p.walked,
-                           "warnings":["SCHEDULED_ONLY"]+
-                            (["UNVERIFIED_WALK_GEOMETRY","NO_ACCESSIBILITY_PROOF"]
-                             if any(s["mode"]=="WALK" and not s["geometryValidated"]
-                                    for s in p.steps) else [])})
-    # Keep nondominated end-to-end labels only, then select distinct patterns.
-    nondominated=[]
-    for r in candidates:
-        if any(q["arrival"]<=r["arrival"] and q["transfers"]<=r["transfers"] and
-               q["walkedMetres"]<=r["walkedMetres"] for q in nondominated):
-            continue
-        nondominated.append(r)
-    if not nondominated:
-        return {"outcome":"NO_JOURNEY","reasonCode":"NO_FEASIBLE_SCHEDULED_CONNECTION","results":[]}
-    return {"outcome":"OK","results":nondominated[:max_results],
-            "expandedLabels":expanded,"researchOnly":True}
+        result = {"arrival": p.arrival, "legs": list(p.steps),
+                  "transfers": max(0, p.boardings - 1),
+                  "walkedMetres": p.walked,
+                  "warnings": ["SCHEDULED_ONLY"]}
+        walked_legs = [step for step in p.steps if step["mode"] == "WALK"]
+        if walked_legs:
+            if any(not step["geometryValidated"] for step in walked_legs):
+                result["warnings"].append("UNVERIFIED_WALK_GEOMETRY")
+            # A verified path shape is NOT evidence of step-free access.
+            result["warnings"].append("NO_ACCESSIBILITY_PROOF")
+        results.append(result)
+        if len(results) >= max_results:
+            break
+    if not results:
+        return {"outcome": "NO_JOURNEY",
+                "reasonCode": "NO_FEASIBLE_SCHEDULED_CONNECTION",
+                "results": [], "researchOnly": True}
+    return {"outcome": "OK", "results": results,
+            "expandedLabels": accepted_labels, "researchOnly": True}

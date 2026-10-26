@@ -81,3 +81,53 @@ See [real-feed-evidence-2026-10-26.json](real-feed-evidence-2026-10-26.json) for
 - Regional geometry is clipped. A service going outside the test radius may not be routable through its full journey; such a route is not fabricated.
 
 No files in this pilot should be deployed or executed on the live server without further review.
+
+## 26 October 2026: first multi-option correctness hardening
+
+The original proof-of-concept scanner (`plan_stops`) remains as a historical
+single-best-arrival comparison. The **separate** `journey_options` module is
+now the more capable research pathfinder:
+
+- Scans each dated GTFS connection once, rather than expanding every trip
+  into every possible boarding/alighting pair. Stop and onboard states are
+  maintained separately.
+- Enforces a configurable minimum interchange time (default 120 seconds);
+  staying aboard the same physical trip does not incur this buffer.
+- Holds multiple non-dominated labels, considering earliest arrival, number
+  of boardings, total walking and readiness to board.
+- Returns up to three **meaningful Pareto trade-offs**, when they exist; it
+  does **not** yet guarantee three diverse routes when alternatives have equal
+  criteria, or claim to be the final production journey ranker.
+- Handles intermediate walks only through **explicit, directional footpath
+  edges** supplied by a separate pedestrian router. A `verified=True`
+  geometry flag **never** implies accessibility, step-free provision or live
+  obstruction-free access.
+- Applies hard walking, transfer, time-horizon and state-label bounds. A
+  label-budget failure is reported as `SEARCH_LIMIT`, not `NO_JOURNEY`.
+- Preserves original GTFS `stop_sequence` values in the in-memory and SQLite
+  connection index. The parser accepts legal non-consecutive sequence values,
+  but never joins stops across omitted/out-of-radius intermediate events
+  (including when circular trips revisit the same stop).
+
+**Regression status:** 44 deterministic synthetic tests passed in the
+isolated Python test runtime on 26 October 2026. A single artificial
+100,300-connection scan returned a valid one-bus journey in approximately
+0.067 seconds on that runtime. It is **not** a measured shared-host response
+time, production RAM benchmark or representative network latency.
+
+**Real-feed baseline caution:** the four within-feed Bristol/Coventry checks
+and recorded SQLite sizes in `real-feed-evidence-2026-10-26.json` were
+obtained on the **earlier** parser. The corrected `stop_sequence` semantics
+can change the total indexed connection count, and adding sequence metadata
+changes SQLite size. These measures and the four source-pinned integration
+tests **must be rerun** with the exact source ZIPs before any release gate is
+advanced. No acceptance criteria have been marked passed for production.
+
+### Still blocked for production
+
+The footpath provider, pedestrian topology, mobility/accessibility treatment,
+route-diversity algorithm, realtime integration, regional boundary handling,
+rail planning, complete stop/source crosswalk, provider rights, cancellation,
+Android UI, shared-host memory/load, security and field validation remain
+unimplemented or unproved. Keep this branch isolated from both production
+apps and the hosting account.

@@ -1,7 +1,7 @@
 name: OpenRoad PT v2 pilot fixture tests
 on:
   push:
-    branches: [pt-v2-coverage-gates]
+    branches: [pt-v2-coverage-gates, pt-v2-planner-hardening]
     paths: ['pilot/**', '.github/workflows/pt-v2-pilot.yml']
   workflow_dispatch:
 permissions:
@@ -27,3 +27,13 @@ jobs:
         with:
           python-version: '3.11'
       - run: python3 -m unittest pilot.test_journey_options.OptionsTests.${{ matrix.case }} -v
+
+  full-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run all isolated PT regression cases
+        run: python3 -m unittest discover -s pilot -p 'test_*.py' -v

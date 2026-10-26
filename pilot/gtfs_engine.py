@@ -7,6 +7,8 @@ integration, realtime engine, a walking-path router, or accessibility proof.
 from __future__ import annotations
 
 import argparse
+from array import array
+from bisect import bisect_left, bisect_right
 import csv
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -98,6 +100,8 @@ class Connection:
     arrive: int
     pickup: bool
     dropoff: bool
+    from_sequence: int = 0
+    to_sequence: int = 0
 
 
 @dataclass(slots=True)
@@ -180,13 +184,27 @@ def load_region(path: str, city: str, region: str, service_day: date,
         # Stops and trips may carry *the same public bus number* across agencies.
         # Never key route identity on route_short_name.
         by_trip = defaultdict(list)
+        # GTFS stop_sequence values need only increase: 10, 20, 30 is
+        # legitimate. Retain ALL event sequence IDs for eligible services,
+        # including stops outside the pilot radius, to detect real adjacency.
+        # Unsigned arrays bound memory while streaming large regional feeds.
+        full_sequences = defaultdict(lambda: array("I"))
         invalid_times = 0
         for row in rows(z, "stop_times.txt"):
             trip, stop = row.get("trip_id"), row.get("stop_id")
-            if trip not in trips or stop not in stops:
+            if trip not in trips:
                 continue
             try:
                 seq = int(row["stop_sequence"])
+                if not 0 <= seq < 2**32:
+                    raise ValueError("Invalid stop_sequence")
+                full_sequences[trip].append(seq)
+            except (ValueError, KeyError, TypeError):
+                invalid_times += 1
+                continue
+            if stop not in stops:
+                continue
+            try:
                 arr = gtfs_seconds(row["arrival_time"])
                 dep = gtfs_seconds(row["departure_time"])
                 if dep < arr:
@@ -203,12 +221,20 @@ def load_region(path: str, city: str, region: str, service_day: date,
         connections = []
         for trip_id, stop_events in by_trip.items():
             stop_events.sort()
+            all_seqs = sorted(full_sequences[trip_id])
             for a, b in zip(stop_events, stop_events[1:]):
-                # Clipped intermediate stop(s) => never fabricate a direct leg.
-                if b[0] != a[0] + 1 or b[2] < a[3]:
+                ia = bisect_left(all_seqs, a[0])
+                ja = bisect_right(all_seqs, a[0])
+                ib = bisect_left(all_seqs, b[0])
+                jb = bisect_right(all_seqs, b[0])
+                # Exactly one occurrence of each event and NO intervening
+                # event (even one outside the radius). Avoid fabricated legs.
+                if (a[0] >= b[0] or ja-ia != 1 or jb-ib != 1 or
+                        ja != ib or b[2] < a[3]):
                     continue
                 connections.append(Connection(
-                    trip_id, a[1], b[1], a[3], b[2], a[4], b[5]))
+                    trip_id, a[1], b[1], a[3], b[2],
+                    a[4], b[5], a[0], b[0]))
         connections.sort(key=lambda x: (x.depart, x.arrive, x.trip, x.a, x.b))
         local_trips = {x.trip for x in connections}
         trips = {k:v for k,v in trips.items() if k in local_trips}
@@ -423,7 +449,8 @@ def populate_sqlite(s: Snapshot, db) -> None:
             snapshot_key INTEGER NOT NULL, trip_key INTEGER NOT NULL,
             from_stop_key INTEGER NOT NULL, to_stop_key INTEGER NOT NULL,
             depart INTEGER NOT NULL, arrive INTEGER NOT NULL,
-            flags INTEGER NOT NULL);
+            flags INTEGER NOT NULL,
+            from_sequence INTEGER NOT NULL, to_sequence INTEGER NOT NULL);
     """)
     release=(s.source_sha256,s.city,str(s.service_day))
     if db.execute("""SELECT 1 FROM snapshots
@@ -454,10 +481,12 @@ def populate_sqlite(s: Snapshot, db) -> None:
         trip_keys={external:key for key,external in db.execute(
             "SELECT trip_key,source_trip_id FROM trips WHERE snapshot_key=?",(sid,))}
         db.executemany("""INSERT INTO connections
-                          (snapshot_key,trip_key,from_stop_key,to_stop_key,depart,arrive,flags)
-                          VALUES(?,?,?,?,?,?,?)""",
+                          (snapshot_key,trip_key,from_stop_key,to_stop_key,
+                           depart,arrive,flags,from_sequence,to_sequence)
+                          VALUES(?,?,?,?,?,?,?,?,?)""",
                        ((sid,trip_keys[x.trip],stop_keys[x.a],stop_keys[x.b],
-                         x.depart,x.arrive,int(x.pickup)|int(x.dropoff)<<1)
+                         x.depart,x.arrive,int(x.pickup)|int(x.dropoff)<<1,
+                         x.from_sequence,x.to_sequence)
                         for x in s.connections))
         db.execute("CREATE INDEX IF NOT EXISTS idx_connections_depart "
                    "ON connections(snapshot_key,depart,trip_key)")
