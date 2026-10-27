@@ -238,3 +238,32 @@ https://github.com/bengoodman654/openroad/actions/runs/40392894775
 Both the real-data probe and the separate synthetic-regression workflow
 completed successfully. No PBF files were committed to GitHub, and neither
 the Android app nor the live shared server was touched.
+
+
+## 27 October 2026 — interrupted-work recovery
+
+The initial 27 October local commit was not pushed owing to unavailable
+command-line GitHub credentials. These improvements were reconstructed
+and committed through the connected GitHub API on the isolated branch.
+
+- A strict ATCO-code identity audit counts exact nearby matches separately
+  from missing, distant or duplicate matches; it deliberately creates
+  **zero verified pedestrian stop connectors**.
+- Invalid geometry in unverified as well as verified walking legs now fails
+  closed, before the map can display it.
+- Four real timetable oracles retain their exact DfT source SHA, trip IDs,
+  service date, bus lines and scheduled arrival. The historical old-parser
+  connection counts are retained only as baseline measurements.
+- The multi-option planner must independently reproduce the same physical
+  bus trips and arrival. A different interchange stop is allowed only
+  when the same trips meet at that stop with the mandatory transfer time.
+
+The previous offline session reported exact, unique, nearby stop-code matches
+for 299/339 Bristol and 354/383 Coventry city-centre GTFS stops. The
+counts are stored in stop-crosswalk-observations-2026-10-27.json and
+explicitly labelled as recovered **unrerun** observations, not ground truth.
+
+The recovered testing does not establish pedestrian boarding access, current
+closure status, accessibility or production acceptance. Keep the Android app,
+deployed PHP, main branch and shared hosting unchanged until the 105 production
+cases have been evaluated.
