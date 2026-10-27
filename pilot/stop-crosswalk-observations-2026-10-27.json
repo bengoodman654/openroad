@@ -1,0 +1,33 @@
+{
+  "recordedDate": "2026-10-27",
+  "status": "RECOVERED_SESSION_OBSERVATIONS_NOT_RERUN",
+  "description": "Numbers reported during interrupted 27 October offline research; not independently re-executed after interruption.",
+  "gtfsServiceDate": "2026-10-26",
+  "auditRadiusMetres": 2500,
+  "matchDistanceMetres": 40,
+  "cities": [
+    {
+      "city": "Bristol",
+      "gtfsStops": 339,
+      "exactUniqueNear": 299,
+      "exactUniqueFar": 4,
+      "noExactCode": 36,
+      "gtfsSHA256": "61417fea64467afe1396ecc7557f1cfa85e992ea46f6254587b6b6ca8d1b2e20",
+      "osmSHA256": "61b4050e994692ceb7d8f82d6b21b85ee965d55a9683ba107c45a29bf9894697"
+    },
+    {
+      "city": "Coventry",
+      "gtfsStops": 383,
+      "exactUniqueNear": 354,
+      "exactUniqueFar": 15,
+      "noExactCode": 14,
+      "gtfsSHA256": "56e2f73ee49f77023c49f35f59d9e51a264f5e3d2dfb275a3a80151806a8d27e",
+      "osmSHA256": "44cfefbc30eac1afc9a699aab40e95c2b73669862fa188e68130ec20ebf64f3d"
+    }
+  ],
+  "walkingSafetyConfirmed": false,
+  "verifiedStopAnchors": 0,
+  "releaseReady": false,
+  "acceptanceGatesPassed": 0,
+  "acceptanceGatesTotal": 105
+}
