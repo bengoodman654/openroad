@@ -28,14 +28,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install isolated ${{ matrix.osm }} reader
+      - name: Install isolated OSM reader
         run: python3 -m pip install 'osmium==4.3.2'
       - name: Download official public data to disposable GitHub runner
         shell: bash
         run: |
           set -euo pipefail
           curl --fail --location --retry 2 --max-time 180 \
-            --max-filesize 150000000 --user-agent 'OpenRoad-offhost-research/0.2' \
+            --max-filesize 400000000 --user-agent 'OpenRoad-offhost-research/0.2' \
             --output "$RUNNER_TEMP/region-gtfs.zip" \
             "https://data.bus-data.dft.gov.uk/timetable/download/gtfs-file/${{ matrix.region }}/"
           curl --fail --location --retry 2 --max-time 180 \
