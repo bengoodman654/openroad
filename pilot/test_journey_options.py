@@ -161,5 +161,36 @@ class OptionsTests(unittest.TestCase):
             s.connections=original
         self.assertEqual(r["outcome"],"NO_JOURNEY")
 
+
+    def test_unverified_walk_with_nan_geometry_rejected(self):
+        from math import nan
+        p = Footpath("B", "C", 120, 120, False,
+                     ((52.409, -1.5106), (nan, -1.5106)))
+        with self.assertRaisesRegex(ValueError, "coordinates"):
+            journey_options(self.snapshot, "B", "C", 8*3600, footpaths=[p])
+
+    def test_unverified_walk_wrong_endpoint_rejected(self):
+        p = Footpath("B", "C", 120, 120, False,
+                     ((52.409, -1.5106), (52.409, -1.5106)))
+        with self.assertRaisesRegex(ValueError, "does not reach"):
+            journey_options(self.snapshot, "B", "C", 8*3600, footpaths=[p])
+
+    def test_unverified_walk_wrong_geometry_length_rejected(self):
+        p = Footpath("B", "C", 7, 120, False,
+                     ((52.409, -1.5106), (52.410, -1.5106)))
+        with self.assertRaisesRegex(ValueError, "disagrees with distance"):
+            journey_options(self.snapshot, "B", "C", 8*3600, footpaths=[p])
+
+    def test_malformed_walk_coordinate_pair_rejected(self):
+        p = Footpath("B", "C", 120, 120, False,
+                     ((52.409, -1.5106), (0,)))
+        with self.assertRaisesRegex(ValueError, "Invalid footpath geometry"):
+            journey_options(self.snapshot, "B", "C", 8*3600, footpaths=[p])
+
+    def test_zero_duration_walk_rejected(self):
+        with self.assertRaisesRegex(ValueError, "Invalid footpath"):
+            journey_options(self.snapshot, "B", "C", 8*3600,
+                            footpaths=[Footpath("B", "C", 120, 0)])
+
 if __name__=="__main__":
     unittest.main()

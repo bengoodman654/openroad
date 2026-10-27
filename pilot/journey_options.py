@@ -83,21 +83,30 @@ def journey_options(snapshot, origin: str, destination: str, start_sec: int,
         if (w.metres < 0 or w.seconds <= 0 or w.a == w.b or
                 not isinstance(w.verified, bool)):
             raise ValueError("Invalid footpath")
-        if w.verified:
-            if len(w.geometry) < 2 or not w.provider or not w.source_sha256:
-                raise ValueError("Verified footpath lacks geometry provenance")
-            from pilot.gtfs_engine import distance_m
-            a, b = snapshot.stops[w.a], snapshot.stops[w.b]
-            if any(not (math.isfinite(lat) and math.isfinite(lon) and
-                        -90 <= lat <= 90 and -180 <= lon <= 180)
-                   for lat, lon in w.geometry):
+        # Even approximate walking geometry must be numerically well formed.
+        # A geometry-confidence flag is not evidence of accessibility.
+        if w.verified and (not w.geometry or not w.provider or
+                           not w.source_sha256):
+            raise ValueError("Verified footpath lacks geometry provenance")
+        if w.geometry:
+            if (len(w.geometry) < 2 or
+                    any(not isinstance(point, (tuple, list)) or
+                        len(point) != 2 for point in w.geometry)):
+                raise ValueError("Invalid footpath geometry")
+            if any(not all(isinstance(x, (int, float)) and
+                           math.isfinite(x) for x in point) or
+                   not (-90 <= point[0] <= 90 and
+                        -180 <= point[1] <= 180)
+                   for point in w.geometry):
                 raise ValueError("Invalid footpath geometry coordinates")
-            if (distance_m(w.geometry[0], (a.lat,a.lon)) > 2.0 or
-                    distance_m(w.geometry[-1], (b.lat,b.lon)) > 2.0):
+            from pilot.gtfs_engine import distance_m
+            s1, s2 = snapshot.stops[w.a], snapshot.stops[w.b]
+            if (distance_m(w.geometry[0], (s1.lat, s1.lon)) > 2.0 or
+                    distance_m(w.geometry[-1], (s2.lat, s2.lon)) > 2.0):
                 raise ValueError("Footpath geometry does not reach GTFS stops")
             length = sum(distance_m(x, y) for x, y in
                          zip(w.geometry, w.geometry[1:]))
-            if abs(length - w.metres) > max(5.0, 0.12*w.metres):
+            if abs(length - w.metres) > max(5.0, 0.12 * w.metres):
                 raise ValueError("Footpath geometry length disagrees with distance")
         walks[w.a].append(w)
 
