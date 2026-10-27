@@ -1,0 +1,62 @@
+name: OpenRoad PT v2 exact stop-code audit (off-host)
+on:
+  push:
+    branches: [pt-v2-planner-hardening]
+    paths:
+      - '.github/workflows/pt-v2-stop-crosswalk.yml'
+      - 'pilot/stop_identity_audit.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  exact-atco-crosswalk:
+    if: contains(github.event.head_commit.message, '[real-stop-audit]') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - city: Bristol
+            region: south_west
+            osm: bristol
+          - city: Coventry
+            region: west_midlands
+            osm: west-midlands
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install isolated ${{ matrix.osm }} reader
+        run: python3 -m pip install 'osmium==4.3.2'
+      - name: Download official public data to disposable GitHub runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 2 --max-time 180 \
+            --max-filesize 150000000 --user-agent 'OpenRoad-offhost-research/0.2' \
+            --output "$RUNNER_TEMP/region-gtfs.zip" \
+            "https://data.bus-data.dft.gov.uk/timetable/download/gtfs-file/${{ matrix.region }}/"
+          curl --fail --location --retry 2 --max-time 180 \
+            --max-filesize 100000000 --user-agent 'OpenRoad-offhost-research/0.2' \
+            --output "$RUNNER_TEMP/city.osm.pbf" \
+            "https://download.geofabrik.de/europe/united-kingdom/england/${{ matrix.osm }}-latest.osm.pbf"
+      - name: Count exact ATCO matches; no automatic walk connectors
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pilot.stop_identity_audit \
+            --city "${{ matrix.city }}" --region "${{ matrix.region }}" \
+            --gtfs "$RUNNER_TEMP/region-gtfs.zip" \
+            --osm "$RUNNER_TEMP/city.osm.pbf" \
+            --date "2026-10-27" --radius 2500 \
+            | tee "$RUNNER_TEMP/stop-code-audit.log"
+      - name: Save off-host evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stop-crosswalk-${{ matrix.osm }}
+          path: ${{ runner.temp }}/stop-code-audit.log
+          retention-days: 14
+          if-no-files-found: ignore
