@@ -267,3 +267,13 @@ The recovered testing does not establish pedestrian boarding access, current
 closure status, accessibility or production acceptance. Keep the Android app,
 deployed PHP, main branch and shared hosting unchanged until the 105 production
 cases have been evaluated.
+
+
+## 27 October 2026 — independent real-data rerun completed
+
+Both city audits succeeded on disposable GitHub runners: https://github.com/bengoodman654/openroad/actions/runs/40592636211
+
+- Bristol: 339 GTFS stops examined in the 2.5 km pilot; 299 exact unique nearby ATCO matches, 4 distant, 36 unmatched.
+- Coventry: 383 stops examined; 354 exact unique nearby matches, 15 distant, 14 unmatched.
+
+Both match the numbers retained from the interrupted research session. Full machine-readable logs, current OSM and pinned GTFS SHA-256 source hashes, and review examples are retained in real-stop-crosswalk-evidence-2026-10-27.json. These are exact-code identity findings **only**. Zero walking anchors were approved for routing, and the Android, server and production acceptance status have not changed.
