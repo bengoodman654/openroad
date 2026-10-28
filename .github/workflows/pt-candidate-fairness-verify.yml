@@ -1,0 +1,63 @@
+name: OpenRoad PT candidate fairness — real MariaDB regression
+on:
+  push:
+    branches: [fix/pt-candidate-fairness-20261028]
+    paths:
+      - '.github/workflows/pt-sql-timeout-verify.yml'
+      - 'maintenance/pt-sql-timeout/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  router:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: only-for-ci-root
+          MARIADB_DATABASE: openroad_fixture
+          MARIADB_USER: openroad_test
+          MARIADB_PASSWORD: only-for-ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mariadb-admin ping -h 127.0.0.1 -u root -ponly-for-ci-root"
+          --health-interval=5s
+          --health-timeout=4s
+          --health-retries=15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare MariaDB PHP driver and pristine server source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! php -m | grep -qi pdo_mysql; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq php-mysql
+          fi
+          unzip -q OpenRoad-Transport-Server-v0.2.5-source.zip -d "$RUNNER_TEMP/source"
+          project="$(find "$RUNNER_TEMP/source" -mindepth 1 -maxdepth 1 -type d | head -1)"
+          test -f "$project/private/lib/router.php"
+          echo "SERVER_SOURCE=$project" >> "$GITHUB_ENV"
+      - name: Enforce exact-source patch, PHP lint and unchanged v1 API
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l "$SERVER_SOURCE/private/lib/router.php"
+          sha256sum "$SERVER_SOURCE/public/api/v1/journeys.php" > "$RUNNER_TEMP/endpoint-before.sha"
+          python3 maintenance/pt-sql-timeout/patch_router.py "$SERVER_SOURCE/private/lib/router.php"
+          python3 maintenance/pt-sql-timeout/patch_router_v029.py "$SERVER_SOURCE/private/lib/router.php"
+          php -l "$SERVER_SOURCE/private/lib/router.php"
+          sha256sum -c "$RUNNER_TEMP/endpoint-before.sha"
+          php "$SERVER_SOURCE/tests/router_test.php"
+      - name: Synthetic direct and transfer journeys on real MariaDB schema
+        shell: bash
+        run: php -d memory_limit=128M maintenance/pt-sql-timeout/mariadb_test.php "$SERVER_SOURCE"
+      - name: Preserve review-only PHP patch (NEVER deploy)
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenRoad-bounded-router-PHP-REVIEW-ONLY
+          path: ${{ env.SERVER_SOURCE }}/private/lib/router.php
+          retention-days: 7

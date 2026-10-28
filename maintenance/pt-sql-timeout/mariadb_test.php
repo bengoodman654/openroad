@@ -58,6 +58,31 @@ test($direct[0]['trip_id']==='D' && $direct[0]['alight_stop']==='B',
 $seeds=or_first_leg_seeds($db,$ds,$origin,$now,1.35,3600,3500);
 test(isset($seeds['C'])&&count($seeds['C'])>0,
      'first-leg transfer stop derived from bounded active trip');
+// Flood 14 additional origin stops with earlier, non-connecting
+// departures. A global LIMIT before the active-service join can consume
+// its whole first-leg budget here and lose the original T1 transfer.
+$stopExtra=$db->prepare('INSERT INTO or_stops(dataset_id,stop_id,stop_name,stop_lat,stop_lon) VALUES(?,?,?,?,?)');
+$extraTrip=$db->prepare('INSERT INTO or_trips(dataset_id,trip_id,route_id,service_id,shape_id,headsign,direction_id) VALUES(?,?,?,?,?,?,?)');
+$extraTime=$db->prepare('INSERT INTO or_stop_times(dataset_id,trip_id,stop_id,stop_sequence,arrival_sec,departure_sec) VALUES(?,?,?,?,?,?)');
+$manyOrigins=['A'=>['stop_id'=>'A','distance'=>2.0]];
+for($i=0;$i<14;$i++){
+    $sid='EXTRA'.str_pad((string)$i,2,'0',STR_PAD_LEFT);
+    $stopExtra->execute([$ds,$sid,'Synthetic stop '.($i+1),51.44+$i*0.00001,-2.60]);
+    $manyOrigins[$sid]=['stop_id'=>$sid,'distance'=>30.0];
+    for($j=0;$j<26;$j++){
+        $id='UNRELATED'.$i.'_'.$j;
+        $extraTrip->execute([$ds,$id,'Z','ACTIVE','','Unrelated','0']);
+        $depart=$now+100+($j%70);
+        $extraTime->execute([$ds,$id,$sid,1,$depart,$depart]);
+    }
+}
+$seedsWide=or_first_leg_seeds($db,$ds,$manyOrigins,$now,1.35,3600,12000);
+test(isset($seedsWide['C']) && count($seedsWide['C'])>0,
+     'adding 14 busy stops does not erase an existing transfer service');
+$wideDirect=or_direct_candidates($db,$ds,$manyOrigins,$dest,$now,10800);
+test(count($wideDirect)===1,
+     'adding unrelated stops cannot erase a real direct journey');
+
 $second=or_second_leg_candidates($db,$ds,$seeds,$dest,$now,180,2000);
 test(count(array_filter($second,static fn($r)=>$r['trip_id']==='T2'
       &&$r['transfer_stop']==='C'&&$r['alight_stop']==='B'))===1,
