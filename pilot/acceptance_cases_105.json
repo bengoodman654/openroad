@@ -1,0 +1,842 @@
+[
+  {
+    "id": "PT-001",
+    "group": "timetable",
+    "scenario": "today service",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-002",
+    "group": "timetable",
+    "scenario": "tomorrow service",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-003",
+    "group": "timetable",
+    "scenario": "holiday exception",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-004",
+    "group": "timetable",
+    "scenario": "24h GTFS clock",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-005",
+    "group": "timetable",
+    "scenario": "feed expiry",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-006",
+    "group": "timetable",
+    "scenario": "dataset rotation",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-007",
+    "group": "timetable",
+    "scenario": "stale warning",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-008",
+    "group": "coverage",
+    "scenario": "Bristol",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-009",
+    "group": "coverage",
+    "scenario": "Coventry",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-010",
+    "group": "coverage",
+    "scenario": "W Midlands",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-011",
+    "group": "coverage",
+    "scenario": "cross-region",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-012",
+    "group": "coverage",
+    "scenario": "unsupported area",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-013",
+    "group": "coverage",
+    "scenario": "feed revision",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-014",
+    "group": "coverage",
+    "scenario": "operator coverage",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-015",
+    "group": "direct",
+    "scenario": "direct service",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-016",
+    "group": "direct",
+    "scenario": "early departure excluded",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-017",
+    "group": "direct",
+    "scenario": "pickup permission",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-018",
+    "group": "direct",
+    "scenario": "dropoff permission",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-019",
+    "group": "direct",
+    "scenario": "direction",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-020",
+    "group": "direct",
+    "scenario": "physical trip continuity",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-021",
+    "group": "direct",
+    "scenario": "alternative diversity",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-022",
+    "group": "transfers",
+    "scenario": "same stop",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-023",
+    "group": "transfers",
+    "scenario": "between nearby stops",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-024",
+    "group": "transfers",
+    "scenario": "buffer",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-025",
+    "group": "transfers",
+    "scenario": "missed connection",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-026",
+    "group": "transfers",
+    "scenario": "three legs",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-027",
+    "group": "transfers",
+    "scenario": "same vehicle",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-028",
+    "group": "transfers",
+    "scenario": "busy stops",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-029",
+    "group": "pedestrian",
+    "scenario": "stop-side access",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-030",
+    "group": "pedestrian",
+    "scenario": "closed bridge",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-031",
+    "group": "pedestrian",
+    "scenario": "real crossing",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-032",
+    "group": "pedestrian",
+    "scenario": "no invented sidewalk",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-033",
+    "group": "pedestrian",
+    "scenario": "stairs",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-034",
+    "group": "pedestrian",
+    "scenario": "walking cap",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-035",
+    "group": "pedestrian",
+    "scenario": "roadworks",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-036",
+    "group": "rail",
+    "scenario": "rail-only",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-037",
+    "group": "rail",
+    "scenario": "bus to train",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-038",
+    "group": "rail",
+    "scenario": "train to bus",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-039",
+    "group": "rail",
+    "scenario": "rail disruptions",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-040",
+    "group": "rail",
+    "scenario": "platform identities",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-041",
+    "group": "rail",
+    "scenario": "source expiry",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-042",
+    "group": "rail",
+    "scenario": "long-distance",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-043",
+    "group": "live",
+    "scenario": "schedule without live",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-044",
+    "group": "live",
+    "scenario": "prediction freshness",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-045",
+    "group": "live",
+    "scenario": "unknown label",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-046",
+    "group": "live",
+    "scenario": "no stale vehicles",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-047",
+    "group": "live",
+    "scenario": "cancel live",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-048",
+    "group": "live",
+    "scenario": "API quota",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-049",
+    "group": "live",
+    "scenario": "live vs scheduled",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-050",
+    "group": "cancellation",
+    "scenario": "before worker",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-051",
+    "group": "cancellation",
+    "scenario": "during query",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-052",
+    "group": "cancellation",
+    "scenario": "two devices",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-053",
+    "group": "cancellation",
+    "scenario": "finish-after-cancel",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-054",
+    "group": "cancellation",
+    "scenario": "crash lease",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-055",
+    "group": "cancellation",
+    "scenario": "after completed",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-056",
+    "group": "cancellation",
+    "scenario": "subscriber isolation",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-057",
+    "group": "ui",
+    "scenario": "Back visibility",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-058",
+    "group": "ui",
+    "scenario": "X in search",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-059",
+    "group": "ui",
+    "scenario": "guidance separate",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-060",
+    "group": "ui",
+    "scenario": "edit confirmation",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-061",
+    "group": "ui",
+    "scenario": "minimised sheet",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-062",
+    "group": "ui",
+    "scenario": "camera stability",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-063",
+    "group": "ui",
+    "scenario": "chosen route persists",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-064",
+    "group": "route",
+    "scenario": "up to three options",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-065",
+    "group": "route",
+    "scenario": "zoom geometry",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-066",
+    "group": "route",
+    "scenario": "bus stop alignment",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-067",
+    "group": "route",
+    "scenario": "reorder stops",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-068",
+    "group": "route",
+    "scenario": "via waypoint",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-069",
+    "group": "route",
+    "scenario": "true no journey",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-070",
+    "group": "route",
+    "scenario": "circular route",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-071",
+    "group": "performance",
+    "scenario": "20s first route",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-072",
+    "group": "performance",
+    "scenario": "server memory",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-073",
+    "group": "performance",
+    "scenario": "server CPU",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-074",
+    "group": "performance",
+    "scenario": "concurrent users",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-075",
+    "group": "performance",
+    "scenario": "snapshot pin",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-076",
+    "group": "performance",
+    "scenario": "HTTP bounds",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-077",
+    "group": "performance",
+    "scenario": "busy origin fairness",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-078",
+    "group": "offline",
+    "scenario": "network outage",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-079",
+    "group": "offline",
+    "scenario": "local cache works",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-080",
+    "group": "offline",
+    "scenario": "missing cache",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-081",
+    "group": "offline",
+    "scenario": "resume after sleep",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-082",
+    "group": "offline",
+    "scenario": "no stale popup",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-083",
+    "group": "offline",
+    "scenario": "regional expiry",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-084",
+    "group": "offline",
+    "scenario": "cache integrity",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-085",
+    "group": "security",
+    "scenario": "signed device",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-086",
+    "group": "security",
+    "scenario": "nonce replay",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-087",
+    "group": "security",
+    "scenario": "ticket ownership",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-088",
+    "group": "security",
+    "scenario": "SQL injection",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-089",
+    "group": "security",
+    "scenario": "keys remain server",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-090",
+    "group": "security",
+    "scenario": "rate limits",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-091",
+    "group": "security",
+    "scenario": "privacy",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-092",
+    "group": "deployment",
+    "scenario": "reproducible source",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-093",
+    "group": "deployment",
+    "scenario": "same app signature",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-094",
+    "group": "deployment",
+    "scenario": "PHP rollback",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-095",
+    "group": "deployment",
+    "scenario": "websites email",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-096",
+    "group": "deployment",
+    "scenario": "cron maintenance",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-097",
+    "group": "deployment",
+    "scenario": "migration rollback",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-098",
+    "group": "deployment",
+    "scenario": "release gate",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-099",
+    "group": "accessibility",
+    "scenario": "boarding side",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-100",
+    "group": "accessibility",
+    "scenario": "dropped kerb",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-101",
+    "group": "accessibility",
+    "scenario": "step-free",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-102",
+    "group": "accessibility",
+    "scenario": "stop physical access",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-103",
+    "group": "accessibility",
+    "scenario": "closure",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-104",
+    "group": "accessibility",
+    "scenario": "interchange time",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  },
+  {
+    "id": "PT-105",
+    "group": "accessibility",
+    "scenario": "no invented crossing",
+    "status": "PENDING_PRODUCTION_ACCEPTANCE",
+    "requiredEvidence": "independent actual app/server proof",
+    "passed": false
+  }
+]
