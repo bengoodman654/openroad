@@ -1,0 +1,65 @@
+name: OpenRoad journey SQL diagnosis (read-only)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/diagnose-journey-sql-readonly.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    timeout-minutes: 5
+    steps:
+      - name: Read-only timetable and index metadata (no journey searches)
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+          PRIVATE_DIR: ${{ vars.CPANEL_OPENROAD_PRIVATE_DIR }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS" && test -n "$SSH_HOST" && test -n "$SSH_USER" && test -n "$PRIVATE_DIR"
+          [[ "$PRIVATE_DIR" == /* ]] || exit 1
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_openroad_diagnostic"
+          printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          ssh -i "$HOME/.ssh/id_openroad_diagnostic" -o StrictHostKeyChecking=yes \
+              -o BatchMode=yes -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+              bash -s -- "$PRIVATE_DIR" <<'REMOTE'
+          set -euo pipefail
+          private_dir="$1"
+          test -f "$private_dir/lib/bootstrap.php"
+          php -d display_errors=stderr -r '
+            require $argv[1];
+            $db=openroad_db();
+            try{$db->exec("SET SESSION max_statement_time=0.5");}catch(Throwable $ignored){}
+            echo "REGIONS_BEGIN\n";
+            foreach($db->query("SELECT region_key,dataset_id,DATE(updated_at) updated_day FROM or_regions ORDER BY region_key LIMIT 32") as $r) {
+              echo preg_replace("/[^a-zA-Z0-9_-]/","",(string)$r["region_key"])." ds=".(int)$r["dataset_id"]." day=".(string)$r["updated_day"]."\n";
+            }
+            echo "REGIONS_END\n";
+            echo "PREPARE_QUEUE_BEGIN\n";
+            foreach($db->query("SELECT region_key,attempts FROM or_prepare_queue ORDER BY region_key LIMIT 32") as $r) {
+              echo preg_replace("/[^a-zA-Z0-9_-]/","",(string)$r["region_key"])." attempts=".(int)$r["attempts"]."\n";
+            }
+            echo "PREPARE_QUEUE_END\n";
+            foreach(["or_stop_times","or_trips","or_service_dates","or_stops"] as $table){
+              $stmt=$db->prepare("SELECT TABLE_ROWS,DATA_LENGTH,INDEX_LENGTH FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?");
+              $stmt->execute([$table]);$row=$stmt->fetch();
+              echo "TABLE ".$table." approx_rows=".(int)($row["TABLE_ROWS"]??0)." estimated_data_bytes=".(int)($row["DATA_LENGTH"]??0)." estimated_index_bytes=".(int)($row["INDEX_LENGTH"]??0)."\n";
+              $q=$db->query("SHOW INDEX FROM ".$table);
+              $indices=[];
+              foreach($q as $ix){
+                $k=(string)$ix["Key_name"];$seq=(int)$ix["Seq_in_index"];
+                $indices[$k][$seq]=(string)$ix["Column_name"];
+              }
+              foreach($indices as $k=>$columns){ksort($columns);echo "INDEX ".$table.".".$k."(".implode(",",$columns).")\n";}
+            }
+            echo "READ_ONLY_DIAG_COMPLETE\n";
+          ' "$private_dir/lib/bootstrap.php"
+          REMOTE
