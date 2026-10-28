@@ -2,7 +2,12 @@ name: OpenRoad PT v2 staged server source (NO DEPLOY)
 on:
   push:
     branches: [pt-v2-planner-hardening]
-    paths: ['.github/workflows/pt-v2-staged-server.yml']
+    paths:
+      - '.github/workflows/pt-v2-staged-server.yml'
+      - 'pilot/php_v2_route_worker.php'
+      - 'pilot/php_v2_route_worker_test.php'
+      - 'pilot/stage_pt_v2_server.py'
+      - 'pilot/test_stage_server.py'
   workflow_dispatch:
 permissions:
   contents: read
