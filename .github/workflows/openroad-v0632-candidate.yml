@@ -30,6 +30,10 @@ jobs:
           project="$(find extracted -mindepth 1 -maxdepth 1 -type d | head -1)"
           python3 maintenance/android-v0.6.32/patch.py "$project"
           node --check "$project/app/src/main/assets/app.js"
+          echo 'Original validation rules:'
+          sed -n '1,180p' "$project/validate.sh"
+          echo 'Version markers after patch:'
+          grep -rn '0\.6\.31\|0\.6\.32' "$project/app/build.gradle" "$project/app/src/main/assets/index.html" "$project/app/src/main/assets/app.js" "$project/validate.sh" | head -30 || true
           bash "$project/validate.sh"
           node maintenance/android-v0.6.32/pt-ui-test.cjs "$project/app/src/main/assets/app.js"
           echo "PROJECT=$project" >> "$GITHUB_ENV"
