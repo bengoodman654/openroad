@@ -49,3 +49,10 @@ jobs:
         run: python3 -m pip install 'osmium==4.3.2'
       - name: Parse tiny reference-complete OSM fixture
         run: python3 -m unittest pilot.test_osm_adapter -v
+
+  php-cancellation-reference:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate standalone PHP server cancellation prototype
+        run: php -d memory_limit=64M pilot/php_v2_cancellation_test.php
