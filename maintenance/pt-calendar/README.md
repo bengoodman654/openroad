@@ -70,3 +70,32 @@ code matching does not prove this.
 
 The 105-case production acceptance manifest is maintained on that
 development branch, with all cases pending integrated field verification.
+
+
+## Safe cron transition after approved installation
+
+The existing full GTFS importer is scheduled for 03:17 daily but does not
+advance the active dataset. Its last captured log output ends with cPanel
+HTTP-style 404 responses. Do not assume this proves a particular PHP
+executable, URL or filesystem mistake without an isolated CLI check.
+
+Once the two new calendar maintenance files have been installed and
+verified, the cPanel Cron Jobs entry for the old daily full import should
+be disabled. A replacement may run the private CLI calendar extension
+at 03:17 each Sunday using the PHP binary that has been verified to run
+the script as PHP_SAPI=cli. Do not invoke its PHP file via a public URL,
+and do not add any nightly full-data rebuild.
+
+The script fails closed if the cached feed is more than 60 days old or
+no longer matches the active dataset's import timestamp, so this is a
+temporary window extension, not a perpetual stale-timetable workaround.
+
+The next fully refreshed BODS data must be built and tested separately
+from the shared host; only then plan a low-load, versioned replacement
+of the existing large timetable dataset, with time/memory limits and a
+rollback. Keep the live route planner at v0.2.9 while this is prepared.
+
+The daily read-only GitHub calendar guard on main remains in service.
+If it reports seven days or less remaining, that is an urgent pending
+maintenance failure; it is not evidence that the automatic extension
+ran successfully.
