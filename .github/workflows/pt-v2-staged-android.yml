@@ -2,7 +2,11 @@ name: OpenRoad PT v2 staged Android debug build (NO DEPLOY)
 on:
   push:
     branches: [pt-v2-planner-hardening]
-    paths: ['.github/workflows/pt-v2-staged-android.yml']
+    paths:
+      - '.github/workflows/pt-v2-staged-android.yml'
+      - 'pilot/pt_v2_android_java_patch.py'
+      - 'pilot/stage_pt_v2_android.py'
+      - 'pilot/test_staged_android.py'
   workflow_dispatch:
 permissions:
   contents: read

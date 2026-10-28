@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 from zipfile import ZipFile, ZIP_DEFLATED
+from pilot.pt_v2_android_java_patch import patch_server,patch_transit
 
 def replace_one(s, old, new):
     if s.count(old) != 1:
@@ -19,6 +20,8 @@ def stage(source, destination):
             return match[0]
         js_path = locate("app/src/main/assets/app.js")
         html_path = locate("app/src/main/assets/index.html")
+        java_client_path = locate("app/src/main/java/uk/co/bengoodman/clearroute/OpenRoadServerClient.java")
+        java_transit_path = locate("app/src/main/java/uk/co/bengoodman/clearroute/TransitClient.java")
         js = z.read(js_path).decode("utf-8")
         html = z.read(html_path).decode("utf-8")
         html = replace_one(
@@ -75,6 +78,8 @@ def stage(source, destination):
             "      // An asynchronous update must not silently replace a chosen journey.\n"
             "      if(previousId&&!data.routes.some(r=>r?.clearRouteId===previousId))return;\n"
             "      routeResponse=data;")
+        java_client = patch_server(z.read(java_client_path).decode("utf-8"))
+        java_transit = patch_transit(z.read(java_transit_path).decode("utf-8"))
         destination = Path(destination)
         destination.parent.mkdir(parents=True, exist_ok=True)
         with ZipFile(destination, "w", ZIP_DEFLATED, compresslevel=6) as out:
@@ -82,6 +87,8 @@ def stage(source, destination):
                 data = z.read(info.filename)
                 if info.filename == js_path: data = js.encode("utf-8")
                 elif info.filename == html_path: data = html.encode("utf-8")
+                elif info.filename == java_client_path: data = java_client.encode("utf-8")
+                elif info.filename == java_transit_path: data = java_transit.encode("utf-8")
                 out.writestr(info, data)
     print("STAGED_RESEARCH_ONLY",destination)
 

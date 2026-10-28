@@ -17,7 +17,7 @@ class AndroidStageTests(unittest.TestCase):
                 changed=[n for n in before.namelist()
                          if before.read(n)!=after.read(n)]
                 self.assertEqual(sorted(n.rsplit("/",1)[-1] for n in changed),
-                                 ["app.js","index.html"])
+                                 ["OpenRoadServerClient.java","TransitClient.java","app.js","index.html"])
                 js=after.read(next(n for n in after.namelist()
                     if n.endswith("/app/src/main/assets/app.js"))).decode()
                 html=after.read(next(n for n in after.namelist()
@@ -27,6 +27,15 @@ class AndroidStageTests(unittest.TestCase):
                 self.assertIn("No journey was changed.",js)
                 self.assertIn("data.routes.some",js)
                 self.assertIn('id="ptBackBtn"',html)
+                client=after.read(next(n for n in after.namelist()
+                    if n.endswith("/OpenRoadServerClient.java"))).decode()
+                transit=after.read(next(n for n in after.namelist()
+                    if n.endswith("/TransitClient.java"))).decode()
+                for term in ("ptV2Issue(","ptV2Route(","ptV2Cancel(","ptV2Status("):
+                    self.assertIn(term,client)
+                self.assertIn("ptV2Research",transit)
+                self.assertIn("ACTIVE_V2.getAndSet(null)",transit)
+                self.assertIn("routeWorkCancelled(generation)",transit)
         self.assertEqual(baseline.stat().st_size,size)
 
     def test_unexpected_source_rejected(self):
