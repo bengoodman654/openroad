@@ -79,6 +79,25 @@ jobs:
               $q->execute([$ds]);echo "ACTIVE_SERVICE_IDS_TOMORROW ".(int)$q->fetchColumn()."\n";
             }
             echo "SOUTH_WEST_CALENDAR_END\n";
+            // Read-only EXPLAIN: do not execute an expensive route query.
+            $find=$db->prepare("SELECT stop_id FROM or_stops WHERE dataset_id=? AND stop_lat BETWEEN ? AND ? AND stop_lon BETWEEN ? AND ? LIMIT 4");
+            $find->execute([$ds,51.430,51.448,-2.63,-2.58]);
+            $from=$find->fetchAll(PDO::FETCH_COLUMN);
+            $find->execute([$ds,51.45,51.49,-2.65,-2.60]);
+            $to=$find->fetchAll(PDO::FETCH_COLUMN);
+            if(count($from)>0 && count($to)>0){
+              $phFrom=implode(",",array_fill(0,count($from),"?"));
+              $phTo=implode(",",array_fill(0,count($to),"?"));
+              $sql="EXPLAIN SELECT b.trip_id,b.stop_id,a.stop_id FROM or_stop_times b JOIN or_trips t ON t.dataset_id=b.dataset_id AND t.trip_id=b.trip_id JOIN or_service_dates sd ON sd.dataset_id=t.dataset_id AND sd.service_id=t.service_id AND sd.service_date=CURDATE() JOIN or_stop_times a ON a.dataset_id=b.dataset_id AND a.trip_id=b.trip_id AND a.stop_sequence>b.stop_sequence JOIN or_routes r ON r.dataset_id=t.dataset_id AND r.route_id=t.route_id WHERE b.dataset_id=? AND b.stop_id IN ($phFrom) AND a.stop_id IN ($phTo) AND b.departure_sec BETWEEN ? AND ? ORDER BY b.departure_sec LIMIT 2600";
+              $q=$db->prepare($sql);
+              $now=((int)date("H"))*3600+((int)date("i"))*60;
+              $q->execute([$ds,...$from,...$to,$now,$now+7200]);
+              echo "ORIGINAL_QUERY_EXPLAIN_BEGIN\n";
+              foreach($q as $r){
+                echo "table=".$r["table"]." type=".$r["type"]." key=".($r["key"]??"none")." estimated_rows=".(int)$r["rows"]." extra=".substr((string)($r["Extra"]??""),0,110)."\n";
+              }
+              echo "ORIGINAL_QUERY_EXPLAIN_END\n";
+            }
             echo "READ_ONLY_DIAG_COMPLETE\n";
           ' "$private_dir/lib/bootstrap.php"
           REMOTE
