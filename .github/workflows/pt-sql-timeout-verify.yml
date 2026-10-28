@@ -48,6 +48,7 @@ jobs:
           php -l "$SERVER_SOURCE/private/lib/router.php"
           sha256sum "$SERVER_SOURCE/public/api/v1/journeys.php" > "$RUNNER_TEMP/endpoint-before.sha"
           python3 maintenance/pt-sql-timeout/patch_router.py "$SERVER_SOURCE/private/lib/router.php"
+          python3 maintenance/pt-sql-timeout/nearest_first.py "$SERVER_SOURCE/private/lib/router.php"
           php -l "$SERVER_SOURCE/private/lib/router.php"
           sha256sum -c "$RUNNER_TEMP/endpoint-before.sha"
           php "$SERVER_SOURCE/tests/router_test.php"
