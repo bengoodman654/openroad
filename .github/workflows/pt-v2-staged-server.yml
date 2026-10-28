@@ -14,6 +14,9 @@ on:
       - 'pilot/php_v2_process_worker.php'
       - 'pilot/php_v2_process_test.php'
       - 'pilot/php_v2_cancellation.php'
+      - 'pilot/php_v2_cancellation_test.php'
+      - 'pilot/request_lifecycle.py'
+      - 'pilot/test_request_lifecycle.py'
       - 'pilot/php_v2_device_adapter.php'
       - 'pilot/pt_v2_android_java_patch.py'
   workflow_dispatch:
