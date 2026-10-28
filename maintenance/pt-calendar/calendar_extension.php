@@ -57,8 +57,8 @@ function or_calendar_expand(ZipArchive $zip,array $allowed,
     foreach($days as $ymd=>[$date,$weekday])
         foreach(array_keys($active[$ymd]??[]) as $service)
             $rows[]=[$service,$date];
-    if(!$rows||count($rows)>60000)
-        throw new RuntimeException('No valid or too many timetable calendar rows');
+    if(count($rows)>60000)
+        throw new RuntimeException('Too many timetable calendar rows');
     return $rows;
 }
 function or_calendar_plan(PDO $db,string $region,string $zipPath,
