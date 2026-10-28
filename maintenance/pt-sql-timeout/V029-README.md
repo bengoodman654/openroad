@@ -34,3 +34,27 @@ post-install verification failure.
 
 A future controlled GTFS refresh remains necessary: the server dataset
 currently contains calendar dates only through 9 November 2026.
+
+
+## Deployment and complete live-route validation
+
+Deploy workflow succeeded and retained the previous router backup:
+https://github.com/bengoodman654/openroad/actions/runs/40738393216
+
+The first complete, bounded live route calculation on 28 October 2026,
+about 17:45 local time, using representative South Bristol coordinates
+(51.438,-2.607) to Clifton (51.459,-2.627), default 10-minute walking
+limit, balanced ranking and fast phase returned **three routes**. Its
+first returned itinerary contained **two scheduled bus legs**. Total
+server calculation time was about **147 ms**; no SQLSTATE timeout:
+https://github.com/bengoodman654/openroad/actions/runs/40738604304
+
+This proves end-to-end route JSON was assembled by the live server for
+the representative pair. It does NOT prove the user's selected exact
+coordinates yield routes, that current buses are on time, or that the
+walk/boarding directions are independently safe and accurate. The v1
+router still uses unverified point-to-point walk segments and lacks
+general walk-between-separate-stops transfers.
+
+Android remains v0.6.32. No new APK, GTFS import, schema change or
+change to other websites/email was made.
