@@ -75,6 +75,14 @@ function or_calendar_plan(PDO $db,string $region,string $zipPath,
     $q->execute([$region]);$regionRow=$q->fetch(PDO::FETCH_ASSOC);
     if(!$regionRow)throw new RuntimeException('Region not prepared');
     $ds=(int)$regionRow['dataset_id'];
+    // The local ZIP must be the archive from which the active dataset
+    // was built. A newer ZIP with reused service IDs must not be mixed
+    // with old trip shapes/times. In absence of a stored SHA-256, require
+    // matching import-day timestamps (two-day tolerance).
+    $activated=strtotime((string)$regionRow['updated_at']);
+    if($activated===false || abs($activated-filemtime($zipPath))>2*86400)
+        throw new RuntimeException('Cached GTFS source does not match active dataset generation');
+
     $q=$db->prepare('SELECT MAX(service_date) FROM or_service_dates WHERE dataset_id=?');
     $q->execute([$ds]);$last=$q->fetchColumn();
     if(!is_string($last)||!preg_match('/^\d{4}-\d{2}-\d{2}$/D',$last))
