@@ -126,6 +126,53 @@ jobs:
               }
             }
           ' "$private"
+          # Identify why the daily full-import cron has not activated a new
+          # dataset since September. Only aggregate recognized stages/errors;
+          # never print complete log lines or cron command.
+          php -r '
+            $entries=explode("\n",(string)shell_exec("crontab -l 2>/dev/null"));
+            foreach($entries as $entry){
+              if(stripos($entry,"update_gtfs")===false || str_starts_with(trim($entry),"#"))continue;
+              if(!preg_match("/(?:^|\s)[12]?>{1,2}\s*(\/[^\s;&|]+)/",$entry,$m)){
+                echo "IMPORT_LOG audit=no_log_path\n";continue;
+              }
+              $path=trim($m[1],"\"\\x27");
+              if(!is_file($path)){echo "IMPORT_LOG audit=file_missing\n";continue;}
+              $size=(int)filesize($path);
+              $mtime=filemtime($path);
+              $tail=(string)file_get_contents($path,false,null,max(0,$size-65536),65536);
+              $seen=[];
+              foreach([
+                "Downloading official DfT"=>"started_download",
+                "Download complete"=>"downloaded",
+                "Importing stops"=>"import_stops",
+                "Importing routes"=>"import_routes",
+                "Importing trips"=>"import_trips",
+                "Building active service dates"=>"import_calendar",
+                "Importing stop times"=>"import_stop_times",
+                "Importing full route shapes"=>"import_shapes",
+                "Activated "=>"activated",
+                "Update complete"=>"completed",
+                "OpenRoad GTFS update failed"=>"failed",
+                "Another GTFS update"=>"busy_lock",
+                "SQLSTATE"=>"sql_error",
+                "Fatal error"=>"php_fatal",
+                "Allowed memory size"=>"memory_exhaustion",
+                "execution time"=>"execution_timeout",
+                "Download failed"=>"failed_download",
+              ] as $needle=>$tag){
+                if(stripos($tail,$needle)!==false)$seen[]=$tag;
+              }
+              echo "IMPORT_LOG size_bytes=".$size.
+                   " age_minutes=".(int)((time()-$mtime)/60).
+                   " stages=".implode(",",$seen)."\n";
+              foreach(array_slice(preg_split("/\r?\n/",$tail),-40) as $line){
+                if(preg_match("/\[([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:]{8})\]/",$line,$m))
+                    $lastSeen=$m[1];
+              }
+              if(isset($lastSeen))echo "IMPORT_LOG last_timestamp=".$lastSeen."\n";
+            }
+          '
           # Lightweight archive metadata, no decompression of large GTFS
           # stop_times/shapes; identify calendar horizon only.
           php -d memory_limit=48M -r '
