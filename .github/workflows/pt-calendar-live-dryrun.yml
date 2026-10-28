@@ -39,25 +39,18 @@ jobs:
           scp -i "$HOME/.ssh/id_calendar" -P "$SSH_PORT" \
             -o StrictHostKeyChecking=yes -o BatchMode=yes \
             maintenance/pt-calendar/calendar_extension.php "$SSH_USER@$SSH_HOST:$name"
+          script="pt-calendar-script-$GITHUB_RUN_ID.php"
+          scp -i "$HOME/.ssh/id_calendar" -P "$SSH_PORT" \
+            -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            maintenance/pt-calendar/live_dryrun.php "$SSH_USER@$SSH_HOST:$script"
           ssh -i "$HOME/.ssh/id_calendar" -p "$SSH_PORT" \
             -o StrictHostKeyChecking=yes -o BatchMode=yes \
-            "$SSH_USER@$SSH_HOST" bash -s -- "$PRIVATE_DIR" "$name" <<'REMOTE'
+            "$SSH_USER@$SSH_HOST" bash -s -- "$PRIVATE_DIR" "$name" "$script" <<'REMOTE'
           set -euo pipefail
-          priv="$1";name="$2"
+          priv="$1";name="$2";script="$3"
           [[ "$priv" == /* && "$name" == pt-calendar-dry-*.php ]] || exit 1
-          trap 'rm -f "$HOME/$name"' EXIT
-          php -d memory_limit=128M -r '
-            require $argv[1]."/lib/bootstrap.php";
-            require $argv[2];
-            $db=openroad_db();
-            $db->exec("SET SESSION max_statement_time=3");
-            $plan=or_calendar_plan($db,"south_west",
-                $argv[1]."/cache/south_west_gtfs.zip",
-                new DateTimeImmutable("today"),45);
-            echo "CALENDAR_DRYRUN outcome=".$plan["outcome"].
-                 " dataset=".$plan["dataset"].
-                 " proposed_rows=".count($plan["rows"]).
-                 " old_last=".($plan["oldLast"]??$plan["last"]).
-                 " new_last=".($plan["newLast"]??$plan["last"])."\n";
-          ' "$priv" "$HOME/$name"
+          trap 'rm -f "$HOME/$name" "$HOME/$script"' EXIT
+          test -f "$HOME/$name" && test -f "$HOME/$script"
+          php -d memory_limit=128M "$HOME/$script" \
+            "$priv" "$HOME/$name"
           REMOTE
