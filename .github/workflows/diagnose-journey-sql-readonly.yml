@@ -136,6 +136,22 @@ jobs:
               $direct=or_direct_candidates($db,$ds,$orig,$dest,or_current_seconds(),7200);
               echo "READ_ONLY_DIRECT_SMOKE outcome=OK candidates=".count($direct).
                    " duration_ms=".(int)round((microtime(true)-$started)*1000)."\n";
+              if(count($direct)===0){
+                $now=or_current_seconds();
+                $seeds=or_first_leg_seeds($db,$ds,$orig,$now,1.35,3600,3500);
+                $second=or_second_leg_candidates($db,$ds,$seeds,$dest,$now,180,2000);
+                $matches=0;
+                foreach($second as $leg){
+                  foreach($seeds[$leg["transfer_stop"]]??[] as $first){
+                    if($leg["trip_id"]!==$first["trip_id"] &&
+                       $leg["depart_sec"] >= $first["transfer_arrive"]+180 &&
+                       $leg["depart_sec"] <= $first["transfer_arrive"]+4500)$matches++;
+                  }
+                }
+                echo "READ_ONLY_TRANSFER_SMOKE outcome=OK transfer_stops=".count($seeds).
+                     " second_leg_rows=".count($second)." feasible_pairs=".$matches.
+                     " duration_ms=".(int)round((microtime(true)-$started)*1000)."\n";
+              }
             } catch(Throwable $e) {
               echo "READ_ONLY_DIRECT_SMOKE outcome=ERROR class=".get_class($e).
                    " code=".preg_replace("/[^a-zA-Z0-9_-]/","",(string)$e->getCode()).
