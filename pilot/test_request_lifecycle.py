@@ -122,6 +122,33 @@ class RequestLifecycleTests(unittest.TestCase):
             self.server.cancel(self.ticket, "ANOTHER_USER")
 
 
+
+    def test_planner_does_not_return_itinerary_after_server_cancellation(self):
+        from datetime import date
+        from pilot.gtfs_engine import load_region
+        from pilot.test_gtfs_engine import make_feed
+        from pilot.journey_options import journey_options
+
+        snapshot = load_region(
+            make_feed(), "Coventry", "fixture", date(2026, 10, 26),
+            sha256="fixture")
+        self.server.register(self.ticket, "A")
+        calls = [0]
+
+        def should_cancel():
+            calls[0] += 1
+            if calls[0] == 2:
+                self.server.cancel(self.ticket, "A")
+            return self.server.should_stop(self.ticket, "A")
+
+        result = journey_options(
+            snapshot, "A", "D", 7*3600+55*60,
+            cancel_check=should_cancel)
+        self.assertEqual(result["outcome"], "CANCELLED")
+        self.assertEqual(result["results"], [])
+        self.assertEqual(self.server.finish(self.ticket, "A"), "STOPPED")
+
+
 class ClientGateTests(unittest.TestCase):
     def setUp(self):
         self.client = ClientGenerationGate("A", "sa")

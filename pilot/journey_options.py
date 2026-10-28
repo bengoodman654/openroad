@@ -42,6 +42,10 @@ class _BudgetExceeded(Exception):
     pass
 
 
+class _Cancelled(Exception):
+    pass
+
+
 def _dominates(a: Label, b: Label) -> bool:
     # Earlier stop arrival is not enough: readiness for the next boarding
     # also reflects time spent meeting the interchange buffer.
@@ -53,7 +57,7 @@ def journey_options(snapshot, origin: str, destination: str, start_sec: int,
                     footpaths=(), max_walk_m: int = 800,
                     max_transfers: int = 2, max_horizon_sec: int = 7200,
                     max_results: int = 3, max_labels: int = 40000,
-                    transfer_seconds: int = 120) -> dict:
+                    transfer_seconds: int = 120, cancel_check=None) -> dict:
     """Find bounded Pareto scheduled-bus paths between exact stop IDs.
 
     Every GTFS connection is scanned once; there is no quadratic expansion
@@ -63,6 +67,19 @@ def journey_options(snapshot, origin: str, destination: str, start_sec: int,
 
     Result is provisional research, NOT a production route recommendation.
     """
+    if cancel_check is not None and not callable(cancel_check):
+        raise ValueError("Cancellation check must be callable")
+
+    def was_cancelled():
+        return bool(cancel_check and cancel_check())
+
+    def cancelled_result():
+        return {"outcome": "CANCELLED", "reasonCode": "REQUEST_CANCELLED",
+                "results": [], "researchOnly": True}
+
+    if was_cancelled():
+        return cancelled_result()
+
     if origin not in snapshot.stops or destination not in snapshot.stops:
         return {"outcome": "COVERAGE_MISSING",
                 "reasonCode": "STOP_OUTSIDE_PILOT_AREA"}
@@ -133,11 +150,17 @@ def journey_options(snapshot, origin: str, destination: str, start_sec: int,
     def walk_closure():
         # Reachability through multiple directional, explicitly supplied
         # pedestrian links, including after getting off a bus.
+        walk_checks = 0
         while walking_queue:
+            walk_checks += 1
+            if walk_checks % 16 == 1 and was_cancelled():
+                raise _Cancelled()
             _, _, p = heappop(walking_queue)
             if p not in frontier[p.stop]:
                 continue
-            for w in walks[p.stop]:
+            for edge_index, w in enumerate(walks[p.stop]):
+                if edge_index % 64 == 0 and was_cancelled():
+                    raise _Cancelled()
                 if p.walked + w.metres > max_walk_m:
                     continue
                 arrival = p.arrival + w.seconds
@@ -172,7 +195,9 @@ def journey_options(snapshot, origin: str, destination: str, start_sec: int,
         heappush(walking_queue, (root.arrival, next(serial), root))
         walk_closure()
         # Snapshot connections are already sorted by departure in load_region.
-        for con in snapshot.connections:
+        for connection_index, con in enumerate(snapshot.connections):
+            if connection_index % 64 == 0 and was_cancelled():
+                raise _Cancelled()
             if con.depart < start_sec:
                 continue
             if con.depart > end_time:
@@ -229,10 +254,14 @@ def journey_options(snapshot, origin: str, destination: str, start_sec: int,
                     # The stop is usable only when alighting is permitted.
                     offer(p)
                 walk_closure()
+    except _Cancelled:
+        return cancelled_result()
     except _BudgetExceeded:
         return {"outcome": "SEARCH_LIMIT", "reasonCode": "LABEL_BUDGET",
                 "expandedLabels": accepted_labels, "researchOnly": True}
 
+    if was_cancelled():
+        return cancelled_result()
     results = []
     for p in sorted(frontier.get(destination, ()),
                     key=lambda q: (q.arrival, q.boardings, q.walked)):
@@ -253,6 +282,8 @@ def journey_options(snapshot, origin: str, destination: str, start_sec: int,
         results.append(result)
         if len(results) >= max_results:
             break
+    if was_cancelled():
+        return cancelled_result()
     if not results:
         return {"outcome": "NO_JOURNEY",
                 "reasonCode": "NO_FEASIBLE_SCHEDULED_CONNECTION",

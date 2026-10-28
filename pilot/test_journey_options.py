@@ -192,5 +192,34 @@ class OptionsTests(unittest.TestCase):
             journey_options(self.snapshot, "B", "C", 8*3600,
                             footpaths=[Footpath("B", "C", 120, 0)])
 
+
+    def test_cancelled_before_search_returns_no_journey_payload(self):
+        result = journey_options(self.snapshot, "A", "D", 7*3600+55*60,
+                                 cancel_check=lambda: True)
+        self.assertEqual(result["outcome"], "CANCELLED")
+        self.assertEqual(result["reasonCode"], "REQUEST_CANCELLED")
+        self.assertEqual(result["results"], [])
+
+    def test_cancellation_during_scanning_never_returns_partials(self):
+        calls = [0]
+        def cancel():
+            calls[0] += 1
+            return calls[0] >= 2
+        result = journey_options(self.snapshot, "A", "D", 7*3600+55*60,
+                                 cancel_check=cancel)
+        self.assertEqual(result["outcome"], "CANCELLED")
+        self.assertEqual(result["results"], [])
+        self.assertGreaterEqual(calls[0], 2)
+
+    def test_cancellation_hook_must_be_callable(self):
+        with self.assertRaises(ValueError):
+            journey_options(self.snapshot, "A", "D", 7*3600,
+                            cancel_check="not-a-callback")
+
+    def test_normal_search_still_succeeds_with_live_hook(self):
+        result = journey_options(self.snapshot, "A", "D", 7*3600+55*60,
+                                 cancel_check=lambda: False)
+        self.assertEqual(result["outcome"], "OK")
+
 if __name__=="__main__":
     unittest.main()
