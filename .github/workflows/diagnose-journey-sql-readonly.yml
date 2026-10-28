@@ -13,6 +13,7 @@ jobs:
     environment: openroad-production
     timeout-minutes: 5
     steps:
+      - uses: actions/checkout@v4
       - name: Read-only timetable and index metadata (no journey searches)
         shell: bash
         env:
