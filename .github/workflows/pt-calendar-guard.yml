@@ -1,0 +1,85 @@
+name: OpenRoad timetable freshness and hosting safety
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/pt-calendar-guard.yml']
+  schedule:
+    - cron: '21 6 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: openroad-timetable-readonly-guard
+  cancel-in-progress: true
+jobs:
+  freshness:
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    timeout-minutes: 5
+    steps:
+      - name: Guard active calendar and hosting space without changes
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+          PRIVATE_DIR: ${{ vars.CPANEL_OPENROAD_PRIVATE_DIR }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS" && test -n "$SSH_HOST" && test -n "$SSH_USER" && test -n "$PRIVATE_DIR"
+          [[ "$PRIVATE_DIR" == /* ]] || exit 1
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_openroad_calendar"
+          printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          ssh -i "$HOME/.ssh/id_openroad_calendar" -o StrictHostKeyChecking=yes \
+            -o BatchMode=yes -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            bash -s -- "$PRIVATE_DIR" <<'REMOTE'
+          set -euo pipefail
+          private="$1"
+          test -f "$private/lib/bootstrap.php"
+          test -f "$private/bin/update_gtfs.php"
+          echo "CALENDAR_GUARD date=$(date -u +%F)"
+          df -Pk "$private" | tail -1 | awk '{print "HOST_DISK available_KiB="$4" used_pct="$5}'
+          cache_kib="$(du -sk "$private/cache" 2>/dev/null | awk '{print $1}' || true)"
+          echo "OPENROAD_CACHE size_KiB=$cache_kib"
+          for name in south_west_gtfs.zip west_midlands_gtfs.zip; do
+            if test -f "$private/cache/$name"; then
+              stat -c "GTFS_CACHE bytes=%s changed_epoch=%Y" "$private/cache/$name"
+            else
+              echo "GTFS_CACHE missing"
+            fi
+          done
+          count="$( (crontab -l 2>/dev/null || true) | grep -Eic 'openroad|update_gtfs|process_preload_queue' || true)"
+          echo "OPENROAD_CRON entries=$count"
+          php -d memory_limit=64M -r '
+            require $argv[1];
+            $db=openroad_db();
+            try{$db->exec("SET SESSION max_statement_time=0.5");}catch(Throwable $ignored){}
+            $q=$db->prepare("SELECT region_key,dataset_id,DATE(updated_at) activated_date FROM or_regions WHERE region_key IN (?,?)");
+            $q->execute(["south_west","west_midlands"]);
+            $rows=$q->fetchAll(PDO::FETCH_ASSOC);
+            foreach($rows as $r){
+              $s=$db->prepare("SELECT MIN(service_date) earliest,MAX(service_date) latest FROM or_service_dates WHERE dataset_id=?");
+              $s->execute([(int)$r["dataset_id"]]);$d=$s->fetch(PDO::FETCH_ASSOC);
+              $latest=$d["latest"]??null;
+              $days=$latest===null?-999:(int)floor((strtotime($latest." 12:00:00 UTC")-strtotime(gmdate("Y-m-d")." 12:00:00 UTC"))/86400);
+              echo "REGION ".$r["region_key"]." activated=".$r["activated_date"].
+                   " first=".($d["earliest"]??"none")." last=".($latest??"none").
+                   " days_left=".$days."\n";
+              if($r["region_key"]==="south_west" && $days<=7) {
+                fwrite(STDERR,"URGENT: South West GTFS calendar expires within seven days. Run controlled refresh before expiry.\n");
+                exit(8);
+              }
+              if($r["region_key"]==="south_west" && $days<=14) {
+                echo "WARNING South West timetable needs a controlled refresh before expiry.\n";
+              }
+            }
+            if(!array_filter($rows,static fn($r)=>$r["region_key"]==="south_west")){
+              fwrite(STDERR,"ERROR: South West dataset absent\n");
+              exit(9);
+            }
+          ' "$private/lib/bootstrap.php"
+          REMOTE
