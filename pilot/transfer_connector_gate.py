@@ -51,7 +51,7 @@ def _review_valid(graph: PedestrianGraph, snapshot, r: StopSideReview,
         return False
     if not r.reviewer.strip() or not r.evidence_ref.strip():
         return False
-    if r.graph_sha256 != graph.source_sha256 or r.gtfs_sha256 != snapshot.sha256:
+    if r.graph_sha256 != graph.source_sha256 or r.gtfs_sha256 != snapshot.source_sha256:
         return False
     if r.stop_id not in snapshot.stops or r.osm_node_id not in graph.nodes:
         return False

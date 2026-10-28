@@ -46,7 +46,7 @@ class StopSideGateTests(unittest.TestCase):
             reviewed_on=TODAY,method="ON_SITE_FIELD_CHECK",
             evidence_ref="fixture-review-"+key,
             graph_sha256=graph.source_sha256,
-            gtfs_sha256=self.snapshot.sha256,
+            gtfs_sha256=self.snapshot.source_sha256,
             stop_side="PAVEMENT_BY_STOP",
             crossing_checked=True,pavement_access_checked=True,
             to_graph=True,from_graph=True,
