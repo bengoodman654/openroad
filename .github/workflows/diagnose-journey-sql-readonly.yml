@@ -2,7 +2,9 @@ name: OpenRoad journey SQL diagnosis (read-only)
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/diagnose-journey-sql-readonly.yml']
+    paths:
+      - '.github/workflows/diagnose-journey-sql-readonly.yml'
+      - 'maintenance/pt-sql-timeout/live_coverage_probe.php'
 permissions:
   contents: read
 jobs:
@@ -199,3 +201,16 @@ jobs:
             }
           ' "$private_dir/lib/router.php"
           REMOTE
+          # Read-only, tightly budgeted coverage check on representative
+          # South Bristol/Clifton points. Script is staged in HOME only.
+          scp -i "$HOME/.ssh/id_openroad_diagnostic" \
+            -o StrictHostKeyChecking=yes -o BatchMode=yes -P "$SSH_PORT" \
+            maintenance/pt-sql-timeout/live_coverage_probe.php \
+            "$SSH_USER@$SSH_HOST:openroad-coverage-probe.php"
+          ssh -i "$HOME/.ssh/id_openroad_diagnostic" \
+            -o StrictHostKeyChecking=yes -o BatchMode=yes -p "$SSH_PORT" \
+            "$SSH_USER@$SSH_HOST" bash -s -- "$PRIVATE_DIR" <<'PROBE'
+          set -euo pipefail
+          trap 'rm -f "$HOME/openroad-coverage-probe.php"' EXIT
+          php -d memory_limit=96M "$HOME/openroad-coverage-probe.php" "$1/lib/router.php"
+          PROBE
