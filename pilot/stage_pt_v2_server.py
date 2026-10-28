@@ -43,7 +43,8 @@ def stage_server(source, destination):
                     throw new RuntimeException('REQUEST_CANCELLED');
                 or_route_check_budget();
             };
-            $checkCancellation();""" + first)
+            if($cancelCheck!==null && $cancelCheck())
+                throw new RuntimeException('REQUEST_CANCELLED');""" + first)
         inserts[router[0]]=(router_text[:start]+body+router_text[stop:]).encode("utf-8")
         destination=Path(destination);destination.parent.mkdir(parents=True,exist_ok=True)
         with ZipFile(destination,"w",ZIP_DEFLATED,compresslevel=6) as out:

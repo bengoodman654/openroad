@@ -37,8 +37,12 @@ function ptv2_run_authenticated_task(
         return ['outcome'=>'OK','remoteJobStatus'=>'COMPLETED',
                 'results'=>$result,'researchOnly'=>true];
     } catch(Throwable $e){
+        // Evaluate cancellation BEFORE marking worker completed. A finished
+        // job is not RUNNING, so checking afterwards would misclassify
+        // ordinary provider failures as user cancellation.
+        $wasCancelled=$check() || $e->getMessage()==='REQUEST_CANCELLED';
         $state=$registry->finish($ticket,$principal,(int)$clock());
-        if($check() || $e->getMessage()==='REQUEST_CANCELLED'){
+        if($wasCancelled || $state==='STOPPED'){
             return ['outcome'=>'CANCELLED','remoteJobStatus'=>$state,
                     'results'=>[],'researchOnly'=>true];
         }
