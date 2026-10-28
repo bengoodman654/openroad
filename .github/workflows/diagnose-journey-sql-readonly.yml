@@ -138,6 +138,14 @@ jobs:
                    " duration_ms=".(int)round((microtime(true)-$started)*1000)."\n";
               if(count($direct)===0){
                 $now=or_current_seconds();
+                $dest32=or_stop_map(or_nearby_stops($db,$ds,51.459,-2.627,1200,32));
+                $arrival10=or_active_arrivals($db,$ds,array_keys($dest),$now+180,5*3600-180,420);
+                $arrival32=or_active_arrivals($db,$ds,array_keys($dest32),$now+180,5*3600-180,420);
+                echo "ACTIVE_DESTINATION_AUDIT origin_stops=".count($orig).
+                     " destination_stops_10=".count($dest).
+                     " destination_stops_32=".count($dest32).
+                     " arrivals_10=".count($arrival10).
+                     " arrivals_32=".count($arrival32)."\n";
                 $seeds=or_first_leg_seeds($db,$ds,$orig,$now,1.35,3600,3500);
                 $second=or_second_leg_candidates($db,$ds,$seeds,$dest,$now,180,2000);
                 $matches=0;
