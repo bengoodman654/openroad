@@ -18,7 +18,7 @@ wrapped=(
 "    // candidate budget and must not erase a valid near-stop connection.\n"
 "    $candidates=[];$origList=[];$destList=[];\n"
 "    foreach(($phase==='fast'?[10]:[10,24]) as $stopLimit){\n"
-+"".join("    "+line+"\\n" for line in body.rstrip().splitlines()).replace("\\n","\\n")
++"".join("    "+line+"\n" for line in body.rstrip().splitlines())
 +"        if($candidates)break;\n"
 +"    }\n"
 "    if(!$origList||!$destList)throw new RuntimeException('No suitable bus stops were found within the walking limit.');\n"
