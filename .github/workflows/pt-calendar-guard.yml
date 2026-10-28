@@ -71,6 +71,16 @@ jobs:
             }
             foreach($known as $role)
               echo "CRON_ROLE ".$role." count=".($counts[$role]??0)."\n";
+            // Output timetable refresh cadence only, not command contents.
+            $raw=shell_exec("crontab -l 2>/dev/null")??"";
+            foreach(preg_split("/\r?\n/",$raw) as $entry){
+              if(!preg_match("/update_gtfs|process_preload_queue/i",$entry))continue;
+              if(preg_match("/^\s*([0-9*\/,\-]+\s+){4}[0-9*\/,\-]+/",$entry,$m)){
+                $role=stripos($entry,"update_gtfs")!==false?"full_gtfs_import":"queue";
+                echo "CRON_CADENCE ".$role." schedule=".
+                     preg_replace("/[^0-9*\/,\-\s]/","",$m[0])."\n";
+              }else echo "CRON_CADENCE other schedule=unavailable\n";
+            }
           '
           # Lightweight archive metadata, no decompression of large GTFS
           # stop_times/shapes; identify calendar horizon only.
