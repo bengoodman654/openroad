@@ -95,7 +95,8 @@ class RemoteTaskRegistry:
             if now >= rec.ticket.expires_at and rec.status == "RUNNING":
                 rec.cancelled.set()
                 rec.status = "STOPPING"
-            if (rec.status in {"STOPPED", "COMPLETED"} and
+            # Expire abandoned STOPPING workers as UNKNOWN after their lease.
+            if (rec.status in {"STOPPED", "COMPLETED", "STOPPING"} and
                     now >= rec.ticket.expires_at + self.delivery_grace_s):
                 del self._records[key]
 

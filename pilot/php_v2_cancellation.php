@@ -129,8 +129,9 @@ final class OpenRoadV2ResearchCancellation {
                 if ($now >= $record['exp'] && $record['status'] === 'RUNNING') {
                     $record['status'] = 'STOPPING';
                 }
-                if (($record['status'] === 'STOPPED' ||
-                     $record['status'] === 'COMPLETED') &&
+                // Abandoned STOPPING workers must not exhaust capacity forever.
+                // Removal is UNKNOWN, never a fabricated STOPPED acknowledgement.
+                if (in_array($record['status'], ['STOPPED','COMPLETED','STOPPING'], true) &&
                     $now >= $record['exp'] + 15) {
                     unset($state['records'][$key]);
                 }
