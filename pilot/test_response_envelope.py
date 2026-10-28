@@ -116,6 +116,32 @@ class EnvelopeTests(unittest.TestCase):
         x = self.make({"outcome": "UNEXPECTED", "results": []})
         self.assertEqual(x["outcome"], "PROVIDER_UNAVAILABLE")
 
+    def test_more_than_three_results_is_fail_closed_and_not_indexed(self):
+        r = self.valid_result()
+        r["results"] = r["results"] * 4
+        x = self.make(r)
+        self.assertEqual(x["reasonCode"], "INVALID_PLANNER_OUTPUT")
+        self.assertEqual(x["results"], [])
+
+    def test_excessively_long_itinerary_is_fail_closed(self):
+        r = self.valid_result()
+        r["results"][0]["legs"] *= 17
+        x = self.make(r)
+        self.assertEqual(x["reasonCode"], "INVALID_PLANNER_OUTPUT")
+
+    def test_source_validation_indexes_only_used_trips(self):
+        from pilot.response_envelope import _segments_by_trip
+        r = self.valid_result()
+        indexed = _segments_by_trip(self.snapshot, r["results"])
+        used = set()
+        for opt in r["results"]:
+            for leg in opt["legs"]:
+                if leg["mode"] == "BUS":
+                    used.add(leg["tripOccurrence"].split(":")[1])
+        self.assertEqual(set(indexed), used)
+        self.assertLessEqual(sum(len(v) for v in indexed.values()),
+                             len(self.snapshot.connections))
+
     def test_no_journey_drops_injected_routes(self):
         r = {"outcome": "NO_JOURNEY", "results":
              self.valid_result()["results"]}

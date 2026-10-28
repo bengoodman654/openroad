@@ -19,11 +19,23 @@ OUTCOMES = {
 FINAL_STATES = {"COMPLETED", "STOPPED", "STOPPING", "UNKNOWN", "RUNNING"}
 
 
-def _segments_by_trip(snapshot):
-    """Index physical segments without manufacturing skipped GTFS stop events."""
-    by_trip = {}
+def _segments_by_trip(snapshot, results):
+    """Index ONLY returned trip identities; never copy a whole regional graph."""
+    required = set()
+    prefix = snapshot.region + ":"
+    suffix = ":" + str(snapshot.service_day)
+    for option in results[:3]:
+        for leg in option.get("legs", ())[:32]:
+            if isinstance(leg, dict) and leg.get("mode") == "BUS":
+                occurrence = leg.get("tripOccurrence")
+                if (isinstance(occurrence, str) and
+                        occurrence.startswith(prefix) and
+                        occurrence.endswith(suffix)):
+                    required.add(occurrence[len(prefix):-len(suffix)])
+    by_trip = {trip: {} for trip in required}
     for con in snapshot.connections:
-        by_trip.setdefault(con.trip, {})[con.from_sequence] = con
+        if con.trip in required:
+            by_trip[con.trip][con.from_sequence] = con
     return by_trip
 
 
@@ -50,7 +62,7 @@ def _valid_published_bus_leg(connections_by_sequence, leg: dict) -> bool:
 
 
 def _validate_legs(snapshot, legs: list, segments_by_trip) -> bool:
-    if not isinstance(legs, list):
+    if not isinstance(legs, list) or len(legs) > 32:
         return False
     last_stop = None
     last_arrival = -1
@@ -120,15 +132,21 @@ def envelope(ticket, snapshot, search_result: dict,
         outcome, reason, results = (
             "PROVIDER_UNAVAILABLE", "UNKNOWN_ENGINE_OUTCOME", [])
     elif outcome == "OK":
-        segments_by_trip = _segments_by_trip(snapshot)
-        if (not isinstance(results, list) or not results or
+        # The public pilot permits at most three bounded journey alternatives.
+        if (not isinstance(results, list) or not 1 <= len(results) <= 3 or
                 any(not isinstance(x, dict) or
-                    not isinstance(x.get("arrival"), int) or
-                    not _validate_legs(snapshot, x.get("legs"), segments_by_trip) or
-                    (x["legs"] and x["legs"][-1]["arrive"] != x["arrival"])
-                    for x in results)):
+                    not isinstance(x.get("legs"), list) or
+                    len(x["legs"]) > 32 for x in results)):
             outcome, reason, results = (
                 "PROVIDER_UNAVAILABLE", "INVALID_PLANNER_OUTPUT", [])
+        else:
+            segments_by_trip = _segments_by_trip(snapshot, results)
+            if any(not isinstance(x.get("arrival"), int) or
+                    not _validate_legs(snapshot, x.get("legs"), segments_by_trip) or
+                    (x["legs"] and x["legs"][-1]["arrive"] != x["arrival"])
+                    for x in results):
+                outcome, reason, results = (
+                    "PROVIDER_UNAVAILABLE", "INVALID_PLANNER_OUTPUT", [])
     else:
         # No failed outcome may accidentally carry clickable route payloads.
         results = []
