@@ -141,6 +141,38 @@ jobs:
                 $dest32=or_stop_map(or_nearby_stops($db,$ds,51.459,-2.627,1200,32));
                 $arrival10=or_active_arrivals($db,$ds,array_keys($dest),$now+180,5*3600-180,420);
                 $arrival32=or_active_arrivals($db,$ds,array_keys($dest32),$now+180,5*3600-180,420);
+
+                // A deterministic positive-control check using a real,
+                // currently scheduled trip terminating near Clifton.
+                $probeArrivals=array_slice($arrival10,0,30);
+                $probeStops=or_trip_stop_matches($db,$ds,array_column($probeArrivals,"trip_id"));
+                $chosen=null;
+                foreach($probeArrivals as $arrival){
+                  foreach($probeStops[$arrival["trip_id"]]??[] as $stop){
+                    if((int)$stop["stop_sequence"]<(int)$arrival["alight_seq"] &&
+                       (int)$stop["departure_sec"]>=$now+180 &&
+                       (int)$stop["departure_sec"]<=$now+3600){
+                      $chosen=[$arrival,$stop];break 2;
+                    }
+                  }
+                }
+                if($chosen!==null){
+                  [$arrival,$board]=$chosen;
+                  $p=or_direct_candidates($db,$ds,
+                    [$board["stop_id"]=>["distance"=>0.0]],
+                    [$arrival["alight_stop"]=>["distance"=>0.0]],$now,7200);
+                  $found=false;
+                  foreach($p as $row){
+                    if($row["trip_id"]===$arrival["trip_id"] &&
+                       $row["board_stop"]===$board["stop_id"] &&
+                       $row["alight_stop"]===$arrival["alight_stop"]){
+                      $found=true;break;
+                    }
+                  }
+                  echo "KNOWN_SCHEDULED_DIRECT_SMOKE verified=".($found?"YES":"NO").
+                    " duration_ms=".(int)round((microtime(true)-$started)*1000)."\n";
+                }else echo "KNOWN_SCHEDULED_DIRECT_SMOKE verified=NO_ELIGIBLE_TRIP\n";
+
                 echo "ACTIVE_DESTINATION_AUDIT origin_stops=".count($orig).
                      " destination_stops_10=".count($dest).
                      " destination_stops_32=".count($dest32).
