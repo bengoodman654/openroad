@@ -65,7 +65,8 @@ jobs:
               foreach($indices as $k=>$columns){ksort($columns);echo "INDEX ".$table.".".$k."(".implode(",",$columns).")\n";}
             }
             // Only indexed calendar lookups, no stop-time scans.
-            $q=$db->query("SELECT dataset_id FROM or_regions WHERE region_key='south_west' LIMIT 1");
+            $q=$db->prepare("SELECT dataset_id FROM or_regions WHERE region_key=? LIMIT 1");
+            $q->execute(["south_west"]);
             $ds=(int)($q->fetchColumn()?:0);
             echo "SOUTH_WEST_CALENDAR_BEGIN\n";
             if($ds>0){
