@@ -34,6 +34,28 @@ jobs:
           set -euo pipefail
           private_dir="$1"
           test -f "$private_dir/lib/bootstrap.php"
+
+          # Output aggregate performance classes only, never raw location/log lines.
+          if test -f "$private_dir/logs/journey-timings.jsonl"; then
+            tail -n 120 "$private_dir/logs/journey-timings.jsonl" | php -r '
+              $counts=[];$durations=[];
+              while(($line=fgets(STDIN))!==false){
+                $r=json_decode($line,true);
+                if(!is_array($r)||($r["event"]??"")!=="journey")continue;
+                $key=($r["phase"]??"unknown").":".($r["outcome"]??"unknown");
+                $counts[$key]=($counts[$key]??0)+1;
+                $durations[$key][]=max(0,(int)($r["ms"]??0));
+              }
+              echo "AGGREGATE_JOURNEY_TIMINGS_BEGIN\n";
+              foreach($counts as $key=>$n){
+                sort($durations[$key]);$v=$durations[$key];
+                $p95=$v[(int)floor((count($v)-1)*0.95)]??0;
+                echo preg_replace("/[^a-zA-Z0-9_:.-]/","",$key)." count=".$n." p95ms=".$p95."\n";
+              }
+              echo "AGGREGATE_JOURNEY_TIMINGS_END\n";
+            '
+          fi
+
           printf 'LIVE_SOURCE_HASHES_BEGIN\n'
           sha256sum "$private_dir/lib/router.php"
           printf 'LIVE_SOURCE_HASHES_END\n'
