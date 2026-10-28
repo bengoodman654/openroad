@@ -54,12 +54,12 @@ try {
 
     check($r->register($d, 'A', 141) === 'REJECTED_EXPIRED',
           'expired ticket cannot be revived after store expiry');
-    $e = $r->issue('A', 'sessionA', 4, 'feed', 142, 10, 'task-e');
-    check($r->register($e, 'A', 142) === 'RUNNING',
+    $e = $r->issue('A', 'sessionA', 4, 'feed', 156, 10, 'task-e');
+    check($r->register($e, 'A', 156) === 'RUNNING',
           'cleaned expired records admit fresh work');
-    check($r->shouldStop($e, 'A', 153),
+    check($r->shouldStop($e, 'A', 167),
           'expired running lease is cooperatively cancelled');
-    check($r->finish($e, 'A', 153) === 'STOPPED',
+    check($r->finish($e, 'A', 167) === 'STOPPED',
           'lease cancellation does not falsely claim early stop');
 
     raises(fn() => new OpenRoadV2ResearchCancellation($dir, 'weak'),
