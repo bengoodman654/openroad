@@ -2,7 +2,10 @@ name: OpenRoad cached GTFS calendar — live read-only dry run
 on:
   push:
     branches: [maintenance/pt-calendar-pedestrian-gates-20261028]
-    paths: ['.github/workflows/pt-calendar-live-dryrun.yml']
+    paths:
+      - '.github/workflows/pt-calendar-live-dryrun.yml'
+      - 'maintenance/pt-calendar/calendar_extension.php'
+      - 'maintenance/pt-calendar/live_dryrun.php'
 permissions:
   contents: read
 jobs:
