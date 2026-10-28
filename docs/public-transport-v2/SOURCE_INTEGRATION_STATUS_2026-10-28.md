@@ -31,8 +31,9 @@ not install it, sign it for release or publish it through the updater.
 
 Tests:
 - pilot/test_staged_android.py: only approved UI assets differ from source.
-- pilot/test_staged_android_ui.cjs: execute the newly inserted real app.js
-  handler bodies with controlled navigation and cancellation state.
+- pilot/test_staged_android_ui.cjs: 11 tests execute the newly inserted
+  real app.js handler bodies with controlled navigation and cancellation
+  states, including confirmation before stopping guidance.
 - node --check, original Android validate.sh and Gradle :app:assembleDebug.
 
 GitHub Actions runs:
@@ -43,11 +44,17 @@ GitHub Actions runs:
 
 Original: OpenRoad-Transport-Server-v0.2.5-source.zip.
 
-pilot/stage_pt_v2_server.py creates a separate research ZIP, preserving
-EVERY original file byte-for-byte while adding two library-only files:
+pilot/stage_pt_v2_server.py creates a separate research ZIP. The
+ORIGINAL source ZIP remains byte-for-byte untouched. The latest staged ZIP
+adds three private, non-public libraries and patches exactly ONE existing
+staged file, private/lib/router.php:
 
 - private/lib/php_v2_cancellation.php
 - private/lib/php_v2_device_adapter.php
+- private/lib/php_v2_route_worker.php
+- private/lib/router.php — adds an optional cooperative cancellation
+  callback at existing routing-budget checkpoints. Existing v1 calls
+  pass no callback and retain their original behaviour.
 
 These test authenticated cancellation-ticket ownership against the actual
 server's existing signed device-auth identity (verified deviceId returned by
@@ -57,18 +64,25 @@ file replacement under a private lock, pre-registration tombstones and
 STOPPING/STOPPED acknowledgement distinction. Its adapter refuses ticket
 issuance unless a server-pinned snapshot ID is provided.
 
-**Neither library is an HTTP route.** The current public API, timetable
-router, signed-device checks, settings, databases, cron and shared-host
-resources are UNCHANGED. This package does not yet cancel any live PHP worker.
+**No library is a public HTTP route.** The original router archive,
+signed-device checks, public API, settings, databases, cron and shared-host
+resources remain UNCHANGED. The modified research router exists only inside
+the isolated stage ZIP. It has NOT cancelled any live PHP worker.
 
 Checks:
 - pilot/php_v2_cancellation_test.php
 - pilot/php_v2_device_adapter_test.php
-- pilot/test_stage_server.py
-- PHP syntax lint
+- pilot/php_v2_route_worker_test.php, including cancellation during work,
+  cancel-before-registration and ordinary provider-failure distinction
+- pilot/test_stage_server.py, asserting the only existing staged source
+  change is the private PHP router
+- PHP syntax lint on EVERY staged PHP source file
 
-Successful staging run:
+Successful initial library-only stage:
 https://github.com/bengoodman654/openroad/actions/runs/40701898867
+
+Successful staged router + worker integration:
+https://github.com/bengoodman654/openroad/actions/runs/40702962283
 
 ### Isolated pilot regression suite
 
@@ -89,8 +103,10 @@ synthetic test results.
 3. An Android debug BUILD is not a physical device, GPS, maps, screen-reader,
    lifecycle, network-loss or background-service field test. This UI patch
    is NOT considered installation-ready.
-4. The private PHP file registry has not been tested under concurrent
-   real PHP-FPM processes, crashes, storage failures or production load.
+4. The private PHP file registry and cooperative routing checkpoints
+   have passed isolated mock work, but not a full real database search
+   under cancellation, concurrent real PHP-FPM processes, crashes,
+   storage failures or production load.
    The live host also runs websites and email; do not schedule heavy
    analysis or bulk timetable imports there.
 5. Complete rail graph/source rights, missing regions, explicit Back/X
@@ -105,3 +121,18 @@ actual Java requests to a staged PHP issue/cancel/status API, with server
 worker cooperative cancellation and fail-closed task registration. Exercise
 the full handshake using two signed test devices and concurrent workers
 on GitHub before any production rollout or installable build.
+
+
+## 28 October 2026 — staged worker cancellation test result
+
+The latest research-stage worker mock now proves cancellation attribution
+before task registration, cancellation during simulated route computation,
+and separation between ordinary provider failures and cancellation. The
+original PHP bus router's existing budget checkpoints are wrapped with an
+optional v2 cancellation probe **in the staged copy only**. No public PHP
+route invokes this yet, and Java/Android has not issued a v2 signed task
+against the PHP server.
+
+The staged PHP project passed syntax checks and the GitHub workflow above.
+No change to the real host, current Android APK or production branch is
+implied by this result.
