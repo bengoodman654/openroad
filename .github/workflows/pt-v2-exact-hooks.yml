@@ -2,7 +2,7 @@ name: OpenRoad exact Android/PHP integration hooks
 on:
   push:
     branches: [pt-v2-planner-hardening]
-    paths: ['.github/workflows/pt-v2-exact-hooks.yml']
+    paths: ['.github/workflows/pt-v2-exact-hooks.yml', 'pilot/pt_v2_exact_hooks.py']
   workflow_dispatch:
 permissions:
   contents: read

@@ -9,7 +9,8 @@ candidates={
    "/app/src/main/java/uk/co/bengoodman/clearroute/OpenRoadServerClient.java":["cancel","journeys.php", "openroad","post","route("],
  },
  "OpenRoad-Transport-Server-v0.2.5-source.zip":{
-   "/public/api/v1/journeys.php":["openroad_require_signed", "openroad_plan_bus"]
+   "/private/lib/auth.php":["function openroad_require_signed", "device_id", "deviceId", "verify", "public_key", "signature", "fingerprint"],
+ "/public/api/v1/journeys.php":["openroad_require_signed", "openroad_plan_bus"]
  }
 }
 for archive,names in candidates.items():
