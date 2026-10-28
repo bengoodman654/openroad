@@ -103,3 +103,5 @@ def main(argv=None):
 
 if __name__ == "__main__":
     main()
+
+# 2026-10-28: rerun current, off-host source audit; no stop-side field approval implied.
