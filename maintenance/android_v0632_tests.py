@@ -19,6 +19,7 @@ class ReleaseTests(unittest.TestCase):
               "validate.sh"})
             gradle=(root/"app/build.gradle").read_text()
             self.assertIn("versionCode 92",gradle)
+            self.assertIn("versionCode 92",(root/"validate.sh").read_text())
             self.assertIn("0.6.32",gradle)
             js=(root/"app/src/main/assets/app.js").read_text()
             self.assertIn("openroadPtXAction()",js)

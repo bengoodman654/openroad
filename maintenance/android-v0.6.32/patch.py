@@ -63,6 +63,7 @@ edit(js,
  "      if(previousId&&!data.routes.some(r=>r?.clearRouteId===previousId))return;\n"
  "      routeResponse=data;")
 edit("app/build.gradle","versionCode 91","versionCode 92")
+edit("validate.sh","versionCode 91","versionCode 92")
 for rel in ("app/build.gradle",html,
  "app/src/main/java/uk/co/bengoodman/clearroute/ApiClient.java","validate.sh"):
     p=root/rel
