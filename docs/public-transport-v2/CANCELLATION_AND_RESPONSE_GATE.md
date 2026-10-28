@@ -100,3 +100,36 @@ D. Run off-host load, memory, concurrent request and fallback checks before
    any separately approved read-only host benchmarking.
 E. Close verified pedestrian stop-access, UK rail licence and graph,
    full source coverage, and full acceptance gaps before any installable release.
+
+
+## 28 October 2026 — independently tested language-specific reference modules
+
+The contract is now executable in three isolated forms:
+
+- Python: 143 deterministic tests executed by GitHub (142 passed,
+  1 optional OSM-parser-related test skipped) plus the independent
+  OSM parser smoke job. The Python response now supplies deterministic,
+  snapshot-scoped, schedule-based itinerary IDs. They do not change with
+  live predictions, result ranking, generation changes or later map geometry.
+- PHP: pilot/php_v2_cancellation.php, tested by
+  pilot/php_v2_cancellation_test.php. Uses server-issued HMAC-signed,
+  bounded task tickets and a private filesystem lock/atomic-record model.
+  Tests cover pre-registration cancellation, ownership, tampering,
+  idempotency, expiry and capacity failure. This is NOT installed as a
+  server route; no live PHP-FPM contention or restart failure test yet.
+- JavaScript: pilot/pt_v2_screen_state.js, tested by its Node.js test
+  harness (12 checks). Covers persistent Back/X placement state, preserving
+  guidance when a foreground lookup is cancelled, explicit stop confirmation,
+  superseded callbacks, map-camera stability, deliberate alternative
+  selection, disabled research-only options and dirty-edit confirmation.
+  This is NOT installed in Android app.js.
+
+Verified GitHub Actions run:
+https://github.com/bengoodman654/openroad/actions/runs/40692720487
+
+Important: successful synthetic execution does not prove an Android build,
+production identity checks, PHP-FPM multi-worker cancellation, server load,
+field walking safety or any of the 105 production acceptance criteria.
+The next stage is to create a versioned non-production Android/server
+adapter from the existing source archives and verify an end-to-end mock
+request/cancel/acknowledgement flow before any app or host deployment.

@@ -282,3 +282,20 @@ Both match the numbers retained from the interrupted research session. Full mach
 ## 28 October 2026 — cancellable search contract and source integration map
 
 See [cancellation-and-response-gate](../docs/public-transport-v2/CANCELLATION_AND_RESPONSE_GATE.md) for the tested standalone task lifecycle, cancel-before-registration tombstones, client-generation fence, independently checked timetable legs, and exact Android/Java/PHP integration points discovered in the source archives. All remain research-only; no live software was altered.
+
+
+## 28 October 2026 — cross-language request lifecycle fixtures
+
+The isolated pilot now contains a JavaScript screen-state reference
+(pt_v2_screen_state.js), a PHP signed-ticket/file-lock cancellation
+reference (php_v2_cancellation.php) and a Python research response envelope
+with stable journey IDs. Their separate tests are included in the
+PT v2 GitHub workflow.
+
+Latest verified run:
+https://github.com/bengoodman654/openroad/actions/runs/40692720487
+
+Python: 143 discovered / 142 passed / 1 optional skipped.
+JavaScript: 12 checks passed. PHP: all reference checks passed.
+These are research checks, NOT the 105 required production acceptance cases.
+No live Android/server source, packages or credentials changed.
