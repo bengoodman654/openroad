@@ -14,7 +14,7 @@ class StageServerTest(unittest.TestCase):
                 names=staged.namelist()
                 self.assertEqual(set(base.namelist()),
                     set(n for n in names if n in base.namelist()))
-                self.assertEqual(len(names)-len(base.namelist()),3)
+                self.assertEqual(len(names)-len(base.namelist()),5)
                 changed=[]
                 for name in base.namelist():
                     if base.read(name)!=staged.read(name):
@@ -24,4 +24,10 @@ class StageServerTest(unittest.TestCase):
                 router_code=staged.read(changed[0]).decode()
                 self.assertIn("?callable $cancelCheck=null",router_code)
                 self.assertIn("$checkCancellation();",router_code)
-                self.assertFalse(any("/public/api/v2/" in n for n in names))
+                                endpoints=[n for n in names if "/public/api/v2/" in n]
+                self.assertEqual(len(endpoints),1)
+                self.assertTrue(endpoints[0].endswith("/task.php"))
+                body=staged.read(endpoints[0]).decode()
+                self.assertIn("openroad_require_signed($db,$body)",body)
+                self.assertIn("PT_V2_NOT_CONFIGURED",body)
+                self.assertIn("ptv2_dispatch",body)

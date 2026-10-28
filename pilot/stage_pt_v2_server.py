@@ -8,7 +8,7 @@ from zipfile import ZipFile, ZIP_DEFLATED
 
 def stage_server(source, destination):
     libfiles=("php_v2_cancellation.php", "php_v2_device_adapter.php",
-              "php_v2_route_worker.php")
+              "php_v2_route_worker.php", "php_v2_protocol.php")
     with ZipFile(source) as z:
         original=z.namelist()
         router=[n for n in original if n.endswith("/private/lib/router.php")]
@@ -46,6 +46,10 @@ def stage_server(source, destination):
             if($cancelCheck!==null && $cancelCheck())
                 throw new RuntimeException('REQUEST_CANCELLED');""" + first)
         inserts[router[0]]=(router_text[:start]+body+router_text[stop:]).encode("utf-8")
+        # New endpoint is isolated to this research ZIP; v1 API remains intact.
+        endpoint=root+"public/api/v2/task.php"
+        if endpoint in original:raise ValueError("v2 research endpoint already exists")
+        inserts[endpoint]=(Path(__file__).parent/"php_v2_endpoint.php").read_bytes()
         destination=Path(destination);destination.parent.mkdir(parents=True,exist_ok=True)
         with ZipFile(destination,"w",ZIP_DEFLATED,compresslevel=6) as out:
             for info in z.infolist():

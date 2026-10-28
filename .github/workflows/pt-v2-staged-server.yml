@@ -8,6 +8,11 @@ on:
       - 'pilot/php_v2_route_worker_test.php'
       - 'pilot/stage_pt_v2_server.py'
       - 'pilot/test_stage_server.py'
+      - 'pilot/php_v2_protocol.php'
+      - 'pilot/php_v2_protocol_test.php'
+      - 'pilot/php_v2_endpoint.php'
+      - 'pilot/php_v2_cancellation.php'
+      - 'pilot/php_v2_device_adapter.php'
   workflow_dispatch:
 permissions:
   contents: read
@@ -24,6 +29,8 @@ jobs:
           php -d memory_limit=64M pilot/php_v2_cancellation_test.php
           php -d memory_limit=64M pilot/php_v2_device_adapter_test.php
           php -d memory_limit=64M pilot/php_v2_route_worker_test.php
+          php -d memory_limit=64M pilot/php_v2_protocol_test.php
+          php -l pilot/php_v2_endpoint.php
       - name: Validate staging does not modify existing server code
         run: python3 -m unittest pilot.test_stage_server -v
       - name: Produce review-only server ZIP
