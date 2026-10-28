@@ -101,6 +101,22 @@ jobs:
               echo "CLI_EXTENSION ".$ext."=". (extension_loaded($ext)?"yes":"no")."\n";
             echo "CLI_PHP_VERSION major=".PHP_MAJOR_VERSION." minor=".PHP_MINOR_VERSION."\n";
           '
+          # Identify invocation mechanism without exposing cron command,
+          # server paths, URLs or credentials.
+          php -r '
+            foreach(explode("\n",(string)shell_exec("crontab -l 2>/dev/null")) as $line){
+              if(!str_contains($line,"update_gtfs") || str_starts_with(trim($line),"#"))continue;
+              $cmd=preg_replace("/^\s*(?:[0-9*\/,\-]+\s+){5}/","",$line);
+              $kind="unknown";
+              if(preg_match("/\b(curl|wget)\b/i",$cmd))$kind="http_request";
+              elseif(preg_match("/\bphp-cgi\b/i",$cmd))$kind="php_cgi";
+              elseif(preg_match("/\bphp([0-9.]+)?\b/i",$cmd))$kind="php_command";
+              echo "IMPORT_CRON_INVOCATION kind=".$kind.
+                   " references_local_php_script=".
+                   (preg_match("~(/bin/update_gtfs\.php|update_gtfs\.php\s)~",$cmd)?"yes":"unknown").
+                   " has_shell_redirect=".(str_contains($cmd,">")?"yes":"no")."\n";
+            }
+          '
           # Keep filenames and raw log content private. Report only
           # coarse recent errors and log age.
           php -r '
