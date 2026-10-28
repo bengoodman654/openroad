@@ -1,0 +1,117 @@
+name: OpenRoad v0.2.9 timetable candidate fairness fix
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-pt-candidate-fairness.yml'
+permissions:
+  contents: read
+concurrency:
+  group: openroad-production-server
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch audited v0.2.5 source and validate PHP
+        run: |
+          set -euo pipefail
+          unzip -q OpenRoad-Transport-Server-v0.2.5-source.zip -d "$RUNNER_TEMP/original"
+          file="$(find "$RUNNER_TEMP/original" -name router.php -type f | head -1)"
+          test -f "$file"
+          python3 maintenance/pt-sql-timeout/patch_router.py "$file"
+          python3 maintenance/pt-sql-timeout/patch_router_v029.py "$file"
+          php -l "$file"
+          php "$(dirname "$(dirname "$file")")/../tests/router_test.php"
+          php -r 'require $argv[1]; foreach(["or_active_boardings","or_active_arrivals","or_trip_stop_matches"] as $fn) if(!function_exists($fn)) exit(1);' "$file"
+  deploy:
+    needs: verify
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare single allowed router.php and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -q OpenRoad-Transport-Server-v0.2.5-source.zip -d "$RUNNER_TEMP/source"
+          file="$(find "$RUNNER_TEMP/source" -name router.php -type f | head -1)"
+          test -f "$file"
+          python3 maintenance/pt-sql-timeout/patch_router.py "$file"
+          original_hash="$(sha256sum "$file" | cut -d' ' -f1)"
+          python3 maintenance/pt-sql-timeout/patch_router_v029.py "$file"
+          php -l "$file"
+          new_hash="$(sha256sum "$file" | cut -d' ' -f1)"
+          test "$original_hash" != "$new_hash"
+          echo "ROUTER_PATH=$file" >> "$GITHUB_ENV"
+          echo "ORIGINAL_SHA=$original_hash" >> "$GITHUB_ENV"
+          echo "NEW_SHA=$new_hash" >> "$GITHUB_ENV"
+      - name: Configure pinned SSH identity
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_openroad_router"
+          printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+      - name: Atomic router replacement, live checksum gate and rollback
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+          PRIVATE_DIR: ${{ vars.CPANEL_OPENROAD_PRIVATE_DIR }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_HOST" && test -n "$SSH_USER" && test -n "$PRIVATE_DIR"
+          [[ "$PRIVATE_DIR" == /* ]] || exit 1
+          incoming="openroad-router-v029.$GITHUB_RUN_ID.php"
+          scp -i "$HOME/.ssh/id_openroad_router" -P "$SSH_PORT" \
+            -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            "$ROUTER_PATH" "$SSH_USER@$SSH_HOST:$incoming"
+          ssh -i "$HOME/.ssh/id_openroad_router" -p "$SSH_PORT" \
+            -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            "$SSH_USER@$SSH_HOST" bash -s -- \
+            "$PRIVATE_DIR" "$ORIGINAL_SHA" "$NEW_SHA" "$incoming" <<'REMOTE'
+          set -Eeuo pipefail
+          priv="$1";oldsha="$2";newsha="$3";uploaded="$4"
+          [[ "$priv" == /* && "$uploaded" == openroad-router-v029.*.php ]] || exit 1
+          target="$priv/lib/router.php"
+          source="$HOME/$uploaded"
+          trap 'rm -f "$source" "$target.new" "$target.rollback"' EXIT
+          test -f "$target" && test -f "$source"
+          [[ "$(sha256sum "$target" | cut -d' ' -f1)" == "$oldsha" ]] || {
+            echo "Live router is not the audited baseline; refusing deploy." >&2;exit 1;
+          }
+          [[ "$(sha256sum "$source" | cut -d' ' -f1)" == "$newsha" ]] || {
+            echo "Uploaded checksum mismatch; refusing deploy." >&2;exit 1;
+          }
+          php -l "$source" >/dev/null
+          backup="$HOME/openroad-backups/router-v029-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+          mkdir -p "$backup"
+          cp -p "$target" "$backup/router.php"
+          rollback() {
+            rc="$?"
+            trap - ERR
+            cp -p "$backup/router.php" "$target.rollback" &&
+              mv -f "$target.rollback" "$target" || true
+            echo "Router validation failed; restored backed-up source where possible." >&2
+            exit "$rc"
+          }
+          trap rollback ERR
+          cp "$source" "$target.new"
+          chmod --reference="$target" "$target.new"
+          mv -f "$target.new" "$target"
+          php -l "$target" >/dev/null
+          php -r 'require $argv[1]; foreach(["or_active_boardings","or_active_arrivals","or_trip_stop_matches"] as $fn) if(!function_exists($fn)) exit(1);' "$target"
+          [[ "$(sha256sum "$target" | cut -d' ' -f1)" == "$newsha" ]]
+          trap - ERR
+          echo "OpenRoad router updated; backup retained at $backup"
+          REMOTE
