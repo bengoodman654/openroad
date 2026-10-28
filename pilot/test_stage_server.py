@@ -24,7 +24,7 @@ class StageServerTest(unittest.TestCase):
                 router_code=staged.read(changed[0]).decode()
                 self.assertIn("?callable $cancelCheck=null",router_code)
                 self.assertIn("$checkCancellation();",router_code)
-                                endpoints=[n for n in names if "/public/api/v2/" in n]
+                endpoints=[n for n in names if "/public/api/v2/" in n]
                 self.assertEqual(len(endpoints),1)
                 self.assertTrue(endpoints[0].endswith("/task.php"))
                 body=staged.read(endpoints[0]).decode()
