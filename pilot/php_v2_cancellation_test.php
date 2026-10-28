@@ -62,6 +62,17 @@ try {
     check($r->finish($e, 'A', 167) === 'STOPPED',
           'lease cancellation does not falsely claim early stop');
 
+    $crashed = $r->issue('A','sessionA',8,'feed',200,10,'abandoned');
+    check($r->register($crashed,'A',200)==='RUNNING',
+          'synthetic worker admitted before crash');
+    check($r->cancel($crashed,'A',201)==='STOPPING',
+          'abandoned worker remains STOPPING until lease cleanup');
+    check($r->status($crashed,'A',226)==='UNKNOWN',
+          'expired STOPPING worker is UNKNOWN not falsely STOPPED');
+    $replacement = $r->issue('A','sessionA',9,'feed',227,10,'replacement');
+    check($r->register($replacement,'A',227)==='RUNNING',
+          'crashed worker no longer exhausts shared worker capacity');
+
     raises(fn() => new OpenRoadV2ResearchCancellation($dir, 'weak'),
            'weak signing secret is rejected');
 

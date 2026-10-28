@@ -108,6 +108,15 @@ class RequestLifecycleTests(unittest.TestCase):
         self.assertEqual(self.server.state(self.ticket, "A"), "STOPPING")
         self.assertEqual(self.server.finish(self.ticket, "A"), "STOPPED")
 
+    def test_crashed_stopping_worker_releases_budget_as_unknown(self):
+        self.server.register(self.ticket, 'A')
+        self.server.cancel(self.ticket, 'A')
+        self.clock.time = 155.0
+        self.assertEqual(self.server.state(self.ticket, 'A'), 'UNKNOWN')
+        replacement = self.make_ticket(task='replacement', expiry=195)
+        self.assertEqual(self.server.register(replacement, 'A'), 'RUNNING')
+        self.assertEqual(self.server.finish(self.ticket, 'A'), 'REJECTED_EXPIRED')
+
     def test_tombstone_can_expire_but_ticket_cannot_be_restarted(self):
         self.server.cancel(self.ticket, "A")
         self.clock.time = 155.0
