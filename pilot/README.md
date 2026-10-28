@@ -277,3 +277,8 @@ Both city audits succeeded on disposable GitHub runners: https://github.com/beng
 - Coventry: 383 stops examined; 354 exact unique nearby matches, 15 distant, 14 unmatched.
 
 Both match the numbers retained from the interrupted research session. Full machine-readable logs, current OSM and pinned GTFS SHA-256 source hashes, and review examples are retained in real-stop-crosswalk-evidence-2026-10-27.json. These are exact-code identity findings **only**. Zero walking anchors were approved for routing, and the Android, server and production acceptance status have not changed.
+
+
+## 28 October 2026 — cancellable search contract and source integration map
+
+See [cancellation-and-response-gate](../docs/public-transport-v2/CANCELLATION_AND_RESPONSE_GATE.md) for the tested standalone task lifecycle, cancel-before-registration tombstones, client-generation fence, independently checked timetable legs, and exact Android/Java/PHP integration points discovered in the source archives. All remain research-only; no live software was altered.
