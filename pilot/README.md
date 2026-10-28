@@ -299,3 +299,8 @@ Python: 143 discovered / 142 passed / 1 optional skipped.
 JavaScript: 12 checks passed. PHP: all reference checks passed.
 These are research checks, NOT the 105 required production acceptance cases.
 No live Android/server source, packages or credentials changed.
+
+
+## 28 October 2026 — actual archived source staging
+
+The first exact Android v0.6.31 and PHP v0.2.5 integration staging packages, CI evidence and production blockers are documented in [the integration status report](../docs/public-transport-v2/SOURCE_INTEGRATION_STATUS_2026-10-28.md). These packages are RESEARCH ONLY. No main-branch release, phone update, shared-host deployment or remotely cancellable PHP worker is claimed.
