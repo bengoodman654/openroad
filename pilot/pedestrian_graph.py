@@ -15,6 +15,7 @@ import math
 
 from pilot.gtfs_engine import distance_m
 from pilot.journey_options import Footpath
+from pilot.request_lifecycle import raise_if_cancelled
 
 # Conservative starting whitelist. Major roads need an independently mapped
 # usable pedestrian facility; incomplete crossings and access tags fail shut.
@@ -154,8 +155,8 @@ class PedestrianGraph:
         return True
 
     def route(self, origin_node: str, target_node: str,
-              max_walk_m: int = 800, avoid_steps: bool = False
-              ) -> WalkingRoute | None:
+              max_walk_m: int = 800, avoid_steps: bool = False,
+              cancel_check=None) -> WalkingRoute | None:
         """Shortest-distance walk through real graph edges, bounded by metres.
 
         It is NOT a wheelchair-accessibility test. Even avoiding mapped steps
@@ -163,6 +164,7 @@ class PedestrianGraph:
         """
         if max_walk_m < 0:
             raise ValueError("Invalid walking limit")
+        raise_if_cancelled(cancel_check)
         if (origin_node not in self.nodes or target_node not in self.nodes
                 or origin_node in self.blocked_nodes
                 or target_node in self.blocked_nodes):
@@ -174,7 +176,11 @@ class PedestrianGraph:
         queue = [(0, 0, next(serial), origin_node)]
         best = {origin_node: (0, 0)}
         parent = {}
+        visit_index = 0
         while queue:
+            if visit_index % 32 == 0:
+                raise_if_cancelled(cancel_check)
+            visit_index += 1
             metres, seconds, _, node = heappop(queue)
             if (metres, seconds) != best.get(node):
                 continue
@@ -192,7 +198,9 @@ class PedestrianGraph:
                 return WalkingRoute(
                     tuple(path), tuple(self.nodes[n] for n in path),
                     metres, seconds, includes_steps, mapped_geometry)
-            for edge in self.adj.get(node, ()):
+            for edge_index, edge in enumerate(self.adj.get(node, ())):
+                if edge_index % 64 == 0:
+                    raise_if_cancelled(cancel_check)
                 if (edge.target in self.blocked_nodes or
                         (avoid_steps and edge.steps)):
                     continue
@@ -230,13 +238,14 @@ def _anchor_checked(graph: PedestrianGraph, snapshot, anchor: StopAnchor):
 
 def link_stops(graph: PedestrianGraph, snapshot,
                from_anchor: StopAnchor, to_anchor: StopAnchor,
-               max_walk_m: int = 800, avoid_steps: bool = False
-               ) -> Footpath | None:
+               max_walk_m: int = 800, avoid_steps: bool = False,
+               cancel_check=None) -> Footpath | None:
     """Build one genuinely connected, directional route between GTFS stops.
 
     Both sidewalk connectors must be independently validated. A straight line
     or even a close OSM node is never automatically made a routable edge.
     """
+    raise_if_cancelled(cancel_check)
     if from_anchor.stop_id == to_anchor.stop_id:
         return None
     _anchor_checked(graph, snapshot, from_anchor)
@@ -247,7 +256,8 @@ def link_stops(graph: PedestrianGraph, snapshot,
     if allowance < 0:
         return None
     walked = graph.route(from_anchor.node_id, to_anchor.node_id,
-                         allowance, avoid_steps=avoid_steps)
+                         allowance, avoid_steps=avoid_steps,
+                         cancel_check=cancel_check)
     if walked is None:
         return None
     metres = from_anchor.metres + walked.metres + to_anchor.metres
@@ -270,7 +280,7 @@ def link_stops(graph: PedestrianGraph, snapshot,
 
 def connected_stop_links(graph: PedestrianGraph, snapshot, anchors,
                          max_walk_m: int = 600, max_per_stop: int = 8,
-                         avoid_steps: bool = False):
+                         avoid_steps: bool = False, cancel_check=None):
     """OFF-HOST candidate generation; output only verified routed links.
 
     A great-circle radius is merely a cheap LOWER-BOUND rejection. It NEVER
@@ -278,6 +288,7 @@ def connected_stop_links(graph: PedestrianGraph, snapshot, anchors,
     """
     if max_per_stop < 1:
         raise ValueError("Invalid footpath density")
+    raise_if_cancelled(cancel_check)
     validated = {}
     for anchor in anchors:
         _anchor_checked(graph, snapshot, anchor)
@@ -287,16 +298,20 @@ def connected_stop_links(graph: PedestrianGraph, snapshot, anchors,
     stops = list(validated)
     out = []
     for a in stops:
+        raise_if_cancelled(cancel_check)
         s = snapshot.stops[a]
         options = []
-        for b in stops:
+        for option_index, b in enumerate(stops):
+            if option_index % 32 == 0:
+                raise_if_cancelled(cancel_check)
             if a == b:
                 continue
             t = snapshot.stops[b]
             if distance_m((s.lat, s.lon), (t.lat, t.lon)) > max_walk_m:
                 continue
             route = link_stops(graph, snapshot, validated[a], validated[b],
-                               max_walk_m, avoid_steps=avoid_steps)
+                               max_walk_m, avoid_steps=avoid_steps,
+                               cancel_check=cancel_check)
             if route is not None:
                 options.append(route)
         options.sort(key=lambda w: (w.seconds, w.metres, w.b))

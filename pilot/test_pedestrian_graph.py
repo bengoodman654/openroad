@@ -228,5 +228,45 @@ class PedestrianGraphTests(unittest.TestCase):
         self.assertFalse(any(x.stop_id=="B" for x in suggestions))
 
 
+
+    def test_24_graph_walk_can_be_cancelled_before_start(self):
+        from pilot.request_lifecycle import SearchCancelled
+        g = self.graph()
+        with self.assertRaises(SearchCancelled):
+            g.route("A", "D", 500, cancel_check=lambda: True)
+
+    def test_25_graph_walk_cancelled_during_expansion_not_no_route(self):
+        from pilot.request_lifecycle import SearchCancelled
+        g = self.graph()
+        calls = [0]
+
+        def cancel():
+            calls[0] += 1
+            return calls[0] >= 2
+
+        with self.assertRaises(SearchCancelled):
+            g.route("A", "D", 500, cancel_check=cancel)
+        self.assertGreaterEqual(calls[0], 2)
+
+    def test_26_stop_link_propagates_cancellation(self):
+        from pilot.request_lifecycle import SearchCancelled
+        g = self.graph()
+        with self.assertRaises(SearchCancelled):
+            link_stops(g, self.snapshot, self.anchor("B"),
+                       self.anchor("C"), 300, cancel_check=lambda: True)
+
+    def test_27_batch_stop_links_interrupt_bounded_scan(self):
+        from pilot.request_lifecycle import SearchCancelled
+        g = self.graph()
+        anchors = [self.anchor(x) for x in ("A", "B", "C", "D")]
+        with self.assertRaises(SearchCancelled):
+            connected_stop_links(g, self.snapshot, anchors,
+                                 max_walk_m=300, cancel_check=lambda: True)
+
+    def test_28_invalid_cancellation_check_rejected(self):
+        g = self.graph()
+        with self.assertRaises(ValueError):
+            g.route("A", "D", 500, cancel_check="invalid")
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

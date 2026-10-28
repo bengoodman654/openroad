@@ -13,6 +13,19 @@ import math
 import time
 
 
+class SearchCancelled(RuntimeError):
+    """Cooperatively interrupted graph search, never a no-route outcome."""
+    pass
+
+
+def raise_if_cancelled(cancel_check):
+    if cancel_check is not None:
+        if not callable(cancel_check):
+            raise ValueError("Cancellation check must be callable")
+        if cancel_check():
+            raise SearchCancelled("REQUEST_CANCELLED")
+
+
 @dataclass(frozen=True)
 class TaskTicket:
     principal: str

@@ -42,8 +42,7 @@ class _BudgetExceeded(Exception):
     pass
 
 
-class _Cancelled(Exception):
-    pass
+from pilot.request_lifecycle import SearchCancelled
 
 
 def _dominates(a: Label, b: Label) -> bool:
@@ -154,13 +153,13 @@ def journey_options(snapshot, origin: str, destination: str, start_sec: int,
         while walking_queue:
             walk_checks += 1
             if walk_checks % 16 == 1 and was_cancelled():
-                raise _Cancelled()
+                raise SearchCancelled()
             _, _, p = heappop(walking_queue)
             if p not in frontier[p.stop]:
                 continue
             for edge_index, w in enumerate(walks[p.stop]):
                 if edge_index % 64 == 0 and was_cancelled():
-                    raise _Cancelled()
+                    raise SearchCancelled()
                 if p.walked + w.metres > max_walk_m:
                     continue
                 arrival = p.arrival + w.seconds
@@ -197,7 +196,7 @@ def journey_options(snapshot, origin: str, destination: str, start_sec: int,
         # Snapshot connections are already sorted by departure in load_region.
         for connection_index, con in enumerate(snapshot.connections):
             if connection_index % 64 == 0 and was_cancelled():
-                raise _Cancelled()
+                raise SearchCancelled()
             if con.depart < start_sec:
                 continue
             if con.depart > end_time:
@@ -254,7 +253,7 @@ def journey_options(snapshot, origin: str, destination: str, start_sec: int,
                     # The stop is usable only when alighting is permitted.
                     offer(p)
                 walk_closure()
-    except _Cancelled:
+    except SearchCancelled:
         return cancelled_result()
     except _BudgetExceeded:
         return {"outcome": "SEARCH_LIMIT", "reasonCode": "LABEL_BUDGET",
