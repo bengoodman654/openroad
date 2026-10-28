@@ -1,0 +1,46 @@
+name: OpenRoad lightweight GTFS calendar extension tests
+on:
+  push:
+    branches: [maintenance/pt-calendar-pedestrian-gates-20261028]
+    paths:
+      - 'maintenance/pt-calendar/**'
+      - '.github/workflows/pt-calendar-extension-test.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: ci-root
+          MARIADB_DATABASE: calendar_fixture
+          MARIADB_USER: calendar_test
+          MARIADB_PASSWORD: ci-only-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mariadb-admin ping -h 127.0.0.1 -u root -pci-root"
+          --health-interval=5s
+          --health-timeout=4s
+          --health-retries=15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PHP extensions
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq php-mysql php-zip
+      - name: Verify syntax
+        run: |
+          php -l maintenance/pt-calendar/calendar_extension.php
+          php -l maintenance/pt-calendar/extend_service_calendar.php
+          php -l maintenance/pt-calendar/calendar_test.php
+      - name: Execute GTFS exceptions, idempotence and MariaDB tests
+        run: |
+          unzip -q OpenRoad-Transport-Server-v0.2.5-source.zip -d "$RUNNER_TEMP/baseline"
+          schema="$(find "$RUNNER_TEMP/baseline" -name schema.sql -type f | head -1)"
+          test -f "$schema"
+          php maintenance/pt-calendar/calendar_test.php "$schema"
