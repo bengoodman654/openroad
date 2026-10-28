@@ -122,4 +122,24 @@ jobs:
             }
             echo "READ_ONLY_DIAG_COMPLETE\n";
           ' "$private_dir/lib/bootstrap.php"
+          # One bounded, non-mutating candidate query. No route-cache writes.
+          php -d display_errors=stderr -r '
+            require $argv[1];
+            $db=openroad_db();
+            try{$db->exec("SET SESSION max_statement_time=0.9");}catch(Throwable $ignored){}
+            $ds=openroad_region_dataset($db,"south_west");
+            $started=microtime(true);
+            or_route_deadline($started+3.5);
+            $orig=or_stop_map(or_nearby_stops($db,$ds,51.438,-2.607,1200,10));
+            $dest=or_stop_map(or_nearby_stops($db,$ds,51.459,-2.627,1200,10));
+            try {
+              $direct=or_direct_candidates($db,$ds,$orig,$dest,or_current_seconds(),7200);
+              echo "READ_ONLY_DIRECT_SMOKE outcome=OK candidates=".count($direct).
+                   " duration_ms=".(int)round((microtime(true)-$started)*1000)."\n";
+            } catch(Throwable $e) {
+              echo "READ_ONLY_DIRECT_SMOKE outcome=ERROR class=".get_class($e).
+                   " code=".preg_replace("/[^a-zA-Z0-9_-]/","",(string)$e->getCode()).
+                   " duration_ms=".(int)round((microtime(true)-$started)*1000)."\n";
+            }
+          ' "$private_dir/lib/router.php"
           REMOTE
