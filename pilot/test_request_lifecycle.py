@@ -176,9 +176,19 @@ class ClientGateTests(unittest.TestCase):
     def test_first_selection_is_immutable_under_later_enrichment(self):
         self.client.begin(self.a)
         self.assertTrue(self.client.select_itinerary(self.a, "route-1"))
-        self.assertFalse(self.client.select_itinerary(self.a, "route-2"))
+        self.assertFalse(self.client.select_itinerary(
+            self.a, "route-2", user_initiated=False))
         self.assertFalse(self.client.accepts_enrichment(self.a, "route-2"))
         self.assertTrue(self.client.accepts_enrichment(self.a, "route-1"))
+
+    def test_explicit_user_tap_may_switch_between_route_alternatives(self):
+        self.client.begin(self.a)
+        self.assertTrue(self.client.select_itinerary(self.a, "route-1"))
+        self.assertTrue(self.client.select_itinerary(
+            self.a, "route-2", user_initiated=True))
+        self.assertEqual(self.client.selected_itinerary_id, "route-2")
+        self.assertFalse(self.client.accepts_enrichment(self.a, "route-1"))
+        self.assertTrue(self.client.accepts_enrichment(self.a, "route-2"))
 
     def test_cross_session_ticket_rejected(self):
         bad = TaskTicket("B", "sb", "x", 1, "s", 99.0, 140.0)

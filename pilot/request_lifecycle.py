@@ -220,10 +220,12 @@ class ClientGenerationGate:
     def stop_guidance_explicitly(self):
         self.guidance_id = None
 
-    def select_itinerary(self, ticket: TaskTicket, itinerary_id: str) -> bool:
+    def select_itinerary(self, ticket: TaskTicket, itinerary_id: str,
+                         *, user_initiated: bool = True) -> bool:
+        """Only a deliberate user tap may switch an already selected route."""
         if not self.accepts(ticket) or not itinerary_id:
             return False
-        if (self.selected_itinerary_id is not None and
+        if (not user_initiated and self.selected_itinerary_id is not None and
                 self.selected_itinerary_id != itinerary_id):
             return False
         self.selected_itinerary_id = itinerary_id
