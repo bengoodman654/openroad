@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from datetime import date
 import math
+import hashlib
+import json
 
 from pilot.gtfs_engine import gtfs_utc
 
@@ -17,6 +19,24 @@ OUTCOMES = {
     "NO_MATCH", "CANCELLED",
 }
 FINAL_STATES = {"COMPLETED", "STOPPED", "STOPPING", "UNKNOWN", "RUNNING"}
+
+
+def _stable_itinerary_id(snapshot, itinerary: dict) -> str:
+    """Identity depends on the pinned schedule, not result rank/enrichment."""
+    key = {
+        "source": snapshot.source_sha256,
+        "region": snapshot.region,
+        "serviceDate": str(snapshot.service_day),
+        "legs": [{
+            "mode": leg["mode"], "from": leg["from"], "to": leg["to"],
+            "depart": leg["depart"], "arrive": leg["arrive"],
+            "trip": leg.get("tripOccurrence") if leg["mode"] == "BUS" else None,
+            "walkMetres": leg.get("metres") if leg["mode"] == "WALK" else None,
+        } for leg in itinerary["legs"]],
+        "arrival": itinerary["arrival"],
+    }
+    canonical = json.dumps(key, sort_keys=True, separators=(",", ":"))
+    return "ptv2-" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:24]
 
 
 def _segments_by_trip(snapshot, results):
@@ -154,7 +174,12 @@ def envelope(ticket, snapshot, search_result: dict,
     # Never use an internal monotonic expiry as a user-visible UTC timestamp.
     # Until a validated manifest exists, published validity is unknown.
     public_results = []
+    seen_itinerary_ids = set()
     for x in results:
+        itinerary_id = _stable_itinerary_id(snapshot, x)
+        if itinerary_id in seen_itinerary_ids:
+            continue
+        seen_itinerary_ids.add(itinerary_id)
         legs = []
         for leg in x["legs"]:
             converted = dict(leg)
@@ -164,7 +189,7 @@ def envelope(ticket, snapshot, search_result: dict,
                 snapshot.service_day, leg["arrive"]).isoformat()
             legs.append(converted)
         public_results.append({
-            **x, "legs": legs,
+            **x, "id": itinerary_id, "legs": legs,
             "arrivalUTC": gtfs_utc(
                 snapshot.service_day, x["arrival"]).isoformat(),
             "selectable": False,

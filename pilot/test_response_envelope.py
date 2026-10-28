@@ -32,6 +32,46 @@ class EnvelopeTests(unittest.TestCase):
         self.assertIn("departUTC", result["results"][0]["legs"][0])
         self.assertIsNone(result["validUntil"])
 
+    def test_stable_id_is_present_on_every_result(self):
+        x = self.make(self.valid_result())
+        self.assertTrue(all(row["id"].startswith("ptv2-")
+                            for row in x["results"]))
+
+    def test_late_enrichment_cannot_change_scheduled_itinerary_id(self):
+        from copy import deepcopy
+        from pilot.response_envelope import _stable_itinerary_id
+        r = self.valid_result()["results"][0]
+        changed = deepcopy(r)
+        changed["legs"][0]["geometry"] = [[52.408, -1.510], [52.409, -1.510]]
+        changed["legs"][0]["realtimePrediction"] = 999999
+        self.assertEqual(_stable_itinerary_id(self.snapshot, r),
+                         _stable_itinerary_id(self.snapshot, changed))
+
+    def test_different_physical_trip_identity_changes_id(self):
+        from copy import deepcopy
+        from pilot.response_envelope import _stable_itinerary_id
+        r = self.valid_result()["results"][0]
+        changed = deepcopy(r)
+        changed["legs"][0]["tripOccurrence"] = "fixture:DIFFERENT:2026-10-26"
+        self.assertNotEqual(_stable_itinerary_id(self.snapshot, r),
+                            _stable_itinerary_id(self.snapshot, changed))
+
+    def test_client_generation_not_part_of_itinerary_identity(self):
+        x = self.make(self.valid_result())
+        next_ticket = TaskTicket("A", "sa", "task-next", 8, "snapshot-A", 99, 140)
+        y = envelope(next_ticket, self.snapshot, self.valid_result())
+        self.assertEqual([i["id"] for i in x["results"]],
+                         [i["id"] for i in y["results"]])
+
+    def test_duplicate_physical_journeys_collapse_to_one_id(self):
+        from copy import deepcopy
+        r = self.valid_result()
+        r["results"] = [deepcopy(r["results"][0]),
+                        deepcopy(r["results"][0])]
+        x = self.make(r)
+        self.assertEqual(x["outcome"], "OK")
+        self.assertEqual(len(x["results"]), 1)
+
     def test_success_never_claims_live_vehicle_predictions(self):
         result = self.make(self.valid_result())
         self.assertEqual(result["realtimeStatus"], "SCHEDULED_ONLY")
