@@ -1,0 +1,248 @@
+name: OpenRoad PT candidate v0.2.9 — live source-only probe
+on:
+  push:
+    branches: [fix/pt-candidate-fairness-20261028]
+    paths:
+      - '.github/workflows/pt-v029-live-probe.yml'
+      - 'maintenance/pt-sql-timeout/live_coverage_probe.php'
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read-only timetable and index metadata (no journey searches)
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+          PRIVATE_DIR: ${{ vars.CPANEL_OPENROAD_PRIVATE_DIR }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS" && test -n "$SSH_HOST" && test -n "$SSH_USER" && test -n "$PRIVATE_DIR"
+          [[ "$PRIVATE_DIR" == /* ]] || exit 1
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_openroad_diagnostic"
+          printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          ssh -i "$HOME/.ssh/id_openroad_diagnostic" -o StrictHostKeyChecking=yes \
+              -o BatchMode=yes -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+              bash -s -- "$PRIVATE_DIR" <<'REMOTE'
+          set -euo pipefail
+          private_dir="$1"
+          test -f "$private_dir/lib/bootstrap.php"
+
+          # Output aggregate performance classes only, never raw location/log lines.
+          if test -f "$private_dir/logs/journey-timings.jsonl"; then
+            tail -n 120 "$private_dir/logs/journey-timings.jsonl" | php -r '
+              $counts=[];$durations=[];
+              while(($line=fgets(STDIN))!==false){
+                $r=json_decode($line,true);
+                if(!is_array($r)||($r["event"]??"")!=="journey")continue;
+                $key=($r["phase"]??"unknown").":".($r["outcome"]??"unknown");
+                $counts[$key]=($counts[$key]??0)+1;
+                $durations[$key][]=max(0,(int)($r["ms"]??0));
+              }
+              echo "AGGREGATE_JOURNEY_TIMINGS_BEGIN\n";
+              foreach($counts as $key=>$n){
+                sort($durations[$key]);$v=$durations[$key];
+                $p95=$v[(int)floor((count($v)-1)*0.95)]??0;
+                echo preg_replace("/[^a-zA-Z0-9_:.-]/","",$key)." count=".$n." p95ms=".$p95."\n";
+              }
+              echo "AGGREGATE_JOURNEY_TIMINGS_END\n";
+            '
+          fi
+
+          printf 'LIVE_SOURCE_HASHES_BEGIN\n'
+          sha256sum "$private_dir/lib/router.php"
+          printf 'LIVE_SOURCE_HASHES_END\n'
+
+          php -d display_errors=stderr -r '
+            require $argv[1];
+            $db=openroad_db();
+            try{$db->exec("SET SESSION max_statement_time=0.5");}catch(Throwable $ignored){}
+            echo "REGIONS_BEGIN\n";
+            foreach($db->query("SELECT region_key,dataset_id,DATE(updated_at) updated_day FROM or_regions ORDER BY region_key LIMIT 32") as $r) {
+              echo preg_replace("/[^a-zA-Z0-9_-]/","",(string)$r["region_key"])." ds=".(int)$r["dataset_id"]." day=".(string)$r["updated_day"]."\n";
+            }
+            echo "REGIONS_END\n";
+            echo "PREPARE_QUEUE_BEGIN\n";
+            foreach($db->query("SELECT region_key,attempts FROM or_prepare_queue ORDER BY region_key LIMIT 32") as $r) {
+              echo preg_replace("/[^a-zA-Z0-9_-]/","",(string)$r["region_key"])." attempts=".(int)$r["attempts"]."\n";
+            }
+            echo "PREPARE_QUEUE_END\n";
+            foreach(["or_stop_times","or_trips","or_service_dates","or_stops"] as $table){
+              $stmt=$db->prepare("SELECT TABLE_ROWS,DATA_LENGTH,INDEX_LENGTH FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?");
+              $stmt->execute([$table]);$row=$stmt->fetch();
+              echo "TABLE ".$table." approx_rows=".(int)($row["TABLE_ROWS"]??0)." estimated_data_bytes=".(int)($row["DATA_LENGTH"]??0)." estimated_index_bytes=".(int)($row["INDEX_LENGTH"]??0)."\n";
+              $q=$db->query("SHOW INDEX FROM ".$table);
+              $indices=[];
+              foreach($q as $ix){
+                $k=(string)$ix["Key_name"];$seq=(int)$ix["Seq_in_index"];
+                $indices[$k][$seq]=(string)$ix["Column_name"];
+              }
+              foreach($indices as $k=>$columns){ksort($columns);echo "INDEX ".$table.".".$k."(".implode(",",$columns).")\n";}
+            }
+            // Only indexed calendar lookups, no stop-time scans.
+            $q=$db->prepare("SELECT dataset_id FROM or_regions WHERE region_key=? LIMIT 1");
+            $q->execute(["south_west"]);
+            $ds=(int)($q->fetchColumn()?:0);
+            echo "SOUTH_WEST_CALENDAR_BEGIN\n";
+            if($ds>0){
+              $q=$db->prepare("SELECT MIN(service_date) earliest,MAX(service_date) latest FROM or_service_dates WHERE dataset_id=?");
+              $q->execute([$ds]);$r=$q->fetch();
+              echo "SERVICE_WINDOW earliest=".($r["earliest"]??"none")." latest=".($r["latest"]??"none")."\n";
+              $q=$db->prepare("SELECT COUNT(*) total FROM or_service_dates WHERE dataset_id=? AND service_date=CURDATE()");
+              $q->execute([$ds]);echo "ACTIVE_SERVICE_IDS_TODAY ".(int)$q->fetchColumn()."\n";
+              $q=$db->prepare("SELECT COUNT(*) total FROM or_service_dates WHERE dataset_id=? AND service_date=DATE_ADD(CURDATE(),INTERVAL 1 DAY)");
+              $q->execute([$ds]);echo "ACTIVE_SERVICE_IDS_TOMORROW ".(int)$q->fetchColumn()."\n";
+            }
+            echo "SOUTH_WEST_CALENDAR_END\n";
+            // Read-only EXPLAIN: do not execute an expensive route query.
+            $find=$db->prepare("SELECT stop_id FROM or_stops WHERE dataset_id=? AND stop_lat BETWEEN ? AND ? AND stop_lon BETWEEN ? AND ? LIMIT 4");
+            $find->execute([$ds,51.430,51.448,-2.63,-2.58]);
+            $from=$find->fetchAll(PDO::FETCH_COLUMN);
+            $find->execute([$ds,51.45,51.49,-2.65,-2.60]);
+            $to=$find->fetchAll(PDO::FETCH_COLUMN);
+            if(count($from)>0 && count($to)>0){
+              $phFrom=implode(",",array_fill(0,count($from),"?"));
+              $phTo=implode(",",array_fill(0,count($to),"?"));
+              $sql="EXPLAIN SELECT b.trip_id,b.stop_id,a.stop_id FROM or_stop_times b JOIN or_trips t ON t.dataset_id=b.dataset_id AND t.trip_id=b.trip_id JOIN or_service_dates sd ON sd.dataset_id=t.dataset_id AND sd.service_id=t.service_id AND sd.service_date=CURDATE() JOIN or_stop_times a ON a.dataset_id=b.dataset_id AND a.trip_id=b.trip_id AND a.stop_sequence>b.stop_sequence JOIN or_routes r ON r.dataset_id=t.dataset_id AND r.route_id=t.route_id WHERE b.dataset_id=? AND b.stop_id IN ($phFrom) AND a.stop_id IN ($phTo) AND b.departure_sec BETWEEN ? AND ? ORDER BY b.departure_sec LIMIT 2600";
+              $q=$db->prepare($sql);
+              $now=((int)date("H"))*3600+((int)date("i"))*60;
+              $q->execute([$ds,...$from,...$to,$now,$now+7200]);
+              echo "ORIGINAL_QUERY_EXPLAIN_BEGIN\n";
+              foreach($q as $r){
+                echo "table=".$r["table"]." type=".$r["type"]." key=".($r["key"]??"none")." estimated_rows=".(int)$r["rows"]." extra=".substr((string)($r["Extra"]??""),0,110)."\n";
+              }
+              echo "ORIGINAL_QUERY_EXPLAIN_END\n";
+            }
+            echo "READ_ONLY_DIAG_COMPLETE\n";
+          ' "$private_dir/lib/bootstrap.php"
+          # One bounded, non-mutating candidate query. No route-cache writes.
+          php -d display_errors=stderr -r '
+            require $argv[1];
+            $db=openroad_db();
+            try{$db->exec("SET SESSION max_statement_time=0.9");}catch(Throwable $ignored){}
+            $ds=openroad_region_dataset($db,"south_west");
+            $started=microtime(true);
+            or_route_deadline($started+3.5);
+            $orig=or_stop_map(or_nearby_stops($db,$ds,51.438,-2.607,1200,10));
+            $dest=or_stop_map(or_nearby_stops($db,$ds,51.459,-2.627,1200,10));
+            try {
+              $direct=or_direct_candidates($db,$ds,$orig,$dest,or_current_seconds(),7200);
+              echo "READ_ONLY_DIRECT_SMOKE outcome=OK candidates=".count($direct).
+                   " duration_ms=".(int)round((microtime(true)-$started)*1000)."\n";
+              if(count($direct)===0){
+                $now=or_current_seconds();
+                $dest32=or_stop_map(or_nearby_stops($db,$ds,51.459,-2.627,1200,32));
+                $arrival10=or_active_arrivals($db,$ds,array_keys($dest),$now+180,5*3600-180,420);
+                $arrival32=or_active_arrivals($db,$ds,array_keys($dest32),$now+180,5*3600-180,420);
+
+                // A deterministic positive-control check using a real,
+                // currently scheduled trip terminating near Clifton.
+                $probeArrivals=array_slice($arrival10,0,30);
+                $probeStops=or_trip_stop_matches($db,$ds,array_column($probeArrivals,"trip_id"));
+                $chosen=null;
+                foreach($probeArrivals as $arrival){
+                  foreach($probeStops[$arrival["trip_id"]]??[] as $stop){
+                    if((int)$stop["stop_sequence"]<(int)$arrival["alight_seq"] &&
+                       (int)$stop["departure_sec"]>=$now+180 &&
+                       (int)$stop["departure_sec"]<=$now+3600){
+                      $chosen=[$arrival,$stop];break 2;
+                    }
+                  }
+                }
+                if($chosen!==null){
+                  [$arrival,$board]=$chosen;
+                  $p=or_direct_candidates($db,$ds,
+                    [$board["stop_id"]=>["distance"=>0.0]],
+                    [$arrival["alight_stop"]=>["distance"=>0.0]],$now,7200);
+                  $found=false;
+                  foreach($p as $row){
+                    if($row["trip_id"]===$arrival["trip_id"] &&
+                       $row["board_stop"]===$board["stop_id"] &&
+                       $row["alight_stop"]===$arrival["alight_stop"]){
+                      $found=true;break;
+                    }
+                  }
+                  echo "KNOWN_SCHEDULED_DIRECT_SMOKE verified=".($found?"YES":"NO").
+                    " duration_ms=".(int)round((microtime(true)-$started)*1000)."\n";
+                }else echo "KNOWN_SCHEDULED_DIRECT_SMOKE verified=NO_ELIGIBLE_TRIP\n";
+
+                echo "ACTIVE_DESTINATION_AUDIT origin_stops=".count($orig).
+                     " destination_stops_10=".count($dest).
+                     " destination_stops_32=".count($dest32).
+                     " arrivals_10=".count($arrival10).
+                     " arrivals_32=".count($arrival32)."\n";
+                $seeds=or_first_leg_seeds($db,$ds,$orig,$now,1.35,3600,3500);
+                $second=or_second_leg_candidates($db,$ds,$seeds,$dest,$now,180,2000);
+                $matches=0;
+                foreach($second as $leg){
+                  foreach($seeds[$leg["transfer_stop"]]??[] as $first){
+                    if($leg["trip_id"]!==$first["trip_id"] &&
+                       $leg["depart_sec"] >= $first["transfer_arrive"]+180 &&
+                       $leg["depart_sec"] <= $first["transfer_arrive"]+4500)$matches++;
+                  }
+                }
+                echo "READ_ONLY_TRANSFER_SMOKE outcome=OK transfer_stops=".count($seeds).
+                     " second_leg_rows=".count($second)." feasible_pairs=".$matches.
+                     " duration_ms=".(int)round((microtime(true)-$started)*1000)."\n";
+              }
+            } catch(Throwable $e) {
+              echo "READ_ONLY_DIRECT_SMOKE outcome=ERROR class=".get_class($e).
+                   " code=".preg_replace("/[^a-zA-Z0-9_-]/","",(string)$e->getCode()).
+                   " duration_ms=".(int)round((microtime(true)-$started)*1000)."\n";
+            }
+          ' "$private_dir/lib/router.php"
+          REMOTE
+          # Read-only, tightly budgeted coverage check on representative
+          # South Bristol/Clifton points. Script is staged in HOME only.
+          scp -i "$HOME/.ssh/id_openroad_diagnostic" \
+            -o StrictHostKeyChecking=yes -o BatchMode=yes -P "$SSH_PORT" \
+            maintenance/pt-sql-timeout/live_coverage_probe.php \
+            "$SSH_USER@$SSH_HOST:openroad-coverage-probe.php"
+          ssh -i "$HOME/.ssh/id_openroad_diagnostic" \
+            -o StrictHostKeyChecking=yes -o BatchMode=yes -p "$SSH_PORT" \
+            "$SSH_USER@$SSH_HOST" bash -s -- "$PRIVATE_DIR" <<'PROBE'
+          set -euo pipefail
+          trap 'rm -f "$HOME/openroad-coverage-probe.php"' EXIT
+          php -d memory_limit=96M "$HOME/openroad-coverage-probe.php" "$1/lib/router.php"
+          PROBE
+          # Stage router candidate on runner; never overwrite active server.
+          unzip -q OpenRoad-Transport-Server-v0.2.5-source.zip -d "$RUNNER_TEMP/v029-source"
+          router="$(find "$RUNNER_TEMP/v029-source" -name router.php -type f | head -1)"
+          test -f "$router"
+          python3 maintenance/pt-sql-timeout/patch_router.py "$router"
+          original_sha="$(sha256sum "$router" | cut -d' ' -f1)"
+          python3 maintenance/pt-sql-timeout/patch_router_v029.py "$router"
+          php -l "$router"
+          marker="v029-probe-$GITHUB_RUN_ID"
+          scp -i "$HOME/.ssh/id_openroad_diagnostic" -P "$SSH_PORT" \
+            -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            "$router" "$SSH_USER@$SSH_HOST:$marker.router.php"
+          scp -i "$HOME/.ssh/id_openroad_diagnostic" -P "$SSH_PORT" \
+            -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            maintenance/pt-sql-timeout/live_compare_v029.php \
+            "$SSH_USER@$SSH_HOST:$marker.probe.php"
+          ssh -i "$HOME/.ssh/id_openroad_diagnostic" \
+            -o StrictHostKeyChecking=yes -o BatchMode=yes -p "$SSH_PORT" \
+            "$SSH_USER@$SSH_HOST" bash -s -- "$PRIVATE_DIR" "$original_sha" "$marker" <<'VERIFY'
+          set -Eeuo pipefail
+          priv="$1";expected="$2";prefix="$3"
+          [[ "$priv" == /* && "$prefix" == v029-probe-* ]] || exit 1
+          tmp="$(mktemp -d "$HOME/openroad-v029.XXXXXX")"
+          trap 'rm -rf "$tmp" "$HOME/$prefix.router.php" "$HOME/$prefix.probe.php"' EXIT
+          test "$(sha256sum "$priv/lib/router.php" | cut -d' ' -f1)" = "$expected"
+          mv "$HOME/$prefix.router.php" "$tmp/router.php"
+          mv "$HOME/$prefix.probe.php" "$tmp/probe.php"
+          ln -s "$priv/lib/bootstrap.php" "$tmp/bootstrap.php"
+          php -l "$tmp/router.php" >/dev/null
+          php -d memory_limit=96M "$tmp/probe.php" "$tmp/router.php" candidate
+          VERIFY
