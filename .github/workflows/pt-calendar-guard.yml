@@ -54,6 +54,51 @@ jobs:
           done
           count="$( (crontab -l 2>/dev/null || true) | grep -Eic 'openroad|update_gtfs|process_preload_queue' || true)"
           echo "OPENROAD_CRON entries=$count"
+          # Print only fixed classifications, never full cron lines (may
+          # contain private account paths or command-line credentials).
+          (crontab -l 2>/dev/null || true) | php -r '
+            $known=["update_gtfs"=>"gtfs_full_import",
+              "process_preload_queue"=>"preload_queue",
+              "cleanup"=>"cleanup_job",
+              "refresh"=>"refresh_job"];
+            $counts=[];
+            while(($line=fgets(STDIN))!==false){
+              $line=trim($line);if($line===""||$line[0]==="#")continue;
+              foreach($known as $needle=>$role){
+                if(stripos($line,$needle)!==false)
+                  $counts[$role]=($counts[$role]??0)+1;
+              }
+            }
+            foreach($known as $role)
+              echo "CRON_ROLE ".$role." count=".($counts[$role]??0)."\n";
+          '
+          # Lightweight archive metadata, no decompression of large GTFS
+          # stop_times/shapes; identify calendar horizon only.
+          php -d memory_limit=48M -r '
+            $path=$argv[1];if(!is_file($path)){echo "CACHE_GTFS absent\n";exit;}
+            if(!class_exists("ZipArchive")){echo "CACHE_GTFS zip_extension_missing\n";exit;}
+            $z=new ZipArchive();
+            if($z->open($path)!==true){echo "CACHE_GTFS invalid_zip\n";exit;}
+            foreach(["calendar.txt","calendar_dates.txt"] as $file){
+              $stream=$z->getStream($file);
+              if(!$stream){echo "CACHE_GTFS missing_".$file."\n";continue;}
+              $header=fgetcsv($stream);if(!is_array($header)){fclose($stream);continue;}
+              $header=array_map("trim",$header);
+              $dateCol=array_search($file==="calendar.txt"?"end_date":"date",$header,true);
+              $latest="";
+              $rows=0;
+              while(($row=fgetcsv($stream))!==false && $rows<300000){
+                $rows++;
+                if($dateCol!==false && isset($row[$dateCol]) &&
+                   preg_match("/^[0-9]{8}$/D",$row[$dateCol]) &&
+                   $row[$dateCol]>$latest)$latest=$row[$dateCol];
+              }
+              fclose($stream);
+              echo "CACHE_GTFS file=".$file." scanned_rows=".$rows.
+                   " latest_source_date=".($latest?:"unknown")."\n";
+            }
+            $z->close();
+          ' "$private/cache/south_west_gtfs.zip"
           php -d memory_limit=64M -r '
             require $argv[1];
             $db=openroad_db();
