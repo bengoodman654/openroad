@@ -1,0 +1,18 @@
+name: OpenRoad PT v2 integration source excerpts (isolated)
+on:
+  push:
+    branches: [pt-v2-planner-hardening]
+    paths:
+      - '.github/workflows/pt-v2-integration-excerpts.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  excerpts:
+    if: contains(github.event.head_commit.message, '[pt-source-excerpt]') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect selected existing Android and PHP cancellation methods
+        run: python3 -m pilot.integration_source_inspect
