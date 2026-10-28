@@ -19,7 +19,37 @@ OUTCOMES = {
 FINAL_STATES = {"COMPLETED", "STOPPED", "STOPPING", "UNKNOWN", "RUNNING"}
 
 
-def _validate_legs(snapshot, legs: list) -> bool:
+def _segments_by_trip(snapshot):
+    """Index physical segments without manufacturing skipped GTFS stop events."""
+    by_trip = {}
+    for con in snapshot.connections:
+        by_trip.setdefault(con.trip, {})[con.from_sequence] = con
+    return by_trip
+
+
+def _valid_published_bus_leg(connections_by_sequence, leg: dict) -> bool:
+    """Board on a real pickup, stay on contiguous events, alight legally."""
+    if not connections_by_sequence:
+        return False
+    starts = [con for con in connections_by_sequence.values()
+              if con.a == leg["from"] and
+              con.depart == leg["depart"] and con.pickup]
+    for current in starts:
+        seen = set()
+        while current.from_sequence not in seen:
+            seen.add(current.from_sequence)
+            if (current.b == leg["to"] and
+                    current.arrive == leg["arrive"] and current.dropoff):
+                return True
+            next_event = connections_by_sequence.get(current.to_sequence)
+            if (next_event is None or next_event.a != current.b or
+                    next_event.depart < current.arrive):
+                break
+            current = next_event
+    return False
+
+
+def _validate_legs(snapshot, legs: list, segments_by_trip) -> bool:
     if not isinstance(legs, list):
         return False
     last_stop = None
@@ -50,6 +80,8 @@ def _validate_legs(snapshot, legs: list) -> bool:
             route_key = snapshot.trips[trip_id][0]
             if (leg.get("routeKey") != snapshot.region + ":" + route_key or
                     leg.get("publicLine") != snapshot.routes[route_key][0]):
+                return False
+            if not _valid_published_bus_leg(segments_by_trip.get(trip_id), leg):
                 return False
         else:
             metres = leg.get("metres")
@@ -88,10 +120,11 @@ def envelope(ticket, snapshot, search_result: dict,
         outcome, reason, results = (
             "PROVIDER_UNAVAILABLE", "UNKNOWN_ENGINE_OUTCOME", [])
     elif outcome == "OK":
+        segments_by_trip = _segments_by_trip(snapshot)
         if (not isinstance(results, list) or not results or
                 any(not isinstance(x, dict) or
                     not isinstance(x.get("arrival"), int) or
-                    not _validate_legs(snapshot, x.get("legs")) or
+                    not _validate_legs(snapshot, x.get("legs"), segments_by_trip) or
                     (x["legs"] and x["legs"][-1]["arrive"] != x["arrival"])
                     for x in results)):
             outcome, reason, results = (

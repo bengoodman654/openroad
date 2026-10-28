@@ -66,6 +66,39 @@ class EnvelopeTests(unittest.TestCase):
         self.assertEqual(x["outcome"], "PROVIDER_UNAVAILABLE")
         self.assertEqual(x["results"], [])
 
+    def test_bus_leg_must_follow_real_contiguous_gtfs_events(self):
+        r = self.valid_result()
+        # Real T1 runs A -> B -> C only. Publishing A -> D as T1 is a lie.
+        leg = r["results"][0]["legs"][0]
+        leg["to"] = "D"
+        x = self.make(r)
+        self.assertEqual(x["reasonCode"], "INVALID_PLANNER_OUTPUT")
+        self.assertEqual(x["results"], [])
+
+    def test_fake_boarding_time_is_rejected_even_on_real_trip(self):
+        r = self.valid_result()
+        r["results"][0]["legs"][0]["depart"] += 60
+        x = self.make(r)
+        self.assertEqual(x["reasonCode"], "INVALID_PLANNER_OUTPUT")
+
+    def test_boarding_at_no_pickup_stop_rejected(self):
+        r = self.valid_result()
+        leg = r["results"][0]["legs"][0]
+        # T1 serves B but cannot pick up there. Reuse the true trip identity.
+        leg["from"] = "B"
+        leg["depart"] = 8*3600 + 10*60
+        x = self.make(r)
+        self.assertEqual(x["reasonCode"], "INVALID_PLANNER_OUTPUT")
+
+    def test_false_alighting_stop_is_rejected(self):
+        r = self.valid_result()
+        leg = r["results"][0]["legs"][0]
+        # T1 drops off at C, not at the intermediate B.
+        leg["to"] = "B"
+        leg["arrive"] = 8*3600 + 10*60
+        x = self.make(r)
+        self.assertEqual(x["reasonCode"], "INVALID_PLANNER_OUTPUT")
+
     def test_line_mismatch_is_fail_closed(self):
         r = self.valid_result()
         r["results"][0]["legs"][0]["publicLine"] = "IMPOSTOR"
