@@ -47,6 +47,11 @@ try {
     $db->exec("INSERT INTO or_routes(dataset_id,route_id) VALUES(211,'R')");
     $db->exec("INSERT INTO or_trips(dataset_id,trip_id,route_id,service_id) VALUES(211,'T1','R','MON_FRI'),(211,'T2','R','ONCE')");
     $db->exec("INSERT INTO or_service_dates VALUES(211,'MON_FRI','2026-11-09')");
+    $db->exec("UPDATE or_regions SET updated_at='2026-01-01' WHERE region_key='south_west'");
+    throws(fn()=>or_calendar_plan($db,'south_west',$path,
+                                 new DateTimeImmutable('2026-10-28'),45),
+           'cached feed must match active dataset generation');
+    $db->exec("UPDATE or_regions SET updated_at=NOW() WHERE region_key='south_west'");
     $plan=or_calendar_plan($db,'south_west',$path,
                           new DateTimeImmutable('2026-10-28'),45);
     ok($plan['outcome']==='EXTEND','plan extends 9 Nov to 12 Dec');
