@@ -26,6 +26,7 @@ jobs:
           echo "PROJECT=$project" >> "$GITHUB_ENV"
           node --check "$project/app/src/main/assets/app.js"
           bash "$project/validate.sh"
+          node pilot/test_staged_android_ui.cjs "$project/app/src/main/assets/app.js"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
