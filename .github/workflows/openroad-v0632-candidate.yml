@@ -1,0 +1,45 @@
+name: OpenRoad v0.6.32 normal-update source candidate
+on:
+  push:
+    branches: [pt-v2-planner-hardening]
+    paths:
+      - 'maintenance/android-v0.6.32/**'
+      - '.github/workflows/openroad-v0632-candidate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m unittest maintenance.android_v0632_tests -v
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Patch normal production source
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -q OpenRoad-v0.6.31-source.zip -d extracted
+          project="$(find extracted -mindepth 1 -maxdepth 1 -type d | head -1)"
+          python3 maintenance/android-v0.6.32/patch.py "$project"
+          node --check "$project/app/src/main/assets/app.js"
+          bash "$project/validate.sh"
+          node maintenance/android-v0.6.32/pt-ui-test.cjs "$project/app/src/main/assets/app.js"
+          echo "PROJECT=$project" >> "$GITHUB_ENV"
+      - name: Install Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          manager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$manager"
+          yes | "$manager" --licenses > /dev/null || true
+          "$manager" --install 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Compile normal app
+        run: cd "$PROJECT" && gradle --no-daemon :app:assembleDebug
