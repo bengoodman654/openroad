@@ -36,6 +36,7 @@ class AndroidStageTests(unittest.TestCase):
                 self.assertIn("ptV2Research",transit)
                 self.assertIn("ACTIVE_V2.getAndSet(null)",transit)
                 self.assertIn("routeWorkCancelled(generation)",transit)
+                self.assertIn("PT v2 research does not yet support added stops.",transit)
         self.assertEqual(baseline.stat().st_size,size)
 
     def test_unexpected_source_rejected(self):

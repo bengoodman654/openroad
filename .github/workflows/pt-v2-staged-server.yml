@@ -15,6 +15,7 @@ on:
       - 'pilot/php_v2_process_test.php'
       - 'pilot/php_v2_cancellation.php'
       - 'pilot/php_v2_device_adapter.php'
+      - 'pilot/pt_v2_android_java_patch.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -41,6 +42,11 @@ jobs:
           python3 -m pilot.stage_pt_v2_server --output "$RUNNER_TEMP/pt-v2-server-source.zip"
           unzip -q "$RUNNER_TEMP/pt-v2-server-source.zip" -d "$RUNNER_TEMP/staged"
           find "$RUNNER_TEMP/staged" -name '*.php' -print0 | xargs -0 -n1 php -l
+          echo "Running existing v0.2.5 source regression tests under staged router"
+          for test_file in "$RUNNER_TEMP"/staged/*/tests/*_test.php; do
+            test -f "$test_file"
+            php -d memory_limit=128M "$test_file"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: OpenRoad-PT-v2-Server-RESEARCH-SOURCE

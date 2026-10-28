@@ -165,4 +165,24 @@ def patch_transit(java):
                 return;
             }'''
     java=java.replace(needle,insertion)
-    return java
+    # The legacy API supports routeWithStops, but the v2 pilot has not
+    # validated via-stop identity/transfer stitching. Reject rather than
+    # silently ignoring any intermediate stops.
+    split_at="    public static void routeWithStops("
+    if java.count(split_at)!=1:
+        raise ValueError("Ambiguous transit via-stop method")
+    start=java.index(split_at)
+    head,tail=java[:start],java[start:]
+    debug_entry='''if(BuildConfig.DEBUG && settings!=null &&
+               settings.optBoolean("ptV2Research",false)){
+                try{'''
+    if tail.count(debug_entry)!=1:
+        raise ValueError("Unexpected v2 via-stop research branch")
+    tail=tail.replace(debug_entry,'''if(BuildConfig.DEBUG && settings!=null &&
+               settings.optBoolean("ptV2Research",false)){
+                if(viaStops!=null && viaStops.length()>0){
+                    guarded.onError("PT v2 research does not yet support added stops.");
+                    return;
+                }
+                try{''',1)
+    return head+tail
