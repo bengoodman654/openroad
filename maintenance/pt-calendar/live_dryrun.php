@@ -5,7 +5,11 @@ require_once $argv[1].'/lib/bootstrap.php';
 require_once $argv[2];
 try {
     $db=openroad_db();
-    $db->exec('SET SESSION max_statement_time=3');
+    try{$db->exec('SET SESSION max_statement_time=3');}
+    catch(Throwable $dbLimitUnsupported){
+        try{$db->exec('SET SESSION max_execution_time=3000');}
+        catch(Throwable $dbLimitUnavailable){}
+    }
     $plan=or_calendar_plan($db,'south_west',
         $argv[1].'/cache/south_west_gtfs.zip',
         new DateTimeImmutable('today'),45);

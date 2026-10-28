@@ -10,7 +10,11 @@ $lock=fopen($cache.'/update.lock','c+');
 if(!$lock||!flock($lock,LOCK_EX|LOCK_NB)){fwrite(STDERR,"Calendar lock unavailable\n");exit(3);}
 try{
     $db=openroad_db();
-    $db->exec('SET SESSION max_statement_time=3');
+    try{$db->exec('SET SESSION max_statement_time=3');}
+    catch(Throwable $dbLimitUnsupported){
+        try{$db->exec('SET SESSION max_execution_time=3000');}
+        catch(Throwable $dbLimitUnavailable){}
+    }
     $today=new DateTimeImmutable('today');
     $source=$cache.'/'.$region.'_gtfs.zip';
     $plan=or_calendar_plan($db,$region,$source,$today,45);
