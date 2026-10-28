@@ -48,7 +48,7 @@ foreach([
     ['T1','A',1,400], ['T1','C',2,850],
     ['T2','C',1,1200], ['T2','B',2,1900],
     ['Z','A',1,300], ['Z','B',2,700]
-] as $r)$times->execute([$ds,$r[0],$r[1],$now+$r[3],$now+$r[3]]);
+] as $r)$times->execute([$ds,$r[0],$r[1],$r[2],$now+$r[3],$now+$r[3]]);
 $origin=['A'=>['stop_id'=>'A','distance'=>2.0]];
 $dest=['B'=>['stop_id'=>'B','distance'=>2.0]];
 $direct=or_direct_candidates($db,$ds,$origin,$dest,$now,7200);
