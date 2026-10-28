@@ -98,6 +98,10 @@ function or_calendar_plan(PDO $db,string $region,string $zipPath,
     if($zip->open($zipPath)!==true)throw new RuntimeException('GTFS cache ZIP unreadable');
     try {$rows=or_calendar_expand($zip,$allowed,$next->format('Y-m-d'),$end->format('Y-m-d'));}
     finally{$zip->close();}
+    if(!$rows && $next >= $end->modify('-3 days'))
+        return ['outcome'=>'CURRENT','dataset'=>$ds,'last'=>$last,
+                'daysRemaining'=>$daysRemaining,'rows'=>[]];
+    if(!$rows)throw new RuntimeException('No eligible GTFS services in calendar extension');
     return ['outcome'=>'EXTEND','dataset'=>$ds,'region'=>$region,
             'oldLast'=>$last,'newLast'=>$end->format('Y-m-d'),
             'rows'=>$rows,'daysRemaining'=>$daysRemaining];
