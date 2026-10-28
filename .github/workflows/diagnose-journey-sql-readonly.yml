@@ -34,6 +34,10 @@ jobs:
           set -euo pipefail
           private_dir="$1"
           test -f "$private_dir/lib/bootstrap.php"
+          printf 'LIVE_SOURCE_HASHES_BEGIN\n'
+          sha256sum "$private_dir/lib/router.php"
+          printf 'LIVE_SOURCE_HASHES_END\n'
+
           php -d display_errors=stderr -r '
             require $argv[1];
             $db=openroad_db();
@@ -60,6 +64,20 @@ jobs:
               }
               foreach($indices as $k=>$columns){ksort($columns);echo "INDEX ".$table.".".$k."(".implode(",",$columns).")\n";}
             }
+            // Only indexed calendar lookups, no stop-time scans.
+            $q=$db->query("SELECT dataset_id FROM or_regions WHERE region_key='south_west' LIMIT 1");
+            $ds=(int)($q->fetchColumn()?:0);
+            echo "SOUTH_WEST_CALENDAR_BEGIN\n";
+            if($ds>0){
+              $q=$db->prepare("SELECT MIN(service_date) earliest,MAX(service_date) latest FROM or_service_dates WHERE dataset_id=?");
+              $q->execute([$ds]);$r=$q->fetch();
+              echo "SERVICE_WINDOW earliest=".($r["earliest"]??"none")." latest=".($r["latest"]??"none")."\n";
+              $q=$db->prepare("SELECT COUNT(*) total FROM or_service_dates WHERE dataset_id=? AND service_date=CURDATE()");
+              $q->execute([$ds]);echo "ACTIVE_SERVICE_IDS_TODAY ".(int)$q->fetchColumn()."\n";
+              $q=$db->prepare("SELECT COUNT(*) total FROM or_service_dates WHERE dataset_id=? AND service_date=DATE_ADD(CURDATE(),INTERVAL 1 DAY)");
+              $q->execute([$ds]);echo "ACTIVE_SERVICE_IDS_TOMORROW ".(int)$q->fetchColumn()."\n";
+            }
+            echo "SOUTH_WEST_CALENDAR_END\n";
             echo "READ_ONLY_DIAG_COMPLETE\n";
           ' "$private_dir/lib/bootstrap.php"
           REMOTE
