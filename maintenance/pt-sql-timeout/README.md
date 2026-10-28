@@ -28,3 +28,34 @@ Important: the server dataset calendar expires 9 November 2026. Separately
 schedule a resource-controlled new GTFS import without overloading this
 shared hosting account. Do not automatically import multi-million-row
 GTFS feeds as part of this hotfix.
+
+
+## Live deployment and post-deployment evidence (28 October 2026)
+
+**The one-file router change is deployed.** The production deployment workflow
+verified the original live router's checksum matched the audited v0.2.5
+source, then made an atomic PHP swap after backing up the original.
+Post-deployment checksum, PHP syntax and function-presence checks succeeded:
+https://github.com/bengoodman654/openroad/actions/runs/40715537078
+
+A separate read-only PHP smoke check against the current real South West
+dataset proved that a known scheduled direct trip selected from the database
+can be recovered by the new optimized candidate query; total duration was
+approximately **80 ms** with a deliberately restrictive SQL timeout.
+https://github.com/bengoodman654/openroad/actions/runs/40716414914
+
+**Remaining route availability gap:** A representative South Bristol–Clifton
+coordinate pair returned no direct candidate and no same-stop transfer
+candidate despite more than 120 valid scheduled arrivals near Clifton
+during the selected five-hour window. This does NOT establish there is no
+public-transport journey. The legacy v1 engine cannot join two bus services
+that require a walk between different stop IDs (and has not verified safe
+pedestrian transfer connectivity). The v2 stop-side/pedestrian connector
+work remains incomplete and intentionally unshipped.
+
+No schema/import/GTFS jobs were run on the live JustHostMe shared host.
+The app stays at **0.6.32**; the change is on its server only.
+The user should re-run their actual South Bristol–Clifton journey and
+report whether they receive an itinerary, a no-route outcome, or SQLSTATE
+again. Exact selected endpoints may materially differ from the representative
+fixed-coordinate smoke test.
