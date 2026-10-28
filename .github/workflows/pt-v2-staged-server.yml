@@ -37,6 +37,7 @@ jobs:
           php -l pilot/php_v2_endpoint.php
       - name: Validate staging does not modify existing server code
         run: python3 -m unittest pilot.test_stage_server -v
+      # Regression tests below use only the separate research staging ZIP.
       - name: Produce review-only server ZIP
         run: |
           python3 -m pilot.stage_pt_v2_server --output "$RUNNER_TEMP/pt-v2-server-source.zip"
