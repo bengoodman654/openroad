@@ -1,0 +1,60 @@
+name: OpenRoad PT v2 source structure inspection (off-host, read only)
+on:
+  push:
+    branches: [pt-v2-planner-hardening]
+    paths:
+      - '.github/workflows/pt-v2-source-inspection.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inventory:
+    if: contains(github.event.head_commit.message, '[pt-inspect]') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect archive paths and method IDENTIFIERS only
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from zipfile import ZipFile
+          import re
+          targets = [
+              'OpenRoad-v0.6.31-source.zip',
+              'OpenRoad-Transport-Server-v0.2.5-source.zip',
+          ]
+          interesting = re.compile(
+              r'(app\.js|ApiClient\.java|TransitClient\.java|journeys\.php|'
+              r'router\.php|bootstrap\.php|index\.html|app\/build\.gradle)$')
+          for archive in targets:
+              with ZipFile(archive) as z:
+                  all_names = z.namelist()
+                  print('ARCHIVE', archive, 'FILES', len(all_names))
+                  names = [n for n in all_names if interesting.search(n)]
+                  print('MATCHED_PATHS', *names[:35], sep='\n  ')
+                  for path in names:
+                      if not path.endswith(('.js', '.php', '.java')):
+                          continue
+                      data = z.read(path)
+                      if len(data) > 2500000:
+                          continue
+                      source = data.decode('utf-8', errors='replace')
+                      print('SOURCE_IDENTIFIERS', path, 'SIZE', len(data))
+                      identifiers = set()
+                      for line in source.splitlines():
+                          for pattern in (
+                              r'\b(?:async\s+)?function\s+([A-Za-z_]\w*)\s*\(',
+                              r'\bfunction\s+([A-Za-z_]\w*)\s*\(',
+                              r'\b(?:public|private|protected)\s+(?:static\s+)?'
+                              r'(?:(?:final|synchronized)\s+)*'
+                              r'(?:[A-Za-z_][\w<>\[\], ?]*\s+)?([A-Za-z_]\w*)\s*\(',
+                          ):
+                              for match in re.finditer(pattern, line):
+                                  identifiers.add(match.group(1))
+                      filtered = [i for i in sorted(identifiers)
+                                  if re.search(r'transit|journey|route|search|cancel|'
+                                               r'guidance|stop|fetch|api|bus|plan|'
+                                               r'back|where|session', i, re.I)]
+                      print('METHOD_NAMES', ', '.join(filtered[:100]))
+          PY
