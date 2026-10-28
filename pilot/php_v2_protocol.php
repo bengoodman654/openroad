@@ -13,9 +13,13 @@ require_once __DIR__.'/php_v2_route_worker.php';
  */
 function ptv2_canonical_query($input): array {
     if(!is_array($input))throw new InvalidArgumentException('Missing route query');
+    if(array_diff(array_keys($input),['from','to','settings']))
+        throw new InvalidArgumentException('Unexpected route fields');
     foreach(['from','to'] as $point){
         if(!is_array($input[$point]??null))
             throw new InvalidArgumentException('Missing route endpoint');
+        if(array_diff(array_keys($input[$point]),['lat','lon']))
+            throw new InvalidArgumentException('Unexpected coordinate fields');
     }
     $coords=[];
     foreach(['from','to'] as $point){

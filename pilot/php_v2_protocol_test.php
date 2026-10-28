@@ -65,10 +65,12 @@ try{
     $bad=$request('route',$deviceA,['taskTicket'=>$tok2,'query'=>$mismatch]);
     verify_pt($bad['reasonCode']==='QUERY_MISMATCH'&&$calls===$used,
               'tampered coordinates cannot run any planner work');
-    $bad=$request('route',$deviceA,['taskTicket'=>$tok2,
-                                    'query'=>$query+['unexpected'=>'unused']]);
-    verify_pt($bad['outcome']==='OK'||$bad['outcome']==='INPUT_INVALID',
-              'unrecognised unrelated body properties do not replace query data');
+    rejected_pt(fn()=>ptv2_canonical_query($query+['via'=>[['lat'=>51.4,'lon'=>-2.5]]]),
+                 'unsupported via stops fail closed rather than being ignored');
+    rejected_pt(fn()=>ptv2_canonical_query(
+        ['from'=>$query['from']+['accuracy'=>false],
+         'to'=>$query['to']]),
+        'unsupported endpoint metadata cannot silently change route semantics');
     // A new third token, because the prior one may now have been consumed.
     $pending=$request('issue',$deviceA,
                   ['query'=>$query,'sessionId'=>'fresh-session','generation'=>3]);
