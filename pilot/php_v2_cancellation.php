@@ -33,12 +33,15 @@ final class OpenRoadV2ResearchCancellation {
 
     public function issue(string $principal, string $sessionId,
                           int $generation, string $snapshotId, int $now,
-                          int $ttlSeconds = 60, ?string $taskId = null): string {
+                          int $ttlSeconds = 60, ?string $taskId = null,
+                          ?string $requestHash = null): string {
         if (!preg_match('/^[A-Za-z0-9_-]{1,128}$/D', $principal) ||
             !preg_match('/^[A-Za-z0-9_-]{1,128}$/D', $sessionId) ||
             !preg_match('/^[A-Za-z0-9_:.-]{1,128}$/D', $snapshotId) ||
             ($taskId !== null &&
              !preg_match('/^[A-Za-z0-9_-]{1,128}$/D', $taskId)) ||
+            ($requestHash !== null &&
+             !preg_match('/^[a-f0-9]{64}$/D', $requestHash)) ||
             $generation < 0 || $generation > 2147483647 ||
             $ttlSeconds < 1 || $ttlSeconds > 180) {
             throw new InvalidArgumentException('Invalid ticket properties');
@@ -48,6 +51,7 @@ final class OpenRoadV2ResearchCancellation {
             'task' => $taskId ?? bin2hex(random_bytes(16)),
             'generation' => $generation, 'snapshot' => $snapshotId,
             'iat' => $now, 'exp' => $now + $ttlSeconds,
+            'queryHash' => $requestHash,
         ];
         $body = self::b64(json_encode($fields, JSON_THROW_ON_ERROR));
         return $body . '.' . self::b64(
@@ -75,6 +79,10 @@ final class OpenRoadV2ResearchCancellation {
             !is_string($value['snapshot']) ||
             !is_int($value['generation']) || !is_int($value['iat']) ||
             !is_int($value['exp']) || $value['generation'] < 0 ||
+            (array_key_exists('queryHash',$value) &&
+              $value['queryHash'] !== null &&
+              (!is_string($value['queryHash']) ||
+               !preg_match('/^[a-f0-9]{64}$/D',$value['queryHash']))) ||
             $value['exp'] <= $value['iat'] ||
             $value['exp'] - $value['iat'] > 180) {
             throw new RuntimeException('Task ownership or lease invalid');
@@ -222,6 +230,28 @@ final class OpenRoadV2ResearchCancellation {
             $r = self::currentRecord($state, $t);
             return $now >= $t['exp'] || $r === null ||
                    $r['status'] !== 'RUNNING';
+        }, false);
+    }
+
+    /** Signed ticket claims, never accepted from the request body directly. */
+    public function verifiedClaims(string $token, string $principal): array {
+        $t = $this->inspect($token, $principal);
+        return [
+            'deviceId' => $t['principal'],
+            'sessionId' => $t['session'],
+            'taskId' => $t['task'],
+            'generation' => $t['generation'],
+            'snapshotId' => $t['snapshot'],
+            'queryHash' => $t['queryHash'] ?? null,
+            'expiresAt' => $t['exp'],
+        ];
+    }
+
+    public function status(string $token, string $principal, int $now): string {
+        $t = $this->inspect($token, $principal);
+        return $this->transaction($now, static function(&$state) use($t) {
+            $r = self::currentRecord($state,$t);
+            return $r===null ? 'UNKNOWN' : $r['status'];
         }, false);
     }
 

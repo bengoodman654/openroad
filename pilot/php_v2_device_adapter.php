@@ -21,7 +21,8 @@ function ptv2_authenticated_device(array $auth): string {
 /** $snapshot MUST be selected by the server capability manifest. */
 function ptv2_issue_for_device(
     OpenRoadV2ResearchCancellation $registry, array $auth,
-    array $request, string $serverPinnedSnapshot, int $now
+    array $request, string $serverPinnedSnapshot, int $now,
+    ?string $requestHash = null
 ): array {
     $principal = ptv2_authenticated_device($auth);
     $session = $request['sessionId'] ?? null;
@@ -32,7 +33,8 @@ function ptv2_issue_for_device(
         throw new InvalidArgumentException('Invalid request lifecycle input');
     }
     $token = $registry->issue(
-        $principal, $session, $generation, $serverPinnedSnapshot, $now);
+        $principal, $session, $generation, $serverPinnedSnapshot, $now,
+        60, null, $requestHash);
     // No route is admitted by simply issuing a ticket.
     return ['taskTicket' => $token, 'status' => 'ISSUED_ONLY',
             'researchOnly' => true];
