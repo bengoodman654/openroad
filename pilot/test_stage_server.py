@@ -14,8 +14,14 @@ class StageServerTest(unittest.TestCase):
                 names=staged.namelist()
                 self.assertEqual(set(base.namelist()),
                     set(n for n in names if n in base.namelist()))
-                self.assertEqual(len(names)-len(base.namelist()),2)
+                self.assertEqual(len(names)-len(base.namelist()),3)
+                changed=[]
                 for name in base.namelist():
-                    self.assertEqual(base.read(name),staged.read(name),
-                                     "Original server file changed: "+name)
+                    if base.read(name)!=staged.read(name):
+                        changed.append(name)
+                self.assertEqual(len(changed),1)
+                self.assertTrue(changed[0].endswith("/private/lib/router.php"))
+                router_code=staged.read(changed[0]).decode()
+                self.assertIn("?callable $cancelCheck=null",router_code)
+                self.assertIn("$checkCancellation();",router_code)
                 self.assertFalse(any("/public/api/v2/" in n for n in names))

@@ -18,10 +18,14 @@ jobs:
           php -l pilot/php_v2_device_adapter.php
           php -d memory_limit=64M pilot/php_v2_cancellation_test.php
           php -d memory_limit=64M pilot/php_v2_device_adapter_test.php
+          php -d memory_limit=64M pilot/php_v2_route_worker_test.php
       - name: Validate staging does not modify existing server code
         run: python3 -m unittest pilot.test_stage_server -v
       - name: Produce review-only server ZIP
-        run: python3 -m pilot.stage_pt_v2_server --output "$RUNNER_TEMP/pt-v2-server-source.zip"
+        run: |
+          python3 -m pilot.stage_pt_v2_server --output "$RUNNER_TEMP/pt-v2-server-source.zip"
+          unzip -q "$RUNNER_TEMP/pt-v2-server-source.zip" -d "$RUNNER_TEMP/staged"
+          find "$RUNNER_TEMP/staged" -name '*.php' -print0 | xargs -0 -n1 php -l
       - uses: actions/upload-artifact@v4
         with:
           name: OpenRoad-PT-v2-Server-RESEARCH-SOURCE
