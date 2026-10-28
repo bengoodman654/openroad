@@ -171,6 +171,15 @@ jobs:
                     $lastSeen=$m[1];
               }
               if(isset($lastSeen))echo "IMPORT_LOG last_timestamp=".$lastSeen."\n";
+              foreach(array_slice(preg_split("/\r?\n/",$tail),-8) as $line){
+                $line=trim($line);
+                if($line==="")continue;
+                $line=preg_replace("/https?:\/\/[^\s]+/i","[URL]",$line);
+                $line=preg_replace("~\/home\/[^\s]+~i","[PRIVATE_PATH]",$line);
+                $line=preg_replace("/(?i)(password|api[_-]?key|token|secret)\s*[:=]\s*\S+/","[REDACTED]",$line);
+                $line=preg_replace("/[A-Za-z0-9_\-]{45,}/","[LONG_TOKEN]",$line);
+                echo "IMPORT_LOG_TAIL ".substr($line,0,180)."\n";
+              }
             }
           '
           # Lightweight archive metadata, no decompression of large GTFS
