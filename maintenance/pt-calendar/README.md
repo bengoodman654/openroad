@@ -41,16 +41,21 @@ https://github.com/bengoodman654/openroad/actions/runs/40772869060
 
 ## Actual installation state
 
-**NOT INSTALLED**. The automated production deployment request was blocked.
-Do not infer that or_service_dates has been extended from CI success.
-The existing application v0.6.32 and server router v0.2.9 remain usable
-for existing calendar dates. The daily read-only freshness guard on main
-still monitors expiry.
+**INSTALLED AND APPLIED 29 OCTOBER 2026.** The user uploaded both
+private PHP files. Their SHA-256 checksums and dry-run were verified
+against this repository; the existing transactionally locked CLI tool
+then inserted 5,843 calendar service-date rows, extending the South West
+dataset to **13 December 2026**. The same runner afterwards returned
+CALENDAR_CURRENT with 45 days left.
 
-The one remaining maintenance action is a controlled, authorized
-deployment of just the two new CLI maintenance files and their
-transactional calendar extension. That action requires an approved
-deployment path; do not bypass production safeguards.
+Successful verified deployment and write:
+https://github.com/bengoodman654/openroad/actions/runs/40851226660
+Independent daily guard verified dataset last=2026-12-13 and
+the private files present:
+https://github.com/bengoodman654/openroad/actions/runs/40851406826
+
+The route planner is still server v0.2.9 and Android v0.6.32. No
+bulk import of trips or stop times was run.
 
 Once approved, the old nonworking nightly bulk importer must be
 replaced by a low-impact calendar schedule and a separately tested
