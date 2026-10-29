@@ -10,7 +10,7 @@ function or_rail_index(string $root):array{
     if(filesize($root.'/stations.json')>800000||filesize($root.'/manifest.json')>10000)throw new RuntimeException('Invalid rail index');
     $meta=json_decode((string)file_get_contents($root.'/manifest.json'),true);
     $stations=json_decode((string)file_get_contents($root.'/stations.json'),true);
-    if(!is_array($meta)||($meta['version']??null)!==1||!is_array($stations)||count($stations)<1000)throw new RuntimeException('Invalid rail timetable');
+    if(!is_array($meta)||($meta['version']??null)!==2||!is_array($stations)||count($stations)<1000||!is_file($root.'/events.sqlite'))throw new RuntimeException('Invalid rail timetable');
     $day=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d');
     if(($meta['from']??'~')>$day||($meta['through']??'')<$day)throw new RuntimeException('Rail timetable expired');
     return [$meta,$stations];
@@ -27,36 +27,25 @@ function or_rail_near(array $stations,float $lat,float $lon,int $limit):array{
     usort($near,static fn($a,$b)=>$a['walk']<=>$b['walk']);
     return array_slice($near,0,$limit);
 }
-function or_rail_shard(string $root,string $day,string $letter):array{
-    // PHP arrays grow far larger than gzip files. Keep at most three
-    // recently used shards on a small shared-hosting PHP process.
-    static $cache=[];
-    $id=$root.'/'.$day.'/'.$letter;
-    if(array_key_exists($id,$cache)){
-        $value=$cache[$id];unset($cache[$id]);$cache[$id]=$value;
-        return $value;
-    }
-    if(count($cache)>=3)array_shift($cache);
-    $file=$root.'/d/'.$day.'/'.$letter.'.json.gz';
-    if(!is_file($file)||filesize($file)>2500000)return $cache[$id]=[];
-    $bytes=@gzdecode((string)file_get_contents($file),8000001);
-    if(!is_string($bytes)||strlen($bytes)>8000000)return $cache[$id]=[];
-    $decoded=json_decode($bytes,true,32);
-    return $cache[$id]=is_array($decoded)?$decoded:[];
-}
 function or_rail_departures(string $root,string $code,int $start,int $end):array{
-    $dates=[];
-    $base=(new DateTimeImmutable('@'.$start))->setTimezone(new DateTimeZone('Europe/London'));
-    foreach([-1,0,1,2] as $n)$dates[]=$base->modify(($n>=0?'+':'').$n.' days')->format('Ymd');
-    $out=[];
-    foreach(array_unique($dates) as $day){
-        $shard=or_rail_shard($root,$day,$code[0]);
-        foreach($shard[$code]??[] as $r){
-            if(is_array($r)&&count($r)>=6&&(int)$r[0]>=$start&&(int)$r[0]<=$end&&(int)$r[1]>(int)$r[0])$out[]=$r;
-        }
+    static $conn=null,$query=null,$rootPath='';
+    if($rootPath!==$root){
+        $file=$root.'/events.sqlite';
+        if(!is_file($file)||filesize($file)>100000000)throw new RuntimeException('Invalid rail timetable file');
+        $conn=new PDO('sqlite:file:'.$file.'?mode=ro');
+        $conn->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
+        $conn->exec('PRAGMA query_only=ON');
+        $conn->exec('PRAGMA busy_timeout=150');
+        $query=$conn->prepare('SELECT dep,arr,d,trip,line FROM events WHERE o=? AND dep>=? AND dep<=? ORDER BY dep LIMIT 150');
+        $rootPath=$root;
     }
-    usort($out,static fn($a,$b)=>$a[0]<=>$b[0]);
-    return array_slice($out,0,150);
+    $query->execute([$code,$start,$end]);
+    $out=[];
+    while($row=$query->fetch(PDO::FETCH_NUM)){
+        $out[]=[(int)$row[0],(int)$row[1],(string)$row[2],(string)$row[3],(string)$row[4],''];
+    }
+    $query->closeCursor();
+    return $out;
 }
 function or_rail_format(array $edges,array $stations,float $a,float $b,float $c,float $d,int $now,int $walkIn,int $walkOut):array{
     $first=$edges[0];$last=$edges[count($edges)-1];
