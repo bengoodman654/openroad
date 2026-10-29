@@ -38,6 +38,12 @@ jobs:
                         "depart_sec=",depart,"outcome=",result["outcome"],
                         "routes=",len(result.get("results",[])),
                         "ms=",round(1000*(time.monotonic()-start)))
+                  if result.get("results"):
+                      first=result["results"][0]
+                      print("UNVERIFIED_WALK_LOWER_BOUNDS access_m=",
+                            first["accessWalkMetresLowerBound"],
+                            "egress_m=",first["egressWalkMetresLowerBound"],
+                            "available_on_road_geometry=",first["walkGeometryVerified"])
                   assert result["researchOnly"]
                   assert all(not x["selectable"] for x in result.get("results",[]))
           PY
