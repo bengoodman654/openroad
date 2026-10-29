@@ -1,0 +1,94 @@
+name: OpenRoad complete-release source baseline — Android and PHP
+on:
+  push:
+    branches: [release/openroad-completion]
+    paths:
+      - '.github/workflows/openroad-completion-baseline.yml'
+      - 'maintenance/completion/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Extract exact production 0.6.32 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -q OpenRoad-v0.6.32-source.zip -d "$RUNNER_TEMP/current-android"
+          app="$(find "$RUNNER_TEMP/current-android" -mindepth 1 -maxdepth 1 -type d | head -1)"
+          test -f "$app/app/build.gradle"
+          grep -q 'versionCode 92' "$app/app/build.gradle"
+          grep -q 'versionName "0.6.32"' "$app/app/build.gradle"
+          echo "PROJECT=$app" >> "$GITHUB_ENV"
+      - name: Validate real UI assets, routing mode and cancellation handlers
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check "$PROJECT/app/src/main/assets/app.js"
+          bash "$PROJECT/validate.sh"
+          node maintenance/android-v0.6.32/pt-ui-test.cjs "$PROJECT/app/src/main/assets/app.js"
+          python3 maintenance/completion/check_android_source.py "$PROJECT"
+      - name: Install Android SDK platform
+        shell: bash
+        run: |
+          set -euo pipefail
+          manager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$manager"
+          yes | "$manager" --licenses >/dev/null || true
+          "$manager" --install 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Compile unchanged current OpenRoad
+        run: cd "$PROJECT" && gradle --no-daemon :app:assembleDebug
+
+  server:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: only-for-ci-root
+          MARIADB_DATABASE: openroad_fixture
+          MARIADB_USER: openroad_test
+          MARIADB_PASSWORD: only-for-ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mariadb-admin ping -h 127.0.0.1 -u root -ponly-for-ci-root"
+          --health-interval=5s
+          --health-timeout=4s
+          --health-retries=15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PHP MySQL and prepare exact v0.2.9 router
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq php-mysql
+          unzip -q OpenRoad-Transport-Server-v0.2.5-source.zip -d "$RUNNER_TEMP/current-server"
+          server="$(find "$RUNNER_TEMP/current-server" -mindepth 1 -maxdepth 1 -type d | head -1)"
+          test -f "$server/private/lib/router.php"
+          python3 maintenance/pt-sql-timeout/patch_router.py "$server/private/lib/router.php"
+          python3 maintenance/pt-sql-timeout/patch_router_v029.py "$server/private/lib/router.php"
+          php -l "$server/private/lib/router.php"
+          php "$server/tests/router_test.php"
+          echo "PROJECT=$server" >> "$GITHUB_ENV"
+      - name: Verify cancellation interfaces and unchanged v1 public API
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 maintenance/completion/check_server_source.py "$PROJECT"
+      - name: Real SQL syntax on independent MariaDB fixtures
+        shell: bash
+        run: php -d memory_limit=128M maintenance/pt-sql-timeout/mariadb_test.php "$PROJECT"
