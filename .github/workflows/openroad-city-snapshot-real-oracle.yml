@@ -1,0 +1,80 @@
+name: OpenRoad real Bristol Coventry city connection-scan research
+on:
+  push:
+    branches: [release/openroad-completion]
+    paths: ['.github/workflows/openroad-city-snapshot-real-oracle.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  city:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    strategy:
+      fail-fast: false
+      matrix:
+        region: [south_west,west_midlands]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: 40866081561
+          name: OpenRoad-SQLite-${{ matrix.region }}-COMPACT-INDEX-RESEARCH-ONLY
+          path: ${{ runner.temp }}/index
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Bounded city-wide connection scan and scheduled stop-to-stop oracle
+        shell: bash
+        env:
+          REGION: ${{ matrix.region }}
+        run: |
+          set -euo pipefail
+          db="$(find "$RUNNER_TEMP/index" -name '*.sqlite' -type f | head -1)"
+          test -s "$db"
+          PYTHONPATH=. python3 - "$db" "$REGION" <<'PY'
+          import datetime as dt,sys,time
+          from pilot.journey_options import journey_options
+          from pilot.gtfs_engine import distance_m
+          from maintenance.gtfs_refresh.connection_snapshot import (
+            load_city_snapshot,CitySnapshotBudgetExceeded)
+          db,region=sys.argv[1:]
+          coords={"south_west":((51.438,-2.607),(51.459,-2.627)),
+                  "west_midlands":((52.4068,-1.5197),(52.420,-1.505))}
+          a,b=coords[region]
+          begin=time.monotonic()
+          try:
+            snapshot=load_city_snapshot(
+              db,region,("Bristol" if region=="south_west" else "Coventry"),
+              dt.date(2026,10,29),a,b,radius_m=2200,budget_s=22)
+          except CitySnapshotBudgetExceeded:
+            print("REGIONAL_CITY_ORACLE outcome=RESEARCH_LIMIT region="+region)
+            raise
+          print("REGIONAL_CITY_SOURCE region=",region,
+                "stops=",len(snapshot.stops),
+                "trips=",len(snapshot.trips),
+                "connections=",len(snapshot.connections),
+                "invalid_times=",snapshot.invalid_time_rows,
+                "load_ms=",round((time.monotonic()-begin)*1000))
+          nearest=lambda target:sorted(
+            snapshot.stops,key=lambda sid:(distance_m(
+                (snapshot.stops[sid].lat,snapshot.stops[sid].lon),
+                target),sid))[:4]
+          starts,ends=nearest(a),nearest(b)
+          print("REGIONAL_CITY_CANDIDATES region=",region,
+                "origin_count=",len(starts),"destination_count=",len(ends))
+          results=[]
+          for first in starts:
+            for last in ends:
+              if first==last:continue
+              route=journey_options(snapshot,first,last,17*3600+45*60,
+                                   max_transfers=2,max_horizon_sec=7200,
+                                   max_labels=50000)
+              if route["outcome"]=="OK":
+                results.append((route["results"][0]["arrival"],
+                                route["results"][0]["transfers"]))
+          print("REGIONAL_CITY_ORACLE region=",region,
+                "stop_pair_options=",len(results),
+                "fastest_stop_to_stop=",(min(results) if results else "none"),
+                "eligible_for_navigation=False")
+          print("REGIONAL_CITY_TOTAL_MS",round((time.monotonic()-begin)*1000))
+          PY
