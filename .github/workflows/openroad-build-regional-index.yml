@@ -1,0 +1,94 @@
+name: OpenRoad regional bus SQLite integration — off-host data build
+on:
+  push:
+    branches: [release/openroad-completion]
+    paths: ['.github/workflows/openroad-build-regional-index.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        region: [south_west, west_midlands]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download a fresh, official source on the runner only
+        shell: bash
+        env:
+          REGION: ${{ matrix.region }}
+        run: |
+          set -euo pipefail
+          url="https://data.bus-data.dft.gov.uk/timetable/download/gtfs-file/$REGION/"
+          curl --fail --location --show-error --silent \
+               --proto '=https' --proto-redir '=https' \
+               --connect-timeout 20 --max-time 540 --retry 1 \
+               --max-filesize 734003200 \
+               --output "$RUNNER_TEMP/region.zip" "$url"
+          python3 maintenance/gtfs_refresh/validate_gtfs.py \
+            "$RUNNER_TEMP/region.zip" --region "$REGION" \
+            --output "$RUNNER_TEMP/validated-source.json"
+      - name: Build and verify all stop times off-host
+        shell: bash
+        env:
+          REGION: ${{ matrix.region }}
+        run: |
+          set -euo pipefail
+          python3 maintenance/gtfs_refresh/build_sqlite.py "$RUNNER_TEMP/region.zip" \
+            --region "$REGION" --output "$RUNNER_TEMP/$REGION.sqlite" \
+            --report "$RUNNER_TEMP/$REGION-index-metadata.json"
+          python3 - "$RUNNER_TEMP/$REGION.sqlite" <<'PY'
+          import json,sqlite3,sys
+          db=sqlite3.connect(f"file:{sys.argv[1]}?mode=ro",uri=True)
+          assert db.execute("PRAGMA quick_check").fetchone()[0]=="ok"
+          rows={name:db.execute("SELECT count(*) FROM "+name).fetchone()[0]
+                for name in ("stops","routes","trips","stop_times","service_days")}
+          assert rows["stop_times"]>50000 and rows["service_days"]>100
+          print("INDEX_OK",json.dumps(rows,sort_keys=True))
+          db.close()
+          PY
+          python3 - "$RUNNER_TEMP/$REGION.sqlite" "$REGION" <<'PY'
+          import datetime as dt,sys,json
+          from maintenance.gtfs_refresh.query_sqlite import timetable_query
+          pos={"south_west":((51.438,-2.607),(51.459,-2.627)),
+               "west_midlands":((52.4068,-1.5197),(52.420,-1.505))}
+          a,b=pos[sys.argv[2]]
+          result=timetable_query(sys.argv[1],sys.argv[2],a,b,
+                dt.date.today(),9*3600,budget_secs=6)
+          assert result["researchOnly"] is True
+          assert all(not r["selectable"] and not r["walkGeometryVerified"]
+                     for r in result.get("results",[]))
+          print("RESEARCH_ORACLE",sys.argv[2],result["outcome"],
+                "choices",len(result.get("results",[])))
+          PY
+      - name: Keep only bounded sized index artifact and metadata
+        id: artifact
+        env:
+          REGION: ${{ matrix.region }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          db="$RUNNER_TEMP/$REGION.sqlite"
+          size="$(stat -c '%s' "$db")"
+          echo "SQLITE_INDEX size_bytes=$size"
+          if (( size > 0 && size < 1000000000 )); then
+            echo "ok=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=no" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenRoad-SQLite-${{ matrix.region }}-RESEARCH-ONLY
+          path: |
+            ${{ runner.temp }}/${{ matrix.region }}-index-metadata.json
+          retention-days: 2
+      - uses: actions/upload-artifact@v4
+        if: steps.artifact.outputs.ok == 'yes'
+        with:
+          name: OpenRoad-SQLite-${{ matrix.region }}-INDEX-RESEARCH-ONLY
+          path: ${{ runner.temp }}/${{ matrix.region }}.sqlite
+          compression-level: 0
+          retention-days: 1
