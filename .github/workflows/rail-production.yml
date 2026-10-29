@@ -111,13 +111,14 @@ jobs:
           mkdir -p -m 0700 "$HOME/$1"
           echo RAIL_STAGE_DIRECTORY_READY
           REMOTE
-          # Shards are already gzip-compressed. Avoid a second gzip CPU spike on shared hosting.
-          tar -cf /tmp/rail-index.tar -C /tmp rail-index
-          echo "RAIL_UPLOAD_BEGIN archive_kib=$(du -k /tmp/rail-index.tar | cut -f1)"
-          scp -O -o ServerAliveInterval=5 -o ServerAliveCountMax=3 /tmp/rail-index.tar maintenance/rail/rail_planner.php maintenance/rail/rail_journeys.php \
+          # Upload the precompressed per-station shard files individually. The
+          # shared host killed tar extraction processes during earlier attempts;
+          # copying 137 small files avoids all decompression CPU on cPanel.
+          echo "RAIL_UPLOAD_BEGIN index_kib=$(du -sk /tmp/rail-index | cut -f1)"
+          scp -O -r -o ServerAliveInterval=5 -o ServerAliveCountMax=3 /tmp/rail-index maintenance/rail/rail_planner.php maintenance/rail/rail_journeys.php \
             maintenance/rail/test_real_smoke.php "rail-production:$stage/"
           echo RAIL_UPLOAD_COMPLETE
-          indexsum="$(sha256sum /tmp/rail-index.tar | cut -d' ' -f1)"
+          indexsum="$(cd /tmp/rail-index && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)"
           plannersum="$(sha256sum maintenance/rail/rail_planner.php | cut -d' ' -f1)"
           endpointsum="$(sha256sum maintenance/rail/rail_journeys.php | cut -d' ' -f1)"
           ssh rail-production bash -s -- \
@@ -128,20 +129,20 @@ jobs:
           stage="$HOME/openroad-rail-stage-$rid"
           echo RAIL_REMOTE_CHECK_BEGIN
           test -f "$priv/lib/auth.php" && test -f "$pub/api/v1/journeys.php"
-          test "$(sha256sum "$stage/rail-index.tar" | cut -d' ' -f1)" = "$idxhash"
+          test -f "$stage/rail-index/manifest.json"
+          test "$(cd "$stage/rail-index" && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)" = "$idxhash"
           test "$(sha256sum "$stage/rail_planner.php" | cut -d' ' -f1)" = "$phash"
           test "$(sha256sum "$stage/rail_journeys.php" | cut -d' ' -f1)" = "$ehash"
           php -l "$stage/rail_planner.php" >/dev/null
           php -l "$stage/rail_journeys.php" >/dev/null
-          tar -tf "$stage/rail-index.tar" | awk '
-            $0 !~ /^rail-index(\/[a-zA-Z0-9_.\/-]*)?$/ || $0 ~ /\.\./ {bad=1}
-            END { exit bad }'
+          test "$(find "$stage/rail-index" -type f | wc -l)" -gt 100
           base="$priv/cache/rail-routing"
           dest="$base/versions/$rid"
           test ! -e "$dest"
           mkdir -p "$dest"
           echo RAIL_INDEX_EXTRACT_BEGIN
-          nice -n 15 tar -xf "$stage/rail-index.tar" -C "$dest"
+          # Directory rename on the same filesystem is atomic and negligible.
+          mv "$stage/rail-index" "$dest/rail-index"
           test -f "$dest/rail-index/manifest.json"
           size="$(du -sk "$dest" | cut -f1)"
           test "$size" -gt 0 && test "$size" -le 65000
