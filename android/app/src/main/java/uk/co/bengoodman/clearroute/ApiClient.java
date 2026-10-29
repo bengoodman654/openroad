@@ -114,6 +114,41 @@ public final class ApiClient {
         });
     }
 
+    /** Ordered intermediate stops survive every reroute, not just the first. */
+    public static String routeWithStopsSync(Context context, double originLat, double originLon,
+                                            JSONArray stops, double destLat, double destLon,
+                                            String mode, List<AvoidBox> avoidAreas) throws Exception {
+        if (stops == null || stops.length() == 0)
+            return routeSync(context, originLat, originLon, destLat, destLon, mode, avoidAreas);
+        if (stops.length() > 6) throw new IllegalArgumentException("Too many route stops");
+        if (stops.length() == 1) {
+            JSONObject item = stops.getJSONObject(0);
+            return routeViaSync(context, originLat, originLon,
+                    item.getDouble("lat"), item.getDouble("lon"), destLat, destLon, mode, avoidAreas);
+        }
+        if (!"drive".equals(mode))
+            throw new IllegalArgumentException("Multiple stops are currently supported for driving");
+        List<double[]> via = new java.util.ArrayList<>();
+        for (int i=0; i<stops.length(); i++) {
+            JSONObject item = stops.getJSONObject(i);
+            double lat=item.getDouble("lat"), lon=item.getDouble("lon");
+            if (!Double.isFinite(lat) || !Double.isFinite(lon) || Math.abs(lat)>90 || Math.abs(lon)>180)
+                throw new IllegalArgumentException("Invalid stop coordinate");
+            via.add(new double[]{lat,lon});
+        }
+        return requestTomTomRouteWithStopsInternal(context,originLat,originLon,via,
+                destLat,destLon,mode,true,0,avoidAreas);
+    }
+
+    public static void routeWithStops(Context context, double originLat, double originLon,
+                                      JSONArray stops, double destLat, double destLon,
+                                      String mode, Callback callback) {
+        EXECUTOR.execute(() -> {
+            try { callback.onSuccess(routeWithStopsSync(context,originLat,originLon,stops,destLat,destLon,mode,java.util.Collections.emptyList())); }
+            catch (Exception e) { callback.onError(e.getMessage()==null?"Could not calculate the stops":e.getMessage()); }
+        });
+    }
+
     public static String routeViaSync(Context context, double originLat, double originLon,
                                       double viaLat, double viaLon, double destLat, double destLon,
                                       String mode, List<AvoidBox> avoidAreas) throws Exception {
@@ -301,11 +336,21 @@ public final class ApiClient {
                                        Double viaLat, Double viaLon, double destLat, double destLon, String mode,
                                        boolean liveTraffic, int maxAlternatives,
                                        List<AvoidBox> avoidAreas) throws Exception {
+        List<double[]> via = new java.util.ArrayList<>();
+        if (viaLat != null && viaLon != null) via.add(new double[]{viaLat,viaLon});
+        return requestTomTomRouteWithStopsInternal(context, originLat, originLon, via,
+                destLat, destLon, mode, liveTraffic, maxAlternatives, avoidAreas);
+    }
+
+    private static String requestTomTomRouteWithStopsInternal(Context context, double originLat, double originLon,
+                                          List<double[]> via, double destLat, double destLon, String mode,
+                                          boolean liveTraffic, int maxAlternatives,
+                                          List<AvoidBox> avoidAreas) throws Exception {
         String key = requireKey(context);
         String travelMode = "cycle".equals(mode) ? "bicycle" : ("walk".equals(mode) ? "pedestrian" : "car");
         StringBuilder url = new StringBuilder("https://api.tomtom.com/routing/1/calculateRoute/")
                 .append(originLat).append(',').append(originLon).append(':');
-        if (viaLat != null && viaLon != null) url.append(viaLat).append(',').append(viaLon).append(':');
+        for(double[] point : via) url.append(point[0]).append(',').append(point[1]).append(':');
         url.append(destLat).append(',').append(destLon).append("/json")
                 .append("?key=").append(Uri.encode(key))
                 .append("&travelMode=").append(travelMode)
