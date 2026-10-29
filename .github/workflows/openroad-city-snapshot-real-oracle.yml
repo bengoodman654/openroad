@@ -2,7 +2,11 @@ name: OpenRoad real Bristol Coventry city connection-scan research
 on:
   push:
     branches: [release/openroad-completion]
-    paths: ['.github/workflows/openroad-city-snapshot-real-oracle.yml']
+    paths:
+      - '.github/workflows/openroad-city-snapshot-real-oracle.yml'
+      - 'maintenance/gtfs_refresh/connection_snapshot.py'
+      - 'maintenance/gtfs_refresh/coordinate_journeys.py'
+      - 'maintenance/gtfs_refresh/test_coordinate_journeys.py'
   workflow_dispatch:
 permissions:
   contents: read
