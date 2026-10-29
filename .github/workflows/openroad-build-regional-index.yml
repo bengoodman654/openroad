@@ -64,6 +64,35 @@ jobs:
           print("RESEARCH_ORACLE",sys.argv[2],result["outcome"],
                 "choices",len(result.get("results",[])))
           PY
+      - name: Compact IDs losslessly and cross-check query equivalence
+        shell: bash
+        env:
+          REGION: ${{ matrix.region }}
+        run: |
+          set -euo pipefail
+          python3 maintenance/gtfs_refresh/compact_sqlite.py \
+            "$RUNNER_TEMP/$REGION.sqlite" "$RUNNER_TEMP/$REGION-compact.sqlite"
+          python3 - "$RUNNER_TEMP/$REGION.sqlite" "$RUNNER_TEMP/$REGION-compact.sqlite" "$REGION" <<'PY'
+          import datetime as dt,json,sqlite3,sys
+          from maintenance.gtfs_refresh.query_sqlite import timetable_query
+          full,compact,region=sys.argv[1:]
+          with sqlite3.connect(compact) as db:
+              assert db.execute("PRAGMA quick_check").fetchone()[0]=="ok"
+              raw=db.execute("SELECT count(*) FROM calls").fetchone()[0]
+              verified=db.execute("SELECT count(*) FROM stop_times").fetchone()[0]
+              assert raw==verified and raw>50000
+          city={"south_west":((51.438,-2.607),(51.459,-2.627)),
+                "west_midlands":((52.4068,-1.5197),(52.42,-1.505))}
+          p,q=city[region]
+          args=(region,p,q,dt.date.today(),17*3600+45*60)
+          first=timetable_query(full,*args,budget_secs=8)
+          second=timetable_query(compact,*args,budget_secs=8)
+          assert first["outcome"]==second["outcome"]
+          assert first.get("results")==second.get("results")
+          assert all(not x["selectable"] for x in second.get("results",[]))
+          print("COMPACT_INDEX_ORACLE_PARITY",region,second["outcome"],
+                "choices",len(second.get("results",[])))
+          PY
       - name: Keep only bounded sized index artifact and metadata
         id: artifact
         env:
@@ -71,7 +100,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          db="$RUNNER_TEMP/$REGION.sqlite"
+          db="$RUNNER_TEMP/$REGION-compact.sqlite"
           size="$(stat -c '%s' "$db")"
           echo "SQLITE_INDEX size_bytes=$size"
           if (( size > 0 && size < 1000000000 )); then
