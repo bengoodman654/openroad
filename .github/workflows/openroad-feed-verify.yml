@@ -30,9 +30,9 @@ jobs:
       matrix:
         include:
           - region: south_west
-            path: sw
+            path: south_west
           - region: west_midlands
-            path: wm
+            path: west_midlands
     steps:
       - uses: actions/checkout@v4
       - name: Validate official regional source URL without touching JustHostMe
