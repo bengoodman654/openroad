@@ -409,11 +409,22 @@
 
         <div class="settings-page hidden" data-settings-page="updates">
           <div class="settings-page-header"><button class="settings-page-back" type="button" aria-label="Back to settings">‹</button><div><strong>App updates</strong></div></div>
-          <section class="settings-panel">
-            <div class="settings-section-title">GitHub Releases</div>
-            <div class="settings-info-row"><span class="settings-item-icon" aria-hidden="true">⇩</span><div class="settings-item-copy"><strong id="updateStatusTitle">OpenRoad 0.6.34</strong><small id="updateStatusDetail">The app checks once a day when opened. Updates are verified before installing.</small></div></div>
-            <div class="settings-item compact-setting-row"><button id="checkUpdatesBtn" type="button" class="settings-text-button">Check now</button><button id="installUpdateBtn" type="button" class="settings-text-button hidden">Install update</button></div>
-            <div class="settings-info-row"><div class="settings-item-copy"><small>Android will ask you to confirm installation. The first GitHub-signed version may require a one-off migration from your old Android Studio debug build.</small></div></div>
+          <section class="settings-panel update-panel">
+            <div class="update-version-card">
+              <span class="update-version-label">INSTALLED ON THIS PHONE</span>
+              <strong id="installedVersionLabel">OpenRoad —</strong>
+              <small>Current version</small>
+            </div>
+            <div class="update-version-card update-available-card" id="updateAvailableCard" aria-live="polite">
+              <span class="update-version-label">LATEST VERSION</span>
+              <strong id="updateStatusTitle">Not checked yet</strong>
+              <small id="updateStatusDetail">Check for a signed update from GitHub Releases.</small>
+            </div>
+            <div class="update-actions">
+              <button id="checkUpdatesBtn" type="button" class="settings-text-button">Check for updates</button>
+              <button id="installUpdateBtn" type="button" class="settings-text-button hidden">Install update</button>
+            </div>
+            <p class="update-footnote">Updates are verified before installation. Android asks you to confirm installation.</p>
           </section>
         </div>
 
