@@ -1,0 +1,43 @@
+name: OpenRoad Bristol transfer oracle against existing GTFS index
+on:
+  push:
+    branches: [release/openroad-completion]
+    paths: ['.github/workflows/openroad-index-regression-from-artifact.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  investigate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: 40866081561
+          name: OpenRoad-SQLite-south_west-COMPACT-INDEX-RESEARCH-ONLY
+          path: ${{ runner.temp }}/index
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Probe walking-stop cap against the identical indexed dataset
+        shell: bash
+        run: |
+          set -euo pipefail
+          db="$(find "$RUNNER_TEMP/index" -name '*.sqlite' -type f | head -1)"
+          test -s "$db"
+          PYTHONPATH=. python3 - "$db" <<'PY'
+          import datetime as dt,time,sys
+          from maintenance.gtfs_refresh.query_sqlite import timetable_query
+          for metres in [900,1200,1600,1800]:
+              for depart in [9*3600,17*3600+45*60]:
+                  start=time.monotonic()
+                  result=timetable_query(sys.argv[1],"south_west",
+                      (51.438,-2.607),(51.459,-2.627),
+                      dt.date(2026,10,29),depart,
+                      budget_secs=10,walk_cap_m=metres)
+                  print("BRISTOL_COVERAGE radius=",metres,
+                        "depart_sec=",depart,"outcome=",result["outcome"],
+                        "routes=",len(result.get("results",[])),
+                        "ms=",round(1000*(time.monotonic()-start)))
+                  assert result["researchOnly"]
+                  assert all(not x["selectable"] for x in result.get("results",[]))
+          PY
