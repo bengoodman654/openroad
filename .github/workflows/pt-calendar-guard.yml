@@ -41,6 +41,11 @@ jobs:
           private="$1"
           test -f "$private/lib/bootstrap.php"
           test -f "$private/bin/update_gtfs.php"
+          if test -f "$private/bin/extend_service_calendar.php" && test -f "$private/lib/calendar_extension.php"; then
+            echo "CALENDAR_EXTENSION installed=yes"
+          else
+            echo "CALENDAR_EXTENSION installed=no"
+          fi
           echo "CALENDAR_GUARD date=$(date -u +%F)"
           df -Pk "$private" | tail -1 | awk '{print "HOST_DISK available_KiB="$4" used_pct="$5}'
           cache_kib="$(du -sk "$private/cache" 2>/dev/null | awk '{print $1}' || true)"
