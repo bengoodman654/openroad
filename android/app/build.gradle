@@ -10,8 +10,8 @@ android {
         applicationId 'uk.co.bengoodman.clearroute'
         minSdk 26
         targetSdk 35
-        versionCode 94
-        versionName '0.6.34'
+        versionCode 95
+        versionName '0.6.35'
         // Personal build credentials are read from local.properties (git-ignored) rather than
         // committed to build.gradle. They are still embedded in a personal APK where required,
         // so provider-side restrictions remain important.
