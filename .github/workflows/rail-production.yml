@@ -1,0 +1,156 @@
+name: OpenRoad national rail daily production refresh
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/rail-production.yml']
+  schedule:
+    - cron: '37 4 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: openroad-production-rail
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify PHP and Python source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile maintenance/rail/build_rail_index.py
+          php -l maintenance/rail/rail_planner.php
+          php -l maintenance/rail/rail_journeys.php
+          php -l maintenance/rail/test_real_smoke.php
+      - name: Identify approved current GB rail GTFS release
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error --retry 2 --max-time 20 \
+            -H 'Accept: application/vnd.github+json' \
+            'https://api.github.com/repos/planarnetwork/gb-transit/releases/latest' > /tmp/rail-release.json
+          python3 - <<'PY'
+          import json,datetime as dt
+          d=json.load(open('/tmp/rail-release.json'))
+          published=dt.datetime.fromisoformat(d['published_at'].replace('Z','+00:00'))
+          if not (0 <= (dt.datetime.now(dt.timezone.utc)-published).days <= 14):
+              raise SystemExit('Rail timetable feed too old; refuse refresh')
+          entries=[a for a in d.get('assets',[]) if a.get('name')=='gtfs-national-rail-only.zip']
+          if len(entries)!=1 or not 10000000<=entries[0]['size']<=80000000:
+              raise SystemExit('Unexpected rail feed archive size')
+          url=entries[0]['browser_download_url']
+          if not url.startswith('https://github.com/planarnetwork/gb-transit/releases/download/'):
+              raise SystemExit('Untrusted rail feed URL')
+          open('/tmp/rail-feed-url','w').write(url)
+          PY
+      - name: Download, compile and validate scheduled services
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="$(cat /tmp/rail-feed-url)"
+          curl --fail --location --silent --show-error --retry 2 --max-time 150 \
+            --max-filesize 80000000 "$url" --output /tmp/rail-gtfs.zip
+          python3 - <<'PY'
+          import zipfile
+          with zipfile.ZipFile('/tmp/rail-gtfs.zip') as z:
+              names={n.split('/')[-1].lower() for n in z.namelist()}
+              if not {'stops.txt','trips.txt','routes.txt','stop_times.txt','calendar.txt'}<=names:
+                  raise SystemExit('Incomplete GTFS')
+              if sum(i.file_size for i in z.infolist())>1000000000:
+                  raise SystemExit('Refusing unexpectedly large uncompressed feed')
+              if z.testzip() is not None: raise SystemExit('GTFS archive checksum error')
+          PY
+          python3 maintenance/rail/build_rail_index.py /tmp/rail-gtfs.zip /tmp/rail-index
+          php maintenance/rail/test_real_smoke.php /tmp/rail-index
+          tar -czf /tmp/rail-index.tar.gz -C /tmp rail-index
+          test "$(stat -c %s /tmp/rail-index.tar.gz)" -lt 50000000
+          echo 'RAIL_BUILD_AND_BRISTOL_COVENTRY_SMOKE_PASSED'
+
+      - name: Deploy proven source and index with pinned SSH, backup and atomic activation
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+          HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          USERNAME: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+          PRIVATE_DIR: ${{ vars.CPANEL_OPENROAD_PRIVATE_DIR }}
+          PUBLIC_DIR: ${{ vars.CPANEL_OPENROAD_PUBLIC_DIR }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS" && test -n "$HOST" && test -n "$USERNAME"
+          [[ "$PRIVATE_DIR" == /* && "$PUBLIC_DIR" == /* && "$GITHUB_RUN_ID" =~ ^[0-9]+$ ]]
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_rail"
+          printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          printf 'Host rail-production\n HostName %s\n User %s\n Port %s\n IdentityFile %s/.ssh/id_rail\n StrictHostKeyChecking yes\n BatchMode yes\n' \
+            "$HOST" "$USERNAME" "$SSH_PORT" "$HOME" > "$HOME/.ssh/config"
+          stage="openroad-rail-stage-$GITHUB_RUN_ID"
+          ssh rail-production bash -s -- "$stage" <<'REMOTE'
+          set -euo pipefail
+          [[ "$1" =~ ^openroad-rail-stage-[0-9]+$ ]]
+          mkdir -m 0700 "$HOME/$1"
+          REMOTE
+          scp /tmp/rail-index.tar.gz maintenance/rail/rail_planner.php maintenance/rail/rail_journeys.php \
+            maintenance/rail/test_real_smoke.php "rail-production:$stage/"
+          indexsum="$(sha256sum /tmp/rail-index.tar.gz | cut -d' ' -f1)"
+          plannersum="$(sha256sum maintenance/rail/rail_planner.php | cut -d' ' -f1)"
+          endpointsum="$(sha256sum maintenance/rail/rail_journeys.php | cut -d' ' -f1)"
+          ssh rail-production bash -s -- \
+            "$PRIVATE_DIR" "$PUBLIC_DIR" "$GITHUB_RUN_ID" "$indexsum" "$plannersum" "$endpointsum" <<'REMOTE'
+          set -Eeuo pipefail
+          priv="$1"; pub="$2"; rid="$3"; idxhash="$4"; phash="$5"; ehash="$6"
+          [[ "$priv" == /* && "$pub" == /* && "$rid" =~ ^[0-9]+$ ]]
+          stage="$HOME/openroad-rail-stage-$rid"
+          test -f "$priv/lib/auth.php" && test -f "$pub/api/v1/journeys.php"
+          test "$(sha256sum "$stage/rail-index.tar.gz" | cut -d' ' -f1)" = "$idxhash"
+          test "$(sha256sum "$stage/rail_planner.php" | cut -d' ' -f1)" = "$phash"
+          test "$(sha256sum "$stage/rail_journeys.php" | cut -d' ' -f1)" = "$ehash"
+          php -l "$stage/rail_planner.php" >/dev/null
+          php -l "$stage/rail_journeys.php" >/dev/null
+          tar -tzf "$stage/rail-index.tar.gz" | awk '
+            $0 !~ /^rail-index(\/[a-zA-Z0-9_.\/-]*)?$/ || $0 ~ /\.\./ {bad=1}
+            END { exit bad }'
+          base="$priv/cache/rail-routing"
+          dest="$base/versions/$rid"
+          test ! -e "$dest"
+          mkdir -p "$dest"
+          tar -xzf "$stage/rail-index.tar.gz" -C "$dest"
+          test -f "$dest/rail-index/manifest.json"
+          size="$(du -sk "$dest" | cut -f1)"
+          test "$size" -gt 0 && test "$size" -le 65000
+          timeout 8 php -d memory_limit=96M "$stage/test_real_smoke.php" "$dest/rail-index"
+          if test -e "$base/current" && test ! -L "$base/current"; then
+            echo 'Unmanaged rail index; refusing activation' >&2
+            exit 1
+          fi
+          backup="$HOME/openroad-rail-backups/$rid"
+          mkdir -p "$backup"
+          if test -f "$priv/lib/rail_planner.php"; then cp -p "$priv/lib/rail_planner.php" "$backup/rail_planner.php"; fi
+          if test -f "$pub/api/v1/rail_journeys.php"; then cp -p "$pub/api/v1/rail_journeys.php" "$backup/rail_journeys.php"; fi
+          rollback(){
+            trap - ERR
+            if test -f "$backup/rail_planner.php"; then cp -p "$backup/rail_planner.php" "$priv/lib/rail_planner.php"; else rm -f "$priv/lib/rail_planner.php"; fi
+            if test -f "$backup/rail_journeys.php"; then cp -p "$backup/rail_journeys.php" "$pub/api/v1/rail_journeys.php"; else rm -f "$pub/api/v1/rail_journeys.php"; fi
+            echo 'Rail endpoint rollback attempted' >&2
+          }
+          trap rollback ERR
+          cp "$stage/rail_planner.php" "$priv/lib/rail_planner.php.new"
+          chmod 0640 "$priv/lib/rail_planner.php.new"
+          cp "$stage/rail_journeys.php" "$pub/api/v1/rail_journeys.php.new"
+          chmod 0644 "$pub/api/v1/rail_journeys.php.new"
+          mv -f "$priv/lib/rail_planner.php.new" "$priv/lib/rail_planner.php"
+          mv -f "$pub/api/v1/rail_journeys.php.new" "$pub/api/v1/rail_journeys.php"
+          php -l "$priv/lib/rail_planner.php" >/dev/null
+          php -l "$pub/api/v1/rail_journeys.php" >/dev/null
+          ln -s "versions/$rid/rail-index" "$base/current.new"
+          mv -Tf "$base/current.new" "$base/current"
+          trap - ERR
+          echo "RAIL_PRODUCTION_ACTIVATED index_kib=$size"
+          rm -rf "$stage"
+          REMOTE
