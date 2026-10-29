@@ -62,7 +62,7 @@ def compact_index(source,destination):
         con.execute(
           "INSERT INTO trips(trip_pk,trip_id,route_id,service_id,headsign,shape_id) "
           "SELECT rowid,trip_id,route_id,service_id,headsign,shape_id FROM old.trips")
-        con.execute("INSERT INTO service_days SELECT * FROM old.service_days")
+        con.execute("INSERT INTO service_days(date,service_id) SELECT date,service_id FROM old.service_days")
         con.execute(
           "INSERT INTO calls(trip_pk,seq,stop_pk,arrival_sec,departure_sec,pickup,dropoff) "
           "SELECT t.rowid,c.seq,s.rowid,c.arrival_sec,c.departure_sec,c.pickup,c.dropoff "
