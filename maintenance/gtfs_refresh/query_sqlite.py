@@ -110,6 +110,8 @@ def _query_one_service_day(index_path,region,from_point,to_point,
                           "departureSec":board["departure_sec"],
                           "arrivalLowerBoundSec":end["arrival_sec"]+foot,
                           "operatorLine":board["short_name"],
+                          "accessWalkMetresLowerBound":round(walk),
+                          "egressWalkMetresLowerBound":round(eligible[end["stop_id"]]),
                         }
                         key=(board["trip_id"],stop_id,end["stop_id"],board["departure_sec"])
                         if key not in seen:
@@ -118,7 +120,7 @@ def _query_one_service_day(index_path,region,from_point,to_point,
                         # Transfer candidates: only later stops on same trip.
                         first_legs.append((end["arrival_sec"],end["stop_id"],
                             board["trip_id"],stop_id,board["departure_sec"],
-                            board["short_name"]))
+                            board["short_name"],walk))
         # Search backwards from actual destination arrivals. A global
         # early-arrival slice of first-leg stops is not representative:
         # crowded routes can otherwise exclude useful change stops.
@@ -160,7 +162,7 @@ def _query_one_service_day(index_path,region,from_point,to_point,
                     if change_stop not in first_by_stop:continue
                     second_depart=board2["departure_sec"]
                     if second_depart<earliest_secs+180:continue
-                    for arr,_,first_trip,boarding,departure,line in first_by_stop[change_stop]:
+                    for arr,_,first_trip,boarding,departure,line,access_walk in first_by_stop[change_stop]:
                         if arr+180>second_depart:break
                         if second_depart>arr+3600 or first_trip==alight["trip_id"]:
                             continue
@@ -176,6 +178,8 @@ def _query_one_service_day(index_path,region,from_point,to_point,
                           "arrivalLowerBoundSec":alight["arrival_sec"]+
                               int(math.ceil(dest_walk/1.25)),
                           "operatorLine":line+" → "+alight["short_name"],
+                          "accessWalkMetresLowerBound":round(access_walk),
+                          "egressWalkMetresLowerBound":round(dest_walk),
                         })
                         transfer_count+=1
                         if transfer_count>=5000:break

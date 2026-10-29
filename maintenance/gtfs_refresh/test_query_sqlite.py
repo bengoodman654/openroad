@@ -46,6 +46,10 @@ class IndexRoutingTests(unittest.TestCase):
         self.assertEqual(a["results"][0]["trips"],["T0"])
         self.assertFalse(a["results"][0]["selectable"])
         self.assertFalse(a["results"][0]["walkGeometryVerified"])
+        for journey in a["results"]:
+            self.assertGreaterEqual(journey["accessWalkMetresLowerBound"],0)
+            self.assertGreaterEqual(journey["egressWalkMetresLowerBound"],0)
+            self.assertFalse(journey["accessibilityVerified"])
     def test_transfer_when_direct_removed_or_departing_late(self):
         a=timetable_query(self.db,"south_west",(51.4545,-2.5879),
             (51.46,-2.595),dt.date(2026,10,29),9*3600+1*60,walk_cap_m=180)
