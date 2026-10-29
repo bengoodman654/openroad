@@ -388,10 +388,21 @@
     const markers=[];contactPlaceCache.forEach(c=>{const lat=Number(c.lat),lon=Number(c.lon);if(!Number.isFinite(lat)||!Number.isFinite(lon))return;const node=document.createElement('button');node.type='button';node.className='place-category-marker contacts';node.textContent='👤';node.title=c.name||'Contact';node.setAttribute('aria-label',c.name||'Contact');node.onclick=e=>{e.stopPropagation();setDestination(lat,lon,c.name||'Contact',c.address||'',{category:'Contact'});};try{markers.push(new maplibregl.Marker({element:node,anchor:'center'}).setLngLat([lon,lat]).addTo(map));}catch(_){}});placeCategoryMarkers.set('contacts',markers);
   }
   function warmContactPlaceCache(){
-    if(!placeCategories.contacts||!native()?.hasContactsPermission?.()||!native()?.getContactMatches)return;
-    let all=[];try{all=JSON.parse(native().getContactMatches('')||'[]')||[];}catch(_){return;}
-    const cached=new Set(contactPlaceCache.map(c=>`${c.name}|${c.address}`.toLowerCase()));let delay=0;
-    all.slice(0,25).forEach(c=>{const key=`${c.name||'Contact'}|${c.address||''}`.toLowerCase();if(!c.address||cached.has(key)||contactBackgroundGeocodes.has(key))return;contactBackgroundGeocodes.add(key);setTimeout(()=>native()?.geocodeContactAddress?.(c.name||'Contact',c.address||''),delay);delay+=350;});
+    if(!placeCategories.contacts||!native()?.hasContactsPermission?.()||!native()?.getContactMapCandidates)return;
+    if(localStorage.getItem('openroad.contactsMapGeocodingConsent')!=='yes')return;
+    let all=[];try{all=JSON.parse(native().getContactMapCandidates()||'[]')||[];}catch(_){return;}
+    const cached=new Set(contactPlaceCache.map(c=>`${c.name}|${c.address}`.toLowerCase()));
+    let delay=0;
+    all.slice(0,15).forEach(c=>{
+      const key=`${c.name||'Contact'}|${c.address||''}`.toLowerCase();
+      if(!c.address||cached.has(key)||contactBackgroundGeocodes.has(key))return;
+      contactBackgroundGeocodes.add(key);
+      setTimeout(()=>{
+        if(!placeCategories.contacts){contactBackgroundGeocodes.delete(key);return;}
+        native()?.geocodeContactAddress?.(c.name||'Contact',c.address||'');
+      },delay);
+      delay+=600;
+    });
   }
   function renderPlaceCategoryResults(category,data){
     clearPlaceCategoryMarkers(category);if(!mapLoaded||!poiVisible||!placeCategories[category])return;
@@ -407,7 +418,15 @@
   }
   function schedulePlaceCategoryRefresh(){if(placeRefreshTimer)clearTimeout(placeRefreshTimer);placeRefreshTimer=setTimeout(()=>{placeRefreshTimer=0;refreshPlaceCategories();},650);}
   function openPlacesSheet(){document.querySelectorAll('[data-place-category]').forEach(cb=>{cb.checked=placeCategories[cb.dataset.placeCategory]!==false;});show('layersSheet',false);show('placesSheet');}
-  function applyPlacesSheet(){const next={};document.querySelectorAll('[data-place-category]').forEach(cb=>next[cb.dataset.placeCategory]=!!cb.checked);placeCategories={...placeCategories,...next};savePlaceCategories();show('placesSheet',false);refreshPlaceCategories();}
+  function applyPlacesSheet(){const next={};document.querySelectorAll('[data-place-category]').forEach(cb=>next[cb.dataset.placeCategory]=!!cb.checked);
+    if(next.contacts&&!placeCategories.contacts && localStorage.getItem('openroad.contactsMapGeocodingConsent')!=='yes'){
+      if(!confirm('To put contacts on the map, OpenRoad must look up their postal addresses using the map provider. Only up to 15 addressed contacts are looked up on this phone. Continue?')){
+        next.contacts=false;
+      }else localStorage.setItem('openroad.contactsMapGeocodingConsent','yes');
+    }
+    placeCategories={...placeCategories,...next};savePlaceCategories();show('placesSheet',false);refreshPlaceCategories();
+    if(placeCategories.contacts&&!native()?.hasContactsPermission?.())native()?.requestContactsPermission?.();
+  }
 
   function contactMatches(query) {
     if(!contactsEnabled || !native()?.getContactMatches) return [];
@@ -608,6 +627,7 @@
     const stops=Array.isArray(data.stops)?data.stops:[],stopFeatures=[];
     stops.slice(0,180).forEach((stop,i)=>{const lat=Number(stop.lat),lon=Number(stop.lon);if(!Number.isFinite(lat)||!Number.isFinite(lon))return;const key=`${String(stop.id||i)}|${lat.toFixed(6)}|${lon.toFixed(6)}`;busRouteStopData.set(key,stop);const bearing=stopTravelBearing(stops,i),properties={stopKey:key};if(bearing!==null)properties.bearing=bearing;stopFeatures.push({type:'Feature',properties,geometry:{type:'Point',coordinates:[lon,lat]}});bounds.extend([lon,lat]);hasBounds=true;});
     if(stopFeatures.length){const src='bus-route-stops-src',dots='bus-route-stop-dots',direction='bus-route-stop-direction',hit='bus-route-stop-hit';busRouteLayerIds.push(dots,direction,hit,src);map.addSource(src,{type:'geojson',data:{type:'FeatureCollection',features:stopFeatures}});map.addLayer({id:dots,type:'circle',source:src,paint:{'circle-radius':7,'circle-color':'#c62828','circle-stroke-color':'#ffffff','circle-stroke-width':2,'circle-opacity':1}});const icon=addStopDirectionIcon();if(icon)map.addLayer({id:direction,type:'symbol',source:src,filter:['has','bearing'],layout:{'icon-image':icon,'icon-size':.85,'icon-rotate':['get','bearing'],'icon-rotation-alignment':'map','icon-allow-overlap':true,'icon-ignore-placement':true}});map.addLayer({id:hit,type:'circle',source:src,paint:{'circle-radius':17,'circle-color':'#000000','circle-opacity':0}});}
+    desaturateTransitJourney();
     if(hasBounds)map.fitBounds(bounds,{padding:{top:145,bottom:250,left:45,right:45},maxZoom:15.5,duration:650});
     el('busServiceNumber').textContent=data.line||'Bus';el('busServiceTitle').textContent=data.title||data.destination||`Bus ${data.line||''}`;el('busServiceSource').textContent=data.source||'Official route data';show('busServiceLiveBadge',false);const liveBtn=el('loadBusLiveBtn');if(liveBtn){liveBtn.disabled=false;liveBtn.classList.remove('loading');liveBtn.textContent=busServiceTargetStop?'Next 3 live buses':'Live buses';show('loadBusLiveBtn',data.liveAvailable!==false);}renderBusServiceContent();renderBusLiveMarkers();show('busServiceSheet');el('busServiceSheet').classList.remove('minimised');closeRoutePlanner();
   }
@@ -1392,6 +1412,48 @@
     map.fitBounds(b,{padding:{top:120,bottom,left:45,right:45},duration:650,maxZoom:16.5});
   }
 
+  // Keep transit geometry bounded to the boarded segment, even when a provider
+  // returns the entire service. Project stop coordinates onto the line rather
+  // than just snapping to an arbitrary vertex.
+  function clipTransitLegGeometry(points,leg){
+    if(points.length<2||!leg)return points;
+    const stops=Array.isArray(leg.stops)?leg.stops.filter(p=>Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lon))):[];
+    const first=stops[0],last=stops[stops.length-1];
+    const board=[Number(first?.lon??leg.fromLon),Number(first?.lat??leg.fromLat)];
+    const alight=[Number(last?.lon??leg.toLon),Number(last?.lat??leg.toLat)];
+    if(!board.every(Number.isFinite)||!alight.every(Number.isFinite))return points;
+    const nearest=target=>{
+      let best={distance:Infinity,index:0,t:0,point:target};
+      for(let i=0;i<points.length-1;i++){
+        const a=points[i],b=points[i+1],scale=Math.cos(target[1]*Math.PI/180),dx=(b[0]-a[0])*scale,dy=b[1]-a[1];
+        const len=dx*dx+dy*dy,t=len?Math.max(0,Math.min(1,((target[0]-a[0])*scale*dx+(target[1]-a[1])*dy)/len)):0;
+        const p=[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];
+        const d=(p[0]-target[0])**2*scale**2+(p[1]-target[1])**2;
+        if(d<best.distance)best={distance:d,index:i,t,point:p};
+      }
+      return best;
+    };
+    const a=nearest(board),b=nearest(alight);
+    // A mismatch indicates service-level or reversed geometry; a direct
+    // segment is safer than showing service sections before boarding.
+    if(a.distance>0.00003||b.distance>0.00003||a.index+a.t>=b.index+b.t)
+      return [board,alight];
+    return [board,...points.slice(a.index+1,b.index+1),alight];
+  }
+  function desaturateTransitJourney(){
+    if(!map||!routeResponse?.routes)return;
+    routeResponse.routes.forEach((route,i)=>(route.transitLegs||[]).forEach((leg,li)=>{
+      const id=`route-line-${i}-${li}`;
+      if(!map.getLayer(id))return;
+      const hex=transitLegColour(route,li,i===selectedRoute);
+      const rgb=[1,3,5].map(n=>parseInt(hex.slice(n,n+2),16)),gray=Math.round(rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722);
+      const toHex=n=>Math.round(n).toString(16).padStart(2,'0');
+      const muted='#'+rgb.map(v=>toHex((v+gray)/2)).join('');
+      map.setPaintProperty(id,'line-color',muted);
+      map.setPaintProperty(id,'line-opacity',.55);
+    }));
+  }
+
   function drawRoutes(navigationOnly=navigating, fitCamera=false) {
     if (!map?.isStyleLoaded() || !routeResponse?.routes) return;
     clearRouteLayers();
@@ -1404,7 +1466,7 @@
       if(route.clearRouteTransit && Array.isArray(route.legs) && route.legs.length){
         const transitLegs=Array.isArray(route.transitLegs)?route.transitLegs:[];
         route.legs.forEach((leg,li)=>{
-          const pts=(leg?.points||[]).map(p=>[Number(p.longitude),Number(p.latitude)]).filter(c=>Number.isFinite(c[0])&&Number.isFinite(c[1]));
+          const pts=clipTransitLegGeometry((leg?.points||[]).map(p=>[Number(p.longitude),Number(p.latitude)]).filter(c=>Number.isFinite(c[0])&&Number.isFinite(c[1])),transitLegs[li]);
           if(pts.length<2)return;
           const modeName=transitLegs[li]?.mode||'transit';
           const source=`route-src-${i}-${li}`, casing=`route-case-${i}-${li}`, line=`route-line-${i}-${li}`, hit=`route-hit-${i}-${li}`;
@@ -1444,6 +1506,7 @@
   function openBusStop(stop){
     const lat=Number(stop?.lat),lon=Number(stop?.lon);if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
     busStopReturnSheet=el('busServiceSheet')&&!el('busServiceSheet').classList.contains('hidden')?'busServiceSheet':(el('transitDetailSheet')&&!el('transitDetailSheet').classList.contains('hidden')?'transitDetailSheet':'routeCard');
+    show(busStopReturnSheet,false);
     busStopData={stop:{id:stop.id||'',name:stop.name||'Bus stop',lat,lon},services:[]};el('busStopTitle').textContent=stop.name||'Bus stop';el('busStopSource').textContent='Loading services…';el('busStopServices').innerHTML='<div class="transit-loading"><strong>Loading this stop…</strong></div>';show('busStopSheet');el('busStopSheet').classList.remove('minimised');
     const id=++busStopRequestId;native()?.lookupBusStop?.(String(stop.id||''),lat,lon,id);
   }
@@ -1467,7 +1530,7 @@
     if(!leg?.line)return;
     ++busLiveRequestId;const tl=Number(leg.fromLat),tn=Number(leg.fromLon);busServiceTargetStop=Number.isFinite(tl)&&Number.isFinite(tn)?{id:leg.fromAtco||leg.fromStopId||'',name:leg.from||'Boarding stop',lat:tl,lon:tn}:null;
     busServiceReturnSheet=returnTo||(el('transitDetailSheet')&&!el('transitDetailSheet').classList.contains('hidden')?'transitDetailSheet':'routeCard');
-    show('transitDetailSheet',false);show('routeCard',false);
+    show('transitDetailSheet',false);show('busStopSheet',false);show('routeCard',false);
     const lat=Number(leg.fromLat),lon=Number(leg.fromLon);const id=++busRouteRequestId;
     toast(`Loading bus ${leg.line}…`);
     if(Number.isFinite(lat)&&Number.isFinite(lon)&&native()?.lookupBusRouteNear)native().lookupBusRouteNear(String(leg.line),lat,lon,id);
@@ -1498,6 +1561,7 @@
       const time=document.createElement('div');time.className='transit-detail-time';time.textContent=`${leg.liveDeparture||leg.departure||''}${leg.arrival?`
 ${leg.arrival}`:''}`;row.append(icon,main,time);box.appendChild(row);
     });
+    show('routeCard',false);show('busServiceSheet',false);show('busStopSheet',false);
     show('transitDetailSheet');el('transitDetailSheet').classList.remove('minimised');
   }
 
@@ -1806,13 +1870,15 @@ ${leg.arrival}`:''}`;row.append(icon,main,time);box.appendChild(row);
 
   function renderUpdateStatus(info){
     const title=el('updateStatusTitle'), detail=el('updateStatusDetail'),install=el('installUpdateBtn'),home=el('updateHomeStatus');
+    const installed=el('installedVersionLabel');if(installed)installed.textContent='OpenRoad '+(native()?.getInstalledAppVersion?.()||'0.6.35');
     if(!title||!detail||!install)return;
     const available=['available','downloading','permission','ready'].includes(info?.state);
-    title.textContent=available?'Update '+(info.version||'')+' available':'OpenRoad 0.6.27';
+    title.textContent=available?'OpenRoad '+(info.version||''):(info?.state==='current'?'No newer version':'Not checked yet');
     detail.textContent=info?.message||'The app checks for updates daily when opened.';
     install.classList.toggle('hidden',!['available','error','permission'].includes(info?.state)||!info?.version);
     install.disabled=info?.state==='downloading';
     if(home)home.textContent=available?'New version '+(info.version||'')+' available':'Check for a newer signed OpenRoad release';
+    el('updateAvailableCard')?.classList.toggle('update-ready',available);
     if(info?.state==='available')toast('OpenRoad '+(info.version||'')+' is ready to install from Settings > App updates.');
   }
   window.ClearRoute = {
@@ -1991,6 +2057,7 @@ ${leg.arrival}`:''}`;row.append(icon,main,time);box.appendChild(row);
       if(el('contactsSearchAction'))el('contactsSearchAction').textContent=granted?'On':'Enable';
       if(granted){const q=el('searchInput').value.trim();if(q.length>=1)requestSearchSuggestions();if(placeCategories.contacts)refreshPlaceCategories();}
     },
+    onContactGeocodeFailed(name,address){const key=`${name||'Contact'}|${address||''}`.toLowerCase();contactBackgroundGeocodes.delete(key);},
     onContactGeocoded(name,address,lat,lon){document.querySelectorAll('.contact-suggestion.loading').forEach(n=>{n.classList.remove('loading');n.disabled=false;});
       if(!Number.isFinite(Number(lat))||!Number.isFinite(Number(lon)))return toast('Could not locate that contact address.');
       const entry={name:name||'Contact',address:address||'',lat:Number(lat),lon:Number(lon)};const key=`${entry.name}|${entry.address}`.toLowerCase();contactPlaceCache=contactPlaceCache.filter(c=>`${c.name}|${c.address}`.toLowerCase()!==key);contactPlaceCache.unshift(entry);saveContactPlaceCache();if(placeCategories.contacts)renderContactPlaceMarkers();
@@ -2011,7 +2078,7 @@ ${leg.arrival}`:''}`;row.append(icon,main,time);box.appendChild(row);
     onBusStop(data,requestId){if(requestId!==busStopRequestId)return;renderBusStopSheet(data);},
     onBusStopError(requestId,message){if(requestId!==busStopRequestId)return;el('busStopSource').textContent=message||'Could not load this stop.';el('busStopServices').innerHTML='<div class="bus-about">Bus-stop information is unavailable.</div>';},
     onBusRoute(data,requestId){if(requestId!==busRouteRequestId)return;drawBusRoute(data);},
-    onBusRouteError(requestId,message){if(requestId!==busRouteRequestId)return;toast(message||'Could not load that bus route.');},
+    onBusRouteError(requestId,message){if(requestId!==busRouteRequestId)return;toast(message||'Could not load that bus route.');backFromBusService();},
     onBusLive(data,requestId){if(requestId!==busLiveRequestId||!busServiceData||String(data?.line||'').toLowerCase()!==String(busServiceData.line||'').toLowerCase())return;if(busServiceData){busServiceData.vehicles=Array.isArray(data?.vehicles)?data.vehicles:[];busServiceData.liveStale=data?.coverage==='last-known-vehicles';busServiceData.liveSource=data?.source||'BODS';renderBusLiveMarkers();renderBusServiceContent();}},
     onBusLiveError(requestId,message){if(requestId!==busLiveRequestId)return;const btn=el('loadBusLiveBtn');if(btn){btn.disabled=false;btn.classList.remove('loading');btn.textContent=busServiceTargetStop?'Next 3 live buses':'Live buses';}if(/hourly request limit reached|hourly request budget reached/i.test(String(message||''))){
         const m=String(message||'').match(/(\d+) minutes/i);
@@ -2105,6 +2172,7 @@ ${leg.arrival}`:''}`;row.append(icon,main,time);box.appendChild(row);
   }
   function showSettingsPage(name='home'){
     settingsCurrentPage=name||'home';
+    if(settingsCurrentPage==='updates'){const lbl=el('installedVersionLabel');if(lbl)lbl.textContent='OpenRoad '+(native()?.getInstalledAppVersion?.()||'0.6.35');}
     const homeNode=el('settingsHome');if(homeNode)homeNode.classList.toggle('hidden',settingsCurrentPage!=='home');
     document.querySelectorAll('[data-settings-page]').forEach(node=>node.classList.toggle('hidden',node.dataset.settingsPage!==settingsCurrentPage));
     const scroll=el('settingsScroll');if(scroll)scroll.scrollTop=0;
@@ -2196,6 +2264,7 @@ ${leg.arrival}`:''}`;row.append(icon,main,time);box.appendChild(row);
     ++busStopRequestId;++busRouteRequestId;++busLiveRequestId;
     show(sheet,false);
     if(sheet==='busServiceSheet'){clearBusRouteMarkers();busServiceTargetStop=null;}
+    show('transitDetailSheet',false);show('busStopSheet',false);show('busServiceSheet',false);
     if(routeResponse&&!transitNavigation){show('routeCard');drawRoutes(false);}
   }
   el('backTransitDetailBtn').onclick=backFromTransitDetail;
@@ -2396,7 +2465,8 @@ ${leg.arrival}`:''}`;row.append(icon,main,time);box.appendChild(row);
       return;
     }
     if(mode==='transit'){startTransitNavigation();return;}
-    native().startNavigation(selectedRoute,destination.lat,destination.lon,mode);
+    if(native()?.startNavigationWithStops)native().startNavigationWithStops(selectedRoute,destination.lat,destination.lon,mode,JSON.stringify(transitViaStops));
+    else native().startNavigation(selectedRoute,destination.lat,destination.lon,mode);
   };
 
   el('navSoundBtn').onclick=cycleNavAlertMode;
