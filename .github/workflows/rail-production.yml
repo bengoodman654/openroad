@@ -189,8 +189,7 @@ jobs:
           # indices. Never touch anything outside the dedicated versions dir.
           mapfile -t indices < <(
             find "$base/versions" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' |
-              grep -E '^[0-9]{8,}
- | sort -n
+              grep -E '^[0-9]{8,}$' | sort -n
           )
           if test "${#indices[@]}" -gt 3; then
             for ((i=0;i<${#indices[@]}-3;i++)); do
