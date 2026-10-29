@@ -51,7 +51,7 @@ def _query_one_service_day(index_path,region,from_point,to_point,
     try:
         db.execute("PRAGMA query_only=ON")
         info={r["name"]:json.loads(r["value"]) for r in db.execute("SELECT * FROM info")}
-        if info.get("region")!=region or info.get("schema")!="openroad-bus-sqlite-1":
+        if info.get("region")!=region or info.get("schema") not in ("openroad-bus-sqlite-1","openroad-bus-sqlite-compact-2"):
             raise ValueError("Source pinned timetable mismatch")
         origin=close_stops(db,*from_point,walk_cap_m,20)
         destination=close_stops(db,*to_point,walk_cap_m,20)
