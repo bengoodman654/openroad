@@ -1,0 +1,79 @@
+name: OpenRoad retire failed 03:17 GTFS bulk cron (transactional)
+on:
+  push:
+    branches: [release/openroad-completion]
+    paths:
+      - '.github/workflows/openroad-retire-gtfs-cron.yml'
+permissions:
+  contents: read
+concurrency:
+  group: openroad-production-server
+  cancel-in-progress: false
+jobs:
+  retire:
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test exact cron operation
+        run: |
+          php -l maintenance/gtfs_refresh/retire_legacy_gtfs_cron.php
+          php maintenance/gtfs_refresh/retire_legacy_gtfs_cron_test.php
+      - name: Configure pinned SSH
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_cron
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Retire only exact obsolete cron with preserved rollback
+        env:
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_HOST" && test -n "$SSH_USER"
+          scp -i ~/.ssh/id_cron -P "$SSH_PORT" \
+            -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            maintenance/gtfs_refresh/retire_legacy_gtfs_cron.php \
+            "$SSH_USER@$SSH_HOST:openroad-retire-cron.php"
+          ssh -i ~/.ssh/id_cron -p "$SSH_PORT" \
+            -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            "$SSH_USER@$SSH_HOST" bash -s <<'REMOTE'
+          set -Eeuo pipefail
+          umask 077
+          work="$(mktemp -d "$HOME/openroad-cron-retire.XXXXXX")"
+          trap 'rm -rf "$work" "$HOME/openroad-retire-cron.php"' EXIT
+          crontab -l > "$work/old.cron"
+          php "$HOME/openroad-retire-cron.php" "$work/old.cron" "$work/new.cron"
+          test -s "$work/new.cron"
+          # Reject concurrent cPanel Cron Jobs modifications.
+          crontab -l > "$work/recheck.cron"
+          cmp -s "$work/old.cron" "$work/recheck.cron"
+          backup="$HOME/openroad-backups/cron-retired-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+          mkdir -p "$backup"
+          cp -p "$work/old.cron" "$backup/crontab.before"
+          chmod 0600 "$backup/crontab.before"
+          rollback() {
+            rc="$?"
+            trap - ERR
+            crontab "$backup/crontab.before" || true
+            echo "CRON_RETIRE rollback_attempted=yes" >&2
+            exit "$rc"
+          }
+          trap rollback ERR
+          crontab "$work/new.cron"
+          crontab -l > "$work/after.cron"
+          cmp -s "$work/new.cron" "$work/after.cron"
+          # The exact source transformation guarantees other jobs retained.
+          php "$HOME/openroad-retire-cron.php" "$work/old.cron" "$work/verify.cron" >/dev/null
+          cmp -s "$work/after.cron" "$work/verify.cron"
+          trap - ERR
+          echo "CRON_RETIRE success=exactly_one_daily_bulk_import_disabled unrelated_cron_preserved=yes backup_retained=yes"
+          REMOTE
