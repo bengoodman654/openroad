@@ -1,0 +1,50 @@
+name: OpenRoad read-only Python runtime and process capability audit
+on:
+  push:
+    branches: [release/openroad-completion]
+    paths: ['.github/workflows/openroad-python-runtime-audit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    timeout-minutes: 5
+    steps:
+      - name: Read runtime capabilities only (no uploads or process work)
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS" && test -n "$SSH_HOST" && test -n "$SSH_USER"
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_runtime
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/id_runtime -p "$SSH_PORT" -o StrictHostKeyChecking=yes \
+              -o BatchMode=yes "$SSH_USER@$SSH_HOST" bash -s <<'REMOTE'
+          set -euo pipefail
+          php -r '
+            foreach(["proc_open","exec","shell_exec","pcntl_fork"] as $f){
+              echo "PROCESS_CAPABILITY function=".$f." allowed=".
+                   (function_exists($f)?"yes":"no")."\n";
+            }
+          '
+          if command -v python3 >/dev/null 2>&1; then
+            echo "PYTHON3 executable=yes"
+            python3 -c 'import sys,sqlite3,zoneinfo,json;print("PYTHON3_STDLIB version=%d.%d sqlite=%s zoneinfo=yes"%(sys.version_info.major,sys.version_info.minor,sqlite3.sqlite_version))'
+          else
+            echo "PYTHON3 executable=no"
+          fi
+          if command -v timeout >/dev/null 2>&1; then
+            echo "CLI_TIMEOUT_TOOL available=yes"
+          else
+            echo "CLI_TIMEOUT_TOOL available=no"
+          fi
+          REMOTE
