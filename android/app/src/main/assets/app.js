@@ -421,7 +421,7 @@
   function schedulePlaceCategoryRefresh(){if(placeRefreshTimer)clearTimeout(placeRefreshTimer);placeRefreshTimer=setTimeout(()=>{placeRefreshTimer=0;refreshPlaceCategories();},650);}
   function openPlacesSheet(){document.querySelectorAll('[data-place-category]').forEach(cb=>{cb.checked=placeCategories[cb.dataset.placeCategory]!==false;});show('layersSheet',false);show('placesSheet');}
   function applyPlacesSheet(){const next={};document.querySelectorAll('[data-place-category]').forEach(cb=>next[cb.dataset.placeCategory]=!!cb.checked);
-    if(next.contacts&&!placeCategories.contacts && localStorage.getItem('openroad.contactsMapGeocodingConsent')!=='yes'){
+    if(next.contacts && localStorage.getItem('openroad.contactsMapGeocodingConsent')!=='yes'){
       if(!confirm('To put contacts on the map, OpenRoad must look up their postal addresses using the map provider. Only up to 15 addressed contacts are looked up on this phone. Continue?')){
         next.contacts=false;
       }else localStorage.setItem('openroad.contactsMapGeocodingConsent','yes');
@@ -1427,8 +1427,9 @@
     if(points.length<2||!leg)return points;
     const stops=Array.isArray(leg.stops)?leg.stops.filter(p=>Number.isFinite(Number(p.lat))&&Number.isFinite(Number(p.lon))):[];
     const first=stops[0],last=stops[stops.length-1];
-    const board=[Number(first?.lon??leg.fromLon),Number(first?.lat??leg.fromLat)];
-    const alight=[Number(last?.lon??leg.toLon),Number(last?.lat??leg.toLat)];
+    const coord=(provided,backup)=>provided!=null&&Number.isFinite(Number(provided))?Number(provided):Number(backup);
+    const board=[coord(leg.fromLon,first?.lon),coord(leg.fromLat,first?.lat)];
+    const alight=[coord(leg.toLon,last?.lon),coord(leg.toLat,last?.lat)];
     if(!board.every(Number.isFinite)||!alight.every(Number.isFinite))return points;
     const nearest=target=>{
       let best={distance:Infinity,index:0,t:0,point:target};
