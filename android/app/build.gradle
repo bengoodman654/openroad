@@ -105,7 +105,7 @@ tasks.register('prepareMapLibreAssets') {
                     def connection = new java.net.URL(sourceUrl).openConnection()
                     connection.setConnectTimeout(15000)
                     connection.setReadTimeout(30000)
-                    connection.setRequestProperty('User-Agent', 'OpenRoad-Android-Build/0.6.34')
+                    connection.setRequestProperty('User-Agent', 'OpenRoad-Android-Build/0.6.35')
                     connection.inputStream.withCloseable { input ->
                         destination.withOutputStream { output -> output << input }
                     }
