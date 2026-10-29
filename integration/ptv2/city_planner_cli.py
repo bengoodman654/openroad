@@ -29,6 +29,7 @@ class SourceMismatch(RuntimeError):
 from maintenance.gtfs_refresh.connection_snapshot import (
     load_city_snapshot,CitySnapshotBudgetExceeded,CitySnapshotCancelled)
 from maintenance.gtfs_refresh.coordinate_journeys import coordinate_journeys
+from maintenance.gtfs_refresh.city_snapshot_cache import load_city_cache
 
 sys.dont_write_bytecode=True
 MAX_STDIN_BYTES=4096
@@ -63,15 +64,20 @@ def validate_request(request):
     return origin,destination,date,sec,walk
 
 
-def run_source(index,region,expected_sha,request):
+def run_source(index,region,expected_sha,request,
+               snapshot_cache=None,package_sha=None):
     if region not in SOURCE_REGIONS:
         raise ValueError("Unsupported timetable region")
     if not isinstance(expected_sha,str) or len(expected_sha)!=64 or any(
             ch not in "0123456789abcdef" for ch in expected_sha):
         raise ValueError("Invalid pinned source digest")
     origin,destination,service_date,seconds,walk=validate_request(request)
-    snapshot=load_city_snapshot(index,region,SOURCE_REGIONS[region],
-         service_date,origin,destination,radius_m=2200,budget_s=7)
+    if snapshot_cache is not None:
+        snapshot=load_city_cache(
+            snapshot_cache,region,expected_sha,service_date,package_sha)
+    else:
+        snapshot=load_city_snapshot(index,region,SOURCE_REGIONS[region],
+             service_date,origin,destination,radius_m=2200,budget_s=7)
     if snapshot.source_sha256!=expected_sha:
         raise SourceMismatch("Index source digest changed")
     return coordinate_journeys(snapshot,origin,destination,
@@ -81,7 +87,10 @@ def run_source(index,region,expected_sha,request):
 
 def main():
     parser=argparse.ArgumentParser()
-    parser.add_argument("--index",required=True)
+    source_group=parser.add_mutually_exclusive_group(required=True)
+    source_group.add_argument("--index")
+    source_group.add_argument("--snapshot-cache")
+    parser.add_argument("--package-sha")
     parser.add_argument("--region",required=True,choices=tuple(SOURCE_REGIONS))
     parser.add_argument("--source-sha",required=True)
     a=parser.parse_args()
@@ -94,7 +103,9 @@ def main():
         if len(data)>MAX_STDIN_BYTES:
             raise ValueError("Input too large")
         request=json.loads(data.decode("utf-8"))
-        result=run_source(a.index,a.region,a.source_sha,request)
+        result=run_source(a.index,a.region,a.source_sha,request,
+                          snapshot_cache=a.snapshot_cache,
+                          package_sha=a.package_sha)
     except (ValueError,TypeError,UnicodeError,json.JSONDecodeError):
         result={"outcome":"INPUT_INVALID","researchOnly":True,"results":[]}
     except (CitySnapshotBudgetExceeded,TimeoutError):
