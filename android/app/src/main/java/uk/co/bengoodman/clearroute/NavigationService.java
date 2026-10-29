@@ -251,8 +251,9 @@ public class NavigationService extends Service implements LocationListener, Text
 
         if (hasWaypoint) {
             double toWaypoint = RouteMath.distance(location.getLatitude(), location.getLongitude(), waypointLat, waypointLon);
-            double reachedThreshold = "walk".equals(mode) ? 35.0 : ("cycle".equals(mode) ? 45.0 : 75.0);
-            if (toWaypoint <= reachedThreshold) {
+            // Do not silently discard a planned stop on a distant GPS fix.
+            double reachedThreshold = "walk".equals(mode) ? 20.0 : ("cycle".equals(mode) ? 25.0 : 35.0);
+            if (toWaypoint <= reachedThreshold && (!location.hasAccuracy() || location.getAccuracy() <= 35f)) {
                 hasWaypoint = false;
                 try {
                     JSONObject state = ActiveRouteStore.load(this);
