@@ -39,6 +39,7 @@ jobs:
           bash "$PROJECT/validate.sh"
           node maintenance/android-v0.6.32/pt-ui-test.cjs "$PROJECT/app/src/main/assets/app.js"
           python3 maintenance/completion/check_android_source.py "$PROJECT"
+          python3 maintenance/completion/source_inspect.py "$PROJECT"
       - name: Install Android SDK platform
         shell: bash
         run: |
