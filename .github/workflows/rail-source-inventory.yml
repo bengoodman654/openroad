@@ -1,0 +1,21 @@
+name: OpenRoad rail integration source inventory
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/rail-source-inventory.yml']
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect versioned server source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          file='OpenRoad-Transport-Server-v0.2.5-source.zip'
+          test -f "$file"
+          unzip -Z1 "$file" | grep -E '(^|/)(api/v1/(rail|journeys|status)\.php|lib/(rail_gateway|router|bootstrap)\.php|schema\.sql|README\.md)$' | head -50
+          unzip -Z1 "$file" | head -60
