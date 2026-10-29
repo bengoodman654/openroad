@@ -493,7 +493,7 @@ svg{display:block}
 .route-sheet, .route-sheet.transit-active, .transit-detail-sheet, .bus-service-sheet, .bus-stop-sheet {
   max-height: min(50dvh, 50vh) !important;
   overflow-y: auto;
-  overscroll-behaviour: contain;
+  overscroll-behavior: contain;
 }
 .route-sheet.transit-active { overflow: hidden; }
 .route-sheet.transit-active .route-options { min-height: 0; overflow-y: auto; }
