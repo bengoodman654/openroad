@@ -26,7 +26,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 integration/ptv2/stage_current_android.py --output "$RUNNER_TEMP/android.zip"
+          PYTHONPATH=. python3 integration/ptv2/stage_current_android.py --output "$RUNNER_TEMP/android.zip"
           unzip -q "$RUNNER_TEMP/android.zip" -d "$RUNNER_TEMP/android"
           project="$(find "$RUNNER_TEMP/android" -mindepth 1 -maxdepth 1 -type d | head -1)"
           bash "$project/validate.sh"
