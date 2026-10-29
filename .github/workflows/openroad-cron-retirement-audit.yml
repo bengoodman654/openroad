@@ -1,4 +1,5 @@
 name: OpenRoad inspect retiring broken full-import cron (no changes)
+# checked-after-main-calendar: only audit, never change crontab
 on:
   push:
     branches: [release/openroad-completion]
