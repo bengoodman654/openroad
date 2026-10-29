@@ -1,0 +1,55 @@
+name: OpenRoad weekly lightweight calendar maintenance — safe verification
+on:
+  push:
+    branches: [release/openroad-completion]
+    paths: ['.github/workflows/openroad-calendar-schedule.yml']
+  schedule:
+    - cron: '19 4 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: openroad-calendar-extension-only
+  cancel-in-progress: false
+jobs:
+  calendar:
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify and use calendar-only private script
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+          PRIVATE_DIR: ${{ vars.CPANEL_OPENROAD_PRIVATE_DIR }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS" && test -n "$SSH_HOST" && test -n "$SSH_USER" && test -n "$PRIVATE_DIR"
+          [[ "$PRIVATE_DIR" == /* ]] || exit 1
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_openroad_weekly_calendar
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/id_openroad_weekly_calendar -p "$SSH_PORT" \
+              -o StrictHostKeyChecking=yes -o BatchMode=yes \
+              "$SSH_USER@$SSH_HOST" bash -s -- "$PRIVATE_DIR" <<'REMOTE'
+          set -euo pipefail
+          root="$1"
+          test -f "$root/bin/extend_service_calendar.php"
+          test -f "$root/lib/calendar_extension.php"
+          test ! -L "$root/bin/extend_service_calendar.php"
+          test ! -L "$root/lib/calendar_extension.php"
+          php -l "$root/bin/extend_service_calendar.php" >/dev/null
+          php -l "$root/lib/calendar_extension.php" >/dev/null
+          echo "CALENDAR_SCHEDULE verified_private_cli=yes"
+          # One read-only plan then one bounded transaction.
+          php -d memory_limit=128M "$root/bin/extend_service_calendar.php" south_west
+          php -d memory_limit=128M "$root/bin/extend_service_calendar.php" south_west --apply
+          php -d memory_limit=128M "$root/bin/extend_service_calendar.php" south_west
+          echo "CALENDAR_SCHEDULE completed"
+          REMOTE
