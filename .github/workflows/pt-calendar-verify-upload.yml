@@ -1,0 +1,73 @@
+name: OpenRoad verify uploaded calendar files (no database writes)
+on:
+  push:
+    branches: [maintenance/pt-calendar-pedestrian-gates-20261028]
+    paths: ['.github/workflows/pt-calendar-verify-upload.yml']
+permissions:
+  contents: read
+concurrency:
+  group: openroad-calendar-file-verification
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    environment: openroad-production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate expected sources locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l maintenance/pt-calendar/calendar_extension.php
+          php -l maintenance/pt-calendar/extend_service_calendar.php
+          echo "EXPECT_LIB=$(sha256sum maintenance/pt-calendar/calendar_extension.php | awk '{print $1}')" >> "$GITHUB_ENV"
+          echo "EXPECT_RUN=$(sha256sum maintenance/pt-calendar/extend_service_calendar.php | awk '{print $1}')" >> "$GITHUB_ENV"
+      - name: Configure pinned SSH identity
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_verify"
+          printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+      - name: Verify uploaded source files and dry-run calendar
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+          PRIVATE_DIR: ${{ vars.CPANEL_OPENROAD_PRIVATE_DIR }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_HOST" && test -n "$SSH_USER" && test -n "$PRIVATE_DIR"
+          [[ "$PRIVATE_DIR" == /* ]] || exit 1
+          ssh -i "$HOME/.ssh/id_verify" -o StrictHostKeyChecking=yes \
+              -o BatchMode=yes -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+              bash -s -- "$PRIVATE_DIR" "$EXPECT_LIB" "$EXPECT_RUN" <<'REMOTE'
+          set -euo pipefail
+          private="$1"
+          expected_lib="$2"
+          expected_runner="$3"
+          library="$private/lib/calendar_extension.php"
+          runner="$private/bin/extend_service_calendar.php"
+          for f in "$library" "$runner"; do
+            if ! test -f "$f"; then echo "CALENDAR_UPLOAD missing_file"; exit 11; fi
+            if test -L "$f"; then echo "CALENDAR_UPLOAD symlink_rejected"; exit 12; fi
+            php -l "$f" >/dev/null
+          done
+          [[ "$(sha256sum "$library" | cut -d' ' -f1)" == "$expected_lib" ]] || {
+            echo "CALENDAR_UPLOAD library_checksum_mismatch"; exit 13;
+          }
+          [[ "$(sha256sum "$runner" | cut -d' ' -f1)" == "$expected_runner" ]] || {
+            echo "CALENDAR_UPLOAD runner_checksum_mismatch"; exit 14;
+          }
+          echo "CALENDAR_UPLOAD source_checksums_match"
+          # The runner computes its plan but never updates the database
+          # without the --apply argument.
+          php -d memory_limit=128M "$runner" south_west
+          REMOTE
