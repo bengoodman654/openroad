@@ -1,0 +1,53 @@
+name: OpenRoad unified release — current router plus v2 source integration
+on:
+  push:
+    branches: [release/openroad-completion]
+    paths:
+      - 'integration/ptv2/**'
+      - '.github/workflows/openroad-current-server-integration.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  server:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test authenticated ticket, cancellation and worker protocols
+        run: |
+          set -euo pipefail
+          for f in integration/ptv2/*.php; do php -l "$f" >/dev/null; done
+          php integration/ptv2/php_v2_cancellation_test.php
+          php integration/ptv2/php_v2_device_adapter_test.php
+          php integration/ptv2/php_v2_route_worker_test.php
+          php integration/ptv2/php_v2_protocol_test.php
+          php integration/ptv2/php_v2_process_test.php
+      - name: Stage against current SQL-fixed v0.2.9 server
+        run: |
+          python3 integration/ptv2/stage_current_server.py \
+            --output "$RUNNER_TEMP/current-v029-plus-ptv2.zip"
+          unzip -q "$RUNNER_TEMP/current-v029-plus-ptv2.zip" \
+            -d "$RUNNER_TEMP/server"
+          find "$RUNNER_TEMP/server" -name '*.php' -print0 |
+            xargs -0 -n1 php -l >/dev/null
+          router="$(find "$RUNNER_TEMP/server" -path '*/private/lib/router.php' -type f | head -1)"
+          test -f "$router"
+          php -r '
+            require $argv[1];
+            foreach(["or_active_boardings","or_active_arrivals",
+             "or_trip_stop_matches","or_second_leg_candidates",
+             "openroad_plan_bus"] as $fn)
+                if(!function_exists($fn))exit(3);
+            $r=new ReflectionFunction("openroad_plan_bus");
+            if($r->getNumberOfParameters()!=8)exit(4);
+            echo "CURRENT_V029_ROUTER_WITH_OPTIONAL_CANCEL_OK\n";
+          ' "$router"
+          php "$(dirname "$(dirname "$router")")/../tests/router_test.php"
+          test "$(find "$RUNNER_TEMP/server" -path '*/public/api/v2/task.php' | wc -l)" -eq 1
+      - name: Preserve review-only staged server source (no deployment)
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenRoad-current-v029-plus-PTv2-REVIEW-ONLY
+          path: ${{ runner.temp }}/current-v029-plus-ptv2.zip
+          retention-days: 7
