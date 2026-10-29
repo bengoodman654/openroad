@@ -1,0 +1,45 @@
+name: OpenRoad read-only server backend capability audit
+on:
+  push:
+    branches: [release/openroad-completion]
+    paths: ['.github/workflows/openroad-runtime-capabilities.yml']
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    timeout-minutes: 5
+    steps:
+      - name: Read only PHP storage modules and quotas
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+          PRIVATE_DIR: ${{ vars.CPANEL_OPENROAD_PRIVATE_DIR }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS" && test -n "$SSH_HOST" && test -n "$SSH_USER"
+          [[ "$PRIVATE_DIR" == /* ]] || exit 1
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_runtime
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/id_runtime -p "$SSH_PORT" \
+            -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            "$SSH_USER@$SSH_HOST" bash -s -- "$PRIVATE_DIR" <<'REMOTE'
+          set -euo pipefail
+          root="$1"
+          test -d "$root/cache"
+          php -r '
+            foreach(["pdo_sqlite","sqlite3","pdo_mysql","zip","curl"] as $e)
+                echo "RUNTIME_EXTENSION ".$e."=".(extension_loaded($e)?"yes":"no")."\n";
+            echo "RUNTIME_LIMIT memory=".ini_get("memory_limit").
+                 " max_execution_time=".ini_get("max_execution_time")."\n";
+          '
+          # Only aggregated resource figures (not file listing or secrets).
+          df -Pk "$root" | tail -1 | awk '{print "RUNTIME_DISK free_KiB="$4" used_pct="$5}'
+          REMOTE
