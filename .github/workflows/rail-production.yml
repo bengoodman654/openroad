@@ -65,9 +65,19 @@ jobs:
               if z.testzip() is not None: raise SystemExit('GTFS archive checksum error')
           PY
           python3 maintenance/rail/build_rail_index.py /tmp/rail-gtfs.zip /tmp/rail-index
+          python3 - <<'PY'
+          import sqlite3
+          db=sqlite3.connect('file:/tmp/rail-index/events.sqlite?mode=ro',uri=True)
+          status=db.execute('PRAGMA quick_check').fetchone()[0]
+          if status!='ok':raise SystemExit('Rail index SQLite integrity failed')
+          n=db.execute('SELECT COUNT(*) FROM events').fetchone()[0]
+          if n<30000:raise SystemExit('Insufficient scheduled rail connections')
+          print('RAIL_SQLITE_VALIDATED connections='+str(n))
+          db.close()
+          PY
           php -d memory_limit=64M maintenance/rail/test_real_smoke.php /tmp/rail-index
           tar -czf /tmp/rail-index.tar -C /tmp rail-index
-          test "$(stat -c %s /tmp/rail-index.tar)" -lt 50000000
+          test "$(stat -c %s /tmp/rail-index.tar)" -lt 95000000
           echo 'RAIL_BUILD_AND_BRISTOL_COVENTRY_SMOKE_PASSED'
 
       - name: Deploy proven source and index with pinned SSH, backup and atomic activation
@@ -135,7 +145,7 @@ jobs:
           test "$(sha256sum "$stage/rail_journeys.php" | cut -d' ' -f1)" = "$ehash"
           php -l "$stage/rail_planner.php" >/dev/null
           php -l "$stage/rail_journeys.php" >/dev/null
-          test "$(find "$stage/rail-index" -type f | wc -l)" -gt 100
+          test -f "$stage/rail-index/events.sqlite"
           base="$priv/cache/rail-routing"
           dest="$base/versions/$rid"
           test ! -e "$dest"
@@ -145,7 +155,7 @@ jobs:
           mv "$stage/rail-index" "$dest/rail-index"
           test -f "$dest/rail-index/manifest.json"
           size="$(du -sk "$dest" | cut -f1)"
-          test "$size" -gt 0 && test "$size" -le 65000
+          test "$size" -gt 0 && test "$size" -le 96000
           timeout 8 php -d memory_limit=96M "$stage/test_real_smoke.php" "$dest/rail-index"
           echo RAIL_INDEX_VERIFIED
           if test -e "$base/current" && test ! -L "$base/current"; then
