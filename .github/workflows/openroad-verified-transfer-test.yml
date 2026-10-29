@@ -1,0 +1,37 @@
+name: OpenRoad verified walking interchange and timetable unit regressions
+on:
+  push:
+    branches: [release/openroad-completion]
+    paths:
+      - 'pilot/gtfs_engine.py'
+      - 'pilot/request_lifecycle.py'
+      - 'pilot/journey_options.py'
+      - 'pilot/pedestrian_graph.py'
+      - 'pilot/transfer_connector_gate.py'
+      - 'pilot/test_*.py'
+      - 'maintenance/gtfs_refresh/query_sqlite.py'
+      - 'maintenance/gtfs_refresh/verified_transfer.py'
+      - 'maintenance/gtfs_refresh/test_query_sqlite.py'
+      - '.github/workflows/openroad-verified-transfer-test.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Python syntax and regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m compileall -q pilot maintenance/gtfs_refresh
+          python3 -m unittest -v \
+            pilot.test_gtfs_engine \
+            pilot.test_journey_options \
+            pilot.test_pedestrian_graph \
+            pilot.test_transfer_connector_gate \
+            pilot.test_request_lifecycle \
+            maintenance.gtfs_refresh.test_query_sqlite
+          python3 -m pilot.acceptance_gate
