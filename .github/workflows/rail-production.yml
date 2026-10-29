@@ -91,6 +91,20 @@ jobs:
           printf 'Host rail-production\n HostName %s\n User %s\n Port %s\n IdentityFile %s/.ssh/id_rail\n StrictHostKeyChecking yes\n BatchMode yes\n' \
             "$HOST" "$USERNAME" "$SSH_PORT" "$HOME" > "$HOME/.ssh/config"
           stage="openroad-rail-stage-$GITHUB_RUN_ID"
+          set +e
+          timeout 10 ssh -o ConnectTimeout=7 rail-production true 2> /tmp/openroad-ssh-diagnostic.log
+          status="$?"
+          set -e
+          if test "$status" -ne 0; then
+            if grep -qi 'Host key verification failed' /tmp/openroad-ssh-diagnostic.log; then echo 'RAIL_SSH_HOST_KEY_MISMATCH'
+            elif grep -qi 'Permission denied' /tmp/openroad-ssh-diagnostic.log; then echo 'RAIL_SSH_AUTHENTICATION_FAILED'
+            elif grep -qi 'Connection refused' /tmp/openroad-ssh-diagnostic.log; then echo 'RAIL_SSH_CONNECTION_REFUSED'
+            elif grep -qi 'Could not resolve hostname' /tmp/openroad-ssh-diagnostic.log; then echo 'RAIL_SSH_DNS_FAILED'
+            elif grep -qi 'timed out' /tmp/openroad-ssh-diagnostic.log || test "$status" -eq 124; then echo 'RAIL_SSH_TIMED_OUT'
+            else echo 'RAIL_SSH_UNKNOWN_FAILURE'; fi
+            exit 31
+          fi
+          echo 'RAIL_SSH_CONNECTED'
           ssh rail-production bash -s -- "$stage" <<'REMOTE'
           set -euo pipefail
           [[ "$1" =~ ^openroad-rail-stage-[0-9]+$ ]]
