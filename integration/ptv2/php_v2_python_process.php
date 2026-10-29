@@ -10,6 +10,9 @@ function ptv2_run_city_process(array $canonicalQuery, callable $cancelCheck,
     $python=$source['python']??'';
     $script=$source['script']??'';
     $index=$source['index']??'';
+    $cache=$source['snapshotCache']??null;
+    $packageSha=$source['packageSha256']??null;
+    $useCache=is_string($cache)&&$cache!=='';
     $region=$source['region']??'';
     $sha=$source['sourceSha256']??'';
     if(!is_string($python)||!is_string($script)||!is_string($index)||
@@ -18,7 +21,11 @@ function ptv2_run_city_process(array $canonicalQuery, callable $cancelCheck,
        !preg_match('/^[a-f0-9]{64}$/D',$sha)||
        !is_file($python)||!is_executable($python)||
        !is_file($script)||is_link($script)||
-       !is_file($index)||is_link($index)||
+       ($useCache?
+           (!is_file($cache)||is_link($cache)||
+            !is_string($packageSha)||
+            !preg_match('/^[a-f0-9]{64}$/D',$packageSha)):
+           (!is_file($index)||is_link($index)))||
        $deadlineSeconds<2||$deadlineSeconds>14)
         throw new RuntimeException('UNPREPARED_CITY_SOURCE');
     if($cancelCheck())throw new RuntimeException('REQUEST_CANCELLED');
@@ -46,8 +53,14 @@ function ptv2_run_city_process(array $canonicalQuery, callable $cancelCheck,
     $json=json_encode($payload,JSON_THROW_ON_ERROR);
     if(strlen($json)>4096)
         throw new InvalidArgumentException('Oversized worker request');
-    $command=[$python,'-B',$script,'--index',$index,
+    $command=[$python,'-B',$script,
               '--region',$region,'--source-sha',$sha];
+    if($useCache){
+        array_push($command,'--snapshot-cache',$cache,
+                   '--package-sha',$packageSha);
+    }else{
+        array_push($command,'--index',$index);
+    }
     $pipes=[];
     $process=proc_open($command,
         [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,
