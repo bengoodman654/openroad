@@ -384,8 +384,29 @@ public final class TransitClient {
             }
         } else {
             JSONObject allowedModes = safeSettings.optJSONObject("modes");
-            if (allowedModes != null && !allowedModes.optBoolean("bus", true))
-                throw new Exception("Bus is disabled in Public transport settings. OpenRoad's current official-data planner outside London routes English bus services.");
+            boolean busEnabled = allowedModes == null || allowedModes.optBoolean("bus",true);
+            boolean railEnabled = allowedModes == null || allowedModes.optBoolean("train",true);
+            if (!busEnabled && !railEnabled)
+                throw new Exception("Enable buses or trains in Public transport settings.");
+            // For a region-spanning journey, attempt rail before local-bus routing.
+            // This is a signed request to the owner's server, never a feed download
+            // or an RDM credential in the Android app.
+            boolean pairedForRail=OpenRoadServerClient.configured(context,BuildConfig.BUNDLED_OPENROAD_SERVER_URL);
+            double directMetres=distanceMetres(originLat,originLon,destLat,destLon);
+            JSONObject scheduledRail=null;
+            if(railEnabled && pairedForRail && (directMetres>=6500 || !busEnabled)){
+                try{
+                    scheduledRail=OpenRoadServerClient.railJourneys(context,originLat,originLon,destLat,destLon,
+                            BuildConfig.BUNDLED_OPENROAD_SERVER_URL);
+                }catch(Exception ignored){
+                    // A missing, stale or busy rail index cannot break working
+                    // Bristol bus directions. No repeated retry on this search.
+                }
+            }
+            if(scheduledRail!=null && (!busEnabled || directMetres>=35000))
+                return scheduledRail;
+            if(!busEnabled)
+                throw new Exception("No scheduled train journey was found within walking distance.");
             // Outside London, prefer the owner's private pre-indexed OpenRoad server. This keeps
             // the expensive regional GTFS parsing off the phone. If the private server is absent,
             // offline or still being configured, fall back transparently to the on-device planner.
@@ -396,12 +417,14 @@ public final class TransitClient {
                     JSONObject response = OpenRoadServerClient.route(context, originLat, originLon, destLat, destLon, safeSettings,
                             BuildConfig.BUNDLED_OPENROAD_SERVER_URL);
                     Log.i(TIMING_TAG, "provider=private_server outcome=success ms=" + (SystemClock.elapsedRealtime()-providerStart));
-                    return response;
+                    return scheduledRail==null?response:mergeBusAndRail(response,scheduledRail);
                 } catch (Exception serverFailure) {
+                    if(scheduledRail!=null)return scheduledRail;
                     officialFailure = serverFailure;
                     Log.w(TIMING_TAG, "provider=private_server outcome=failed ms=" + (SystemClock.elapsedRealtime()-providerStart));
                 }
             }
+            if(scheduledRail!=null)return scheduledRail;
             // Never start a multi-megabyte timetable download in a foreground route search.
             // If the timetable isn't prepared, the background preload can populate it for a retry.
             if (!BodsJourneyPlanner.hasPreparedRegion(context,originLat,originLon,destLat,destLon)) {
@@ -428,6 +451,26 @@ public final class TransitClient {
         if (insideGreaterLondon(originLat, originLon) && insideGreaterLondon(destLat, destLon))
             throw new Exception(detail + " TransportAPI fallback is off; enable it in Public transport settings only if you want to use that paid/limited service.");
         throw new Exception(detail);
+    }
+
+    /** Keep at least one rail alternative alongside fast local bus journeys. */
+    private static JSONObject mergeBusAndRail(JSONObject bus,JSONObject rail) throws Exception {
+        java.util.List<JSONObject> all=new ArrayList<>();
+        JSONArray b=bus.optJSONArray("routes"),r=rail.optJSONArray("routes");
+        if(r!=null)for(int i=0;i<Math.min(2,r.length());i++){
+            JSONObject item=r.optJSONObject(i);if(item!=null)all.add(item);
+        }
+        if(b!=null)for(int i=0;i<Math.min(2,b.length());i++){
+            JSONObject item=b.optJSONObject(i);if(item!=null)all.add(item);
+        }
+        all.sort((x,y)->Long.compare(x.optJSONObject("summary")==null?Long.MAX_VALUE:
+                x.optJSONObject("summary").optLong("travelTimeInSeconds",Long.MAX_VALUE),
+                y.optJSONObject("summary")==null?Long.MAX_VALUE:
+                y.optJSONObject("summary").optLong("travelTimeInSeconds",Long.MAX_VALUE)));
+        JSONArray out=new JSONArray();
+        for(int i=0;i<Math.min(3,all.size());i++)out.put(all.get(i));
+        return new JSONObject(bus.toString()).put("routes",out)
+                .put("clearRouteMultimodal",true);
     }
 
     private static JSONObject combineSegmentJourneys(List<JSONObject> segments, JSONArray viaStops) throws Exception {
