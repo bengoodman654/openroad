@@ -39,7 +39,7 @@ class IndexRoutingTests(unittest.TestCase):
     def tearDown(self):self.t.cleanup()
     def test_scheduled_direct_and_alternative_nonselectable(self):
         a=timetable_query(self.db,"south_west",(51.4545,-2.5879),
-            (51.46,-2.595),dt.date(2026,10,29),8*3600+40*60)
+            (51.46,-2.595),dt.date(2026,10,29),8*3600+40*60,walk_cap_m=180)
         self.assertEqual(a["outcome"],"OK")
         self.assertTrue(a["results"])
         self.assertEqual(a["results"][0]["trips"],["T0"])
@@ -47,7 +47,7 @@ class IndexRoutingTests(unittest.TestCase):
         self.assertFalse(a["results"][0]["walkGeometryVerified"])
     def test_transfer_when_direct_removed_or_departing_late(self):
         a=timetable_query(self.db,"south_west",(51.4545,-2.5879),
-            (51.46,-2.595),dt.date(2026,10,29),9*3600+1*60)
+            (51.46,-2.595),dt.date(2026,10,29),9*3600+1*60,walk_cap_m=180)
         self.assertEqual(a["outcome"],"OK")
         self.assertTrue(any(len(x["trips"])==2 for x in a["results"]))
     def test_cancellation_propagated(self):
