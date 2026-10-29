@@ -38,7 +38,8 @@ def close_stops(db,lat,lon,radius_m=1000,limit=15):
 
 def _query_one_service_day(index_path,region,from_point,to_point,
                     service_date,earliest_secs,budget_secs=4,
-                    cancel=lambda:False,walk_cap_m=900):
+                    cancel=lambda:False,walk_cap_m=900,
+                    verified_transfers=None,avoid_steps=False):
     started=time.monotonic()
     def check():
         if cancel():raise SearchCancelled()
@@ -66,6 +67,9 @@ def _query_one_service_day(index_path,region,from_point,to_point,
         info={r["name"]:json.loads(r["value"]) for r in db.execute("SELECT * FROM info")}
         if info.get("region")!=region or info.get("schema") not in ("openroad-bus-sqlite-1","openroad-bus-sqlite-compact-2"):
             raise ValueError("Source pinned timetable mismatch")
+        from maintenance.gtfs_refresh.verified_transfer import reviewed_transfer_links
+        reviewed_by_board=reviewed_transfer_links(
+            db,info,verified_transfers,walk_cap_m,avoid_steps=avoid_steps)
         # Retain more stop candidates for broad walking preferences.
         # A hard 20-stop cap missed busy interchanges; a larger radius
         # must not silently discard previously eligible nearby stops.
@@ -102,6 +106,8 @@ def _query_one_service_day(index_path,region,from_point,to_point,
                         "ORDER BY seq LIMIT 60",
                         (board["trip_id"],board["seq"])):
                     if end["stop_id"] in eligible:
+                        if walk+eligible[end["stop_id"]]>walk_cap_m:
+                            continue
                         foot=int(math.ceil(eligible[end["stop_id"]]/1.25))
                         record={
                           "trips":[board["trip_id"]],
@@ -112,6 +118,8 @@ def _query_one_service_day(index_path,region,from_point,to_point,
                           "operatorLine":board["short_name"],
                           "accessWalkMetresLowerBound":round(walk),
                           "egressWalkMetresLowerBound":round(eligible[end["stop_id"]]),
+                          "transferWalkMetres":0,
+                          "transferGeometryVerified":False,
                         }
                         key=(board["trip_id"],stop_id,end["stop_id"],board["departure_sec"])
                         if key not in seen:
@@ -158,30 +166,47 @@ def _query_one_service_day(index_path,region,from_point,to_point,
                    "ORDER BY seq DESC LIMIT 70",
                    (alight["trip_id"],alight["seq"]))
                 for board2 in previous:
-                    change_stop=board2["stop_id"]
-                    if change_stop not in first_by_stop:continue
+                    board_stop=board2["stop_id"]
+                    choices=[(board_stop,None)]
+                    choices.extend((path.a,path)
+                                   for path in reviewed_by_board.get(board_stop,()))
                     second_depart=board2["departure_sec"]
                     if second_depart<earliest_secs+180:continue
-                    for arr,_,first_trip,boarding,departure,line,access_walk in first_by_stop[change_stop]:
-                        if arr+180>second_depart:break
-                        if second_depart>arr+3600 or first_trip==alight["trip_id"]:
-                            continue
-                        key=(first_trip,alight["trip_id"],boarding,
-                             change_stop,dest_stop)
-                        if key in seen:continue
-                        seen.add(key)
-                        records.append({
-                          "trips":[first_trip,alight["trip_id"]],
-                          "boarding":[boarding,change_stop],
-                          "alighting":[change_stop,dest_stop],
-                          "departureSec":departure,
-                          "arrivalLowerBoundSec":alight["arrival_sec"]+
-                              int(math.ceil(dest_walk/1.25)),
-                          "operatorLine":line+" → "+alight["short_name"],
-                          "accessWalkMetresLowerBound":round(access_walk),
-                          "egressWalkMetresLowerBound":round(dest_walk),
-                        })
-                        transfer_count+=1
+                    for alight_stop,footpath in choices:
+                        if alight_stop not in first_by_stop:continue
+                        walking_seconds=footpath.seconds if footpath else 0
+                        walking_metres=footpath.metres if footpath else 0
+                        for arr,_,first_trip,boarding,departure,line,access_walk in first_by_stop[alight_stop]:
+                            if arr+walking_seconds+180>second_depart:break
+                            if second_depart>arr+walking_seconds+3600 or first_trip==alight["trip_id"]:
+                                continue
+                            # Only the reviewed middle connector has path
+                            # geometry. The endpoint access/egress values
+                            # remain great-circle LOWER BOUNDS, so every
+                            # itinerary stays research-only/nonselectable.
+                            if access_walk+walking_metres+dest_walk>walk_cap_m:
+                                continue
+                            key=(first_trip,alight["trip_id"],boarding,
+                                 alight_stop,board_stop,dest_stop)
+                            if key in seen:continue
+                            seen.add(key)
+                            records.append({
+                              "trips":[first_trip,alight["trip_id"]],
+                              "boarding":[boarding,board_stop],
+                              "alighting":[alight_stop,dest_stop],
+                              "departureSec":departure,
+                              "arrivalLowerBoundSec":alight["arrival_sec"]+
+                                  int(math.ceil(dest_walk/1.25)),
+                              "operatorLine":line+" → "+alight["short_name"],
+                              "accessWalkMetresLowerBound":round(access_walk),
+                              "egressWalkMetresLowerBound":round(dest_walk),
+                              "transferWalkMetres":walking_metres,
+                              "transferWalkSeconds":walking_seconds,
+                              "transferWalkGeometry":list(footpath.geometry) if footpath else [],
+                              "transferGeometryVerified":bool(footpath),
+                            })
+                            transfer_count+=1
+                            if transfer_count>=5000:break
                         if transfer_count>=5000:break
                     if transfer_count>=5000:break
                 if transfer_count>=5000:break
@@ -219,14 +244,16 @@ def _query_one_service_day(index_path,region,from_point,to_point,
 
 def timetable_query(index_path,region,from_point,to_point,
                     service_date,earliest_secs,budget_secs=4,
-                    cancel=lambda:False,walk_cap_m=900):
+                    cancel=lambda:False,walk_cap_m=900,
+                    verified_transfers=None,avoid_steps=False):
     """Merge current and previous service days for GTFS 24+ hour journeys."""
     if not isinstance(service_date,dt.date):
         raise ValueError("Service date required")
     started=time.monotonic()
     current=_query_one_service_day(index_path,region,from_point,to_point,
                                    service_date,earliest_secs,
-                                   budget_secs,cancel,walk_cap_m)
+                                   budget_secs,cancel,walk_cap_m,
+                                   verified_transfers,avoid_steps)
     if earliest_secs>=4*3600:
         return current
     if cancel():raise SearchCancelled()
@@ -238,7 +265,7 @@ def timetable_query(index_path,region,from_point,to_point,
     previous=_query_one_service_day(
         index_path,region,from_point,to_point,
         service_date-dt.timedelta(days=1),earliest_secs+86400,
-        remain,cancel,walk_cap_m)
+        remain,cancel,walk_cap_m,verified_transfers,avoid_steps)
     combined=[]
     for r in current.get("results",[]):
         combined.append(r)
