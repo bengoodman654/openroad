@@ -75,7 +75,7 @@ def _query_one_service_day(index_path,region,from_point,to_point,
               "JOIN service_days d ON d.service_id=t.service_id AND d.date=? "
               "WHERE s.stop_id=? AND s.pickup=0 "
               "AND s.departure_sec BETWEEN ? AND ? "
-              "ORDER BY s.departure_sec LIMIT 30",
+              "ORDER BY s.departure_sec,t.trip_id,s.seq LIMIT 30",
               (day,stop_id,earliest,earliest_secs+3*3600)).fetchall()
             for board in boards:
                 check()
@@ -113,7 +113,7 @@ def _query_one_service_day(index_path,region,from_point,to_point,
               "JOIN routes r ON r.route_id=t.route_id "
               "JOIN service_days d ON d.service_id=t.service_id AND d.date=? "
               "WHERE s.stop_id=? AND s.pickup=0 "
-              "AND s.departure_sec BETWEEN ? AND ? ORDER BY s.departure_sec LIMIT 8",
+              "AND s.departure_sec BETWEEN ? AND ? ORDER BY s.departure_sec,t.trip_id,s.seq LIMIT 8",
               (day,change_stop,arr+180,arr+3600)).fetchall()
             for board2 in buses:
                 check()
@@ -138,7 +138,8 @@ def _query_one_service_day(index_path,region,from_point,to_point,
                       "operatorLine":line+" → "+board2["short_name"],
                     })
         records.sort(key=lambda r:(r["arrivalLowerBoundSec"],r["departureSec"],
-                                  len(r["trips"])))
+                                  len(r["trips"]),tuple(r["trips"]),
+                                  tuple(r["boarding"]),tuple(r["alighting"])))
         out=[]
         for rec in records:
             if len(out)>=3:break
