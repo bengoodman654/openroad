@@ -90,6 +90,19 @@ public final class OpenRoadServerClient {
         return json;
     }
 
+    /** Timetable-only national railway planning. Signed like every private OpenRoad request. */
+    public static JSONObject railJourneys(Context context, double fromLat, double fromLon,
+                                          double toLat, double toLon, String baseUrl) throws Exception {
+        String root=requirePaired(context,baseUrl);
+        JSONObject body=new JSONObject()
+                .put("from",new JSONObject().put("lat",fromLat).put("lon",fromLon))
+                .put("to",new JSONObject().put("lat",toLat).put("lon",toLon));
+        JSONObject result=postSigned(context,root+"/api/v1/rail_journeys.php",body.toString(),2500,5500);
+        JSONArray routes=result.optJSONArray("routes");
+        if(routes==null||routes.length()==0)throw new Exception("No scheduled rail journeys found");
+        return result;
+    }
+
     public static JSONObject busService(Context context, String line, double lat, double lon, String baseUrl) throws Exception {
         String root = requirePaired(context, baseUrl);
         JSONObject body = new JSONObject().put("line", line == null ? "" : line.trim()).put("lat", lat).put("lon", lon);
