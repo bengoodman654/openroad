@@ -28,9 +28,15 @@ function or_rail_near(array $stations,float $lat,float $lon,int $limit):array{
     return array_slice($near,0,$limit);
 }
 function or_rail_shard(string $root,string $day,string $letter):array{
+    // PHP arrays grow far larger than gzip files. Keep at most three
+    // recently used shards on a small shared-hosting PHP process.
     static $cache=[];
     $id=$root.'/'.$day.'/'.$letter;
-    if(array_key_exists($id,$cache))return $cache[$id];
+    if(array_key_exists($id,$cache)){
+        $value=$cache[$id];unset($cache[$id]);$cache[$id]=$value;
+        return $value;
+    }
+    if(count($cache)>=3)array_shift($cache);
     $file=$root.'/d/'.$day.'/'.$letter.'.json.gz';
     if(!is_file($file)||filesize($file)>2500000)return $cache[$id]=[];
     $bytes=@gzdecode((string)file_get_contents($file),8000001);
