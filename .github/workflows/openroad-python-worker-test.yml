@@ -1,0 +1,29 @@
+name: OpenRoad bounded PHP Python research worker integration
+on:
+  push:
+    branches: [release/openroad-completion]
+    paths:
+      - 'integration/ptv2/city_planner_cli.py'
+      - 'integration/ptv2/php_v2_python_process.php'
+      - 'integration/ptv2/test_city_planner_cli.py'
+      - 'integration/ptv2/php_v2_python_process_test.php'
+      - '.github/workflows/openroad-python-worker-test.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  worker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint PHP adapter and compile planner Python
+        run: |
+          set -euo pipefail
+          php -l integration/ptv2/php_v2_python_process.php
+          php -l integration/ptv2/php_v2_python_process_test.php
+          python3 -m py_compile integration/ptv2/city_planner_cli.py
+      - name: Prove cancellation, worker deadline, output blocking and source hash
+        run: php integration/ptv2/php_v2_python_process_test.php
+      - name: Prove CLI source identity, fail-closed research output and GTFS connection search
+        run: python3 -m unittest -v integration.ptv2.test_city_planner_cli
