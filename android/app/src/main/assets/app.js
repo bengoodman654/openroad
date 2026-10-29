@@ -2057,7 +2057,13 @@ ${leg.arrival}`:''}`;row.append(icon,main,time);box.appendChild(row);
       if(el('contactsSearchAction'))el('contactsSearchAction').textContent=granted?'On':'Enable';
       if(granted){const q=el('searchInput').value.trim();if(q.length>=1)requestSearchSuggestions();if(placeCategories.contacts)refreshPlaceCategories();}
     },
-    onContactGeocodeFailed(name,address){const key=`${name||'Contact'}|${address||''}`.toLowerCase();contactBackgroundGeocodes.delete(key);},
+    onContactGeocodeFailed(name,address){
+      const key=`${name||'Contact'}|${address||''}`.toLowerCase();
+      const background=contactBackgroundGeocodes.has(key);
+      contactBackgroundGeocodes.delete(key);
+      document.querySelectorAll('.contact-suggestion.loading').forEach(n=>{n.classList.remove('loading');n.disabled=false;});
+      if(!background)toast('Could not locate that contact address.');
+    },
     onContactGeocoded(name,address,lat,lon){document.querySelectorAll('.contact-suggestion.loading').forEach(n=>{n.classList.remove('loading');n.disabled=false;});
       if(!Number.isFinite(Number(lat))||!Number.isFinite(Number(lon)))return toast('Could not locate that contact address.');
       const entry={name:name||'Contact',address:address||'',lat:Number(lat),lon:Number(lon)};const key=`${entry.name}|${entry.address}`.toLowerCase();contactPlaceCache=contactPlaceCache.filter(c=>`${c.name}|${c.address}`.toLowerCase()!==key);contactPlaceCache.unshift(entry);saveContactPlaceCache();if(placeCategories.contacts)renderContactPlaceMarkers();
