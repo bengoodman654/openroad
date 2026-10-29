@@ -48,6 +48,19 @@ def _query_one_service_day(index_path,region,from_point,to_point,
     uri="file:"+str(index_path)+"?mode=ro&immutable=1"
     db=sqlite3.connect(uri,uri=True,timeout=0.5)
     db.row_factory=sqlite3.Row
+    # SQLite can spend most of its time inside a single multi-table query;
+    # Python-level cancellation between queries is not sufficient.
+    interrupted=None
+    def sqlite_progress():
+        nonlocal interrupted
+        if cancel():
+            interrupted="cancel"
+            return 1
+        if time.monotonic()-started>budget_secs:
+            interrupted="budget"
+            return 1
+        return 0
+    db.set_progress_handler(sqlite_progress,1000)
     try:
         db.execute("PRAGMA query_only=ON")
         info={r["name"]:json.loads(r["value"]) for r in db.execute("SELECT * FROM info")}
@@ -157,7 +170,14 @@ def _query_one_service_day(index_path,region,from_point,to_point,
         return {"outcome":"OK" if out else "NO_JOURNEY",
                 "snapshotId":info["sourceArchiveSha256"],
                 "results":out,"researchOnly":True}
+    except sqlite3.OperationalError as exc:
+        if interrupted=="cancel":
+            raise SearchCancelled() from exc
+        if interrupted=="budget":
+            raise SearchBudget() from exc
+        raise
     finally:
+        db.set_progress_handler(None,0)
         db.close()
 
 

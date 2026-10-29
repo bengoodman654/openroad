@@ -65,6 +65,25 @@ class IndexRoutingTests(unittest.TestCase):
             timetable_query(self.db,"south_west",(51.4545,-2.5879),
                 (51.46,-2.595),dt.date(2026,10,29),9*3600,
                 cancel=lambda:True)
+    def test_zero_budget_cannot_claim_no_journey(self):
+        from maintenance.gtfs_refresh.query_sqlite import SearchBudget
+        with self.assertRaises(SearchBudget):
+            timetable_query(self.db,"south_west",(51.4545,-2.5879),
+                (51.46,-2.595),dt.date(2026,10,29),
+                9*3600,budget_secs=0)
+
+    def test_timeout_and_cancellation_do_not_corrupt_index(self):
+        from maintenance.gtfs_refresh.query_sqlite import SearchBudget
+        with self.assertRaises(SearchBudget):
+            timetable_query(self.db,"south_west",(51.4545,-2.5879),
+                (51.46,-2.595),dt.date(2026,10,29),
+                9*3600,budget_secs=-1)
+        # The same immutable index remains usable after query interruption.
+        good=timetable_query(self.db,"south_west",(51.4545,-2.5879),
+            (51.46,-2.595),dt.date(2026,10,29),
+            9*3600,budget_secs=4)
+        self.assertEqual(good["outcome"],"OK")
+
     def test_refuse_unsupported_date(self):
         a=timetable_query(self.db,"south_west",(51.4545,-2.5879),
             (51.46,-2.595),dt.date(2028,10,29),9*3600)
