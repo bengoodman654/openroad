@@ -1,0 +1,183 @@
+{
+  "stage": "OFFHOST_DATED_SOURCE_IDENTITY_RECONNAISSANCE",
+  "observedDate": "2026-10-27",
+  "githubRun": "https://github.com/bengoodman654/openroad/actions/runs/40592636211",
+  "criteria": "Exact GTFS stop_id ↔ OpenStreetMap naptan:AtcoCode; unique tag; ≤40 metres great-circle distance",
+  "sourceRightsAndStreetAccessProof": "NOT_ESTABLISHED",
+  "productionGatePassed": false,
+  "acceptedProductionCases": 0,
+  "totalProductionCases": 105,
+  "citationsAndLimits": [
+    "Only 2.5km centre radius, not full city, regional or country coverage",
+    "Official date-valid regional DfT BODS GTFS and Geofabrik OSM downloaded on temporary GitHub runners",
+    "Stop-code agreement and proximity do NOT verify kerbs, crossings, pavement sides, entrance or step-free access",
+    "No candidate may be used as a routable walking connector without independent confirmation",
+    "Source hashes are pinned below; Geofabrik latest extracts differ from 26 October input"
+  ],
+  "cities": [
+    {
+      "accessibilityConfirmed": false,
+      "autoVerifiedStopAnchors": 0,
+      "city": "Bristol",
+      "gtfsSourceSHA256": "61417fea64467afe1396ecc7557f1cfa85e992ea46f6254587b6b6ca8d1b2e20",
+      "gtfsStopsWithinRadius": 339,
+      "identityStatus": "RESEARCH_ONLY_CODE_MATCHES_UNVERIFIED",
+      "nearThresholdMetres": 40,
+      "osmSourceSHA256": "ee3c05d76299da6c9e273d1f94be77798d9c6ebf072a1736427727502e4191e3",
+      "radiusMetres": 2500,
+      "reviewExamples": [
+        {
+          "gtfsStopId": "010000053",
+          "status": "NO_EXACT_TAG",
+          "straightLineMetres": null
+        },
+        {
+          "gtfsStopId": "010000062",
+          "status": "NO_EXACT_TAG",
+          "straightLineMetres": null
+        },
+        {
+          "gtfsStopId": "010000148",
+          "status": "NO_EXACT_TAG",
+          "straightLineMetres": null
+        },
+        {
+          "gtfsStopId": "010000151",
+          "status": "NO_EXACT_TAG",
+          "straightLineMetres": null
+        },
+        {
+          "gtfsStopId": "0100BRA10789",
+          "status": "NO_EXACT_TAG",
+          "straightLineMetres": null
+        },
+        {
+          "gtfsStopId": "0100BRA10793",
+          "status": "NO_EXACT_TAG",
+          "straightLineMetres": null
+        },
+        {
+          "gtfsStopId": "0100BRA10878",
+          "status": "EXACT_TAG_DISTANT_REVIEW",
+          "straightLineMetres": 42.5
+        },
+        {
+          "gtfsStopId": "0100BRA16928",
+          "status": "NO_EXACT_TAG",
+          "straightLineMetres": null
+        },
+        {
+          "gtfsStopId": "0100BRA56553",
+          "status": "EXACT_TAG_DISTANT_REVIEW",
+          "straightLineMetres": 47.7
+        },
+        {
+          "gtfsStopId": "0100BRP90010",
+          "status": "NO_EXACT_TAG",
+          "straightLineMetres": null
+        },
+        {
+          "gtfsStopId": "0100BRP90237",
+          "status": "NO_EXACT_TAG",
+          "straightLineMetres": null
+        },
+        {
+          "gtfsStopId": "0100BRP90347",
+          "status": "EXACT_TAG_DISTANT_REVIEW",
+          "straightLineMetres": 48
+        }
+      ],
+      "serviceDate": "2026-10-27",
+      "statusCounts": {
+        "DUPLICATE_TAG_REVIEW": 0,
+        "EXACT_TAG_DISTANT_REVIEW": 4,
+        "EXACT_TAG_NEAR_UNVERIFIED": 299,
+        "NO_EXACT_TAG": 36
+      },
+      "usableInRouting": false,
+      "walkingSafetyConfirmed": false
+    },
+    {
+      "accessibilityConfirmed": false,
+      "autoVerifiedStopAnchors": 0,
+      "city": "Coventry",
+      "gtfsSourceSHA256": "56e2f73ee49f77023c49f35f59d9e51a264f5e3d2dfb275a3a80151806a8d27e",
+      "gtfsStopsWithinRadius": 383,
+      "identityStatus": "RESEARCH_ONLY_CODE_MATCHES_UNVERIFIED",
+      "nearThresholdMetres": 40,
+      "osmSourceSHA256": "6c3a2d894c8ab0012b88c13bc385e35aeffde19258ab0baf8ec633119379de57",
+      "radiusMetres": 2500,
+      "reviewExamples": [
+        {
+          "gtfsStopId": "43000002501",
+          "status": "NO_EXACT_TAG",
+          "straightLineMetres": null
+        },
+        {
+          "gtfsStopId": "43000002502",
+          "status": "NO_EXACT_TAG",
+          "straightLineMetres": null
+        },
+        {
+          "gtfsStopId": "43000003901",
+          "status": "EXACT_TAG_DISTANT_REVIEW",
+          "straightLineMetres": 55.8
+        },
+        {
+          "gtfsStopId": "43000006202",
+          "status": "NO_EXACT_TAG",
+          "straightLineMetres": null
+        },
+        {
+          "gtfsStopId": "43000008202",
+          "status": "NO_EXACT_TAG",
+          "straightLineMetres": null
+        },
+        {
+          "gtfsStopId": "43000010102",
+          "status": "EXACT_TAG_DISTANT_REVIEW",
+          "straightLineMetres": 61.1
+        },
+        {
+          "gtfsStopId": "43000020202",
+          "status": "EXACT_TAG_DISTANT_REVIEW",
+          "straightLineMetres": 47.9
+        },
+        {
+          "gtfsStopId": "43000020401",
+          "status": "NO_EXACT_TAG",
+          "straightLineMetres": null
+        },
+        {
+          "gtfsStopId": "43000020402",
+          "status": "NO_EXACT_TAG",
+          "straightLineMetres": null
+        },
+        {
+          "gtfsStopId": "43000022101",
+          "status": "EXACT_TAG_DISTANT_REVIEW",
+          "straightLineMetres": 72.3
+        },
+        {
+          "gtfsStopId": "43000022102",
+          "status": "EXACT_TAG_DISTANT_REVIEW",
+          "straightLineMetres": 43.1
+        },
+        {
+          "gtfsStopId": "43000041201",
+          "status": "EXACT_TAG_DISTANT_REVIEW",
+          "straightLineMetres": 82.5
+        }
+      ],
+      "serviceDate": "2026-10-27",
+      "statusCounts": {
+        "DUPLICATE_TAG_REVIEW": 0,
+        "EXACT_TAG_DISTANT_REVIEW": 15,
+        "EXACT_TAG_NEAR_UNVERIFIED": 354,
+        "NO_EXACT_TAG": 14
+      },
+      "usableInRouting": false,
+      "walkingSafetyConfirmed": false
+    }
+  ]
+}
