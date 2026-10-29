@@ -54,5 +54,7 @@ jobs:
               du -sk "$folder" | awk '{print "RAIL_EXTRACT_KIB="$1}'
             fi
           done
+          php -r 'echo "RAIL_PDO_SQLITE=".(in_array("sqlite",PDO::getAvailableDrivers(),true)?"YES":"NO")."\n";'
+          php -r 'echo "RAIL_SQLITE3=".(class_exists("SQLite3")?"YES":"NO")."\n";'
           printf 'RAIL_PREFLIGHT_DONE\n'
           REMOTE
