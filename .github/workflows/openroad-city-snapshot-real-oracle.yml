@@ -76,5 +76,18 @@ jobs:
                 "stop_pair_options=",len(results),
                 "fastest_stop_to_stop=",(min(results) if results else "none"),
                 "eligible_for_navigation=False")
+          from maintenance.gtfs_refresh.coordinate_journeys import coordinate_journeys
+          for metres in (750,900):
+              coord=coordinate_journeys(
+                  snapshot,a,b,17*3600+45*60,
+                  max_walk_m=metres,max_nearby=5,max_pairs=25,
+                  budget_s=9)
+              print("REGIONAL_COORDINATE_RESEARCH region=",region,
+                    "walk_cap_m=",metres,"outcome=",coord["outcome"],
+                    "routes=",len(coord["results"]),
+                    "incomplete=",coord.get("incompleteSearch",False),
+                    "research_only=",coord["researchOnly"])
+              assert coord["researchOnly"] is True
+              assert all(not r["selectable"] for r in coord["results"])
           print("REGIONAL_CITY_TOTAL_MS",round((time.monotonic()-begin)*1000))
           PY
