@@ -69,6 +69,7 @@ public class NavigationService extends Service implements LocationListener, Text
     private boolean hasWaypoint = false;
     private double waypointLat = 0, waypointLon = 0;
     private String waypointName = "Stop";
+    private org.json.JSONArray remainingWaypoints = new org.json.JSONArray();
 
     private int offRouteHits = 0;
     private long lastReroute = 0;
@@ -254,17 +255,42 @@ public class NavigationService extends Service implements LocationListener, Text
             // Do not silently discard a planned stop on a distant GPS fix.
             double reachedThreshold = "walk".equals(mode) ? 20.0 : ("cycle".equals(mode) ? 25.0 : 35.0);
             if (toWaypoint <= reachedThreshold && (!location.hasAccuracy() || location.getAccuracy() <= 35f)) {
-                hasWaypoint = false;
                 try {
                     JSONObject state = ActiveRouteStore.load(this);
                     if (state != null) {
-                        state.remove("hasWaypoint");
-                        state.remove("waypointLat");
-                        state.remove("waypointLon");
-                        state.remove("waypointName");
-                        ActiveRouteStore.save(this, state);
+                        org.json.JSONArray pending = state.optJSONArray("remainingWaypoints");
+                        if (pending != null && pending.length() > 1) {
+                            org.json.JSONArray rest = new org.json.JSONArray();
+                            for(int i=1;i<pending.length();i++) rest.put(pending.getJSONObject(i));
+                            JSONObject next = rest.getJSONObject(0);
+                            waypointLat = next.getDouble("lat");
+                            waypointLon = next.getDouble("lon");
+                            waypointName = next.optString("name","Stop");
+                            remainingWaypoints = rest;
+                            hasWaypoint = true;
+                            state.put("remainingWaypoints", rest);
+                            state.put("hasWaypoint", true);
+                            state.put("waypointLat", waypointLat);
+                            state.put("waypointLon", waypointLon);
+                            state.put("waypointName", waypointName);
+                            ActiveRouteStore.save(this, state);
+                            // The previous itinerary is no longer correct after reaching
+                            // a waypoint. Rebuild against *all* still-pending stops.
+                            reroute(location.getLatitude(),location.getLongitude(),true);
+                        } else {
+                            hasWaypoint = false;
+                            remainingWaypoints = new org.json.JSONArray();
+                            state.remove("hasWaypoint");
+                            state.remove("waypointLat");
+                            state.remove("waypointLon");
+                            state.remove("waypointName");
+                            state.remove("remainingWaypoints");
+                            ActiveRouteStore.save(this, state);
+                        }
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception e) {
+                    Log.w("ClearRouteNavigation","Could not advance waypoint",e);
+                }
             }
         }
 
@@ -493,9 +519,13 @@ public class NavigationService extends Service implements LocationListener, Text
                 NOTIFICATION_ID, notification("Rerouting", "Finding a new route"));
         executor.execute(() -> {
             try {
-                String json = hasWaypoint
-                        ? ApiClient.routeViaSync(this, lat, lon, waypointLat, waypointLon, destLat, destLon, mode, sessionAvoidAreas)
-                        : ApiClient.routeSync(this, lat, lon, destLat, destLon, mode, sessionAvoidAreas);
+                org.json.JSONArray pending = hasWaypoint ? remainingWaypoints : new org.json.JSONArray();
+                if (hasWaypoint && pending.length() == 0) {
+                    pending = new org.json.JSONArray();
+                    pending.put(new JSONObject().put("lat",waypointLat).put("lon",waypointLon).put("name",waypointName));
+                }
+                String json = ApiClient.routeWithStopsSync(this, lat, lon, pending,
+                        destLat, destLon, mode, sessionAvoidAreas);
                 JSONObject state = new JSONObject();
                 state.put("routeIndex", 0);
                 state.put("destLat", destLat);
@@ -507,6 +537,7 @@ public class NavigationService extends Service implements LocationListener, Text
                     state.put("waypointLat", waypointLat);
                     state.put("waypointLon", waypointLon);
                     state.put("waypointName", waypointName);
+                    state.put("remainingWaypoints", pending);
                 }
                 ActiveRouteStore.save(this, state);
                 routeIndex = 0;
@@ -549,6 +580,11 @@ public class NavigationService extends Service implements LocationListener, Text
         waypointLat = state.optDouble("waypointLat", 0);
         waypointLon = state.optDouble("waypointLon", 0);
         waypointName = state.optString("waypointName", "Stop");
+        remainingWaypoints = state.optJSONArray("remainingWaypoints");
+        if (remainingWaypoints == null) remainingWaypoints = new org.json.JSONArray();
+        if (hasWaypoint && remainingWaypoints.length() == 0) {
+            remainingWaypoints.put(new JSONObject().put("lat",waypointLat).put("lon",waypointLon).put("name",waypointName));
+        }
         route = RouteMath.parse(state.getJSONObject("response").toString(), routeIndex);
     }
 
