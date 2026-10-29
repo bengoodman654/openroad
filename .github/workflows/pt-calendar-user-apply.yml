@@ -1,0 +1,58 @@
+name: OpenRoad apply tested South West calendar extension once
+on:
+  push:
+    branches: [maintenance/pt-calendar-pedestrian-gates-20261028]
+    paths: ['.github/workflows/pt-calendar-user-apply.yml']
+permissions:
+  contents: read
+concurrency:
+  group: openroad-production-server
+  cancel-in-progress: false
+jobs:
+  extend:
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Authenticate to pinned shared host
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_calendar
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Check exact uploaded source, apply one transaction, verify calendar
+        env:
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+          PRIVATE_DIR: ${{ vars.CPANEL_OPENROAD_PRIVATE_DIR }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_HOST" && test -n "$SSH_USER"
+          [[ "$PRIVATE_DIR" == /* ]] || exit 1
+          expected_lib="$(sha256sum maintenance/pt-calendar/calendar_extension.php | cut -d' ' -f1)"
+          expected_run="$(sha256sum maintenance/pt-calendar/extend_service_calendar.php | cut -d' ' -f1)"
+          ssh -i ~/.ssh/id_calendar -p "$SSH_PORT" -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST" \
+            bash -s -- "$PRIVATE_DIR" "$expected_lib" "$expected_run" <<'REMOTE'
+          set -euo pipefail
+          root="$1";expected_lib="$2";expected_run="$3"
+          lib="$root/lib/calendar_extension.php"
+          runner="$root/bin/extend_service_calendar.php"
+          test -f "$lib" && test -f "$runner"
+          test ! -L "$lib" && test ! -L "$runner"
+          test "$(sha256sum "$lib" | cut -d' ' -f1)" = "$expected_lib"
+          test "$(sha256sum "$runner" | cut -d' ' -f1)" = "$expected_run"
+          php -l "$lib" >/dev/null
+          php -l "$runner" >/dev/null
+          php -d memory_limit=128M "$runner" south_west
+          php -d memory_limit=128M "$runner" south_west --apply
+          php -d memory_limit=128M "$runner" south_west
+          echo "OPENROAD_CALENDAR_TRANSACTION_VERIFIED"
+          REMOTE
