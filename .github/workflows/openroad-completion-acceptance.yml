@@ -1,0 +1,33 @@
+name: OpenRoad completion release safety gate
+on:
+  push:
+    branches: [release/openroad-completion]
+    paths:
+      - 'pilot/acceptance_cases_105.json'
+      - 'pilot/acceptance_gate.py'
+      - 'pilot/test_acceptance_gate.py'
+      - '.github/workflows/openroad-completion-acceptance.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate 105 independent acceptance cases
+        run: |
+          python3 -m unittest pilot.test_acceptance_gate -v
+          python3 -m pilot.acceptance_gate
+      - name: Mark build unreleasable until independent 105-case evidence
+        run: |
+          python3 - <<'PY'
+          from pilot.acceptance_gate import acceptance_report
+          report=acceptance_report()
+          assert report["total"]==105
+          assert report["accepted"]==0
+          assert not report["releaseReady"]
+          print("PRODUCTION_RELEASE_GATE=BLOCKED")
+          print("Reason: real phone, rail, pedestrian transfer and regional acceptance outstanding")
+          PY
