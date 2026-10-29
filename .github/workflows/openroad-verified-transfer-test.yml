@@ -14,6 +14,8 @@ on:
       - 'maintenance/gtfs_refresh/test_query_sqlite.py'
       - 'maintenance/gtfs_refresh/connection_snapshot.py'
       - 'maintenance/gtfs_refresh/test_connection_snapshot.py'
+      - 'maintenance/gtfs_refresh/coordinate_journeys.py'
+      - 'maintenance/gtfs_refresh/test_coordinate_journeys.py'
       - '.github/workflows/openroad-verified-transfer-test.yml'
   workflow_dispatch:
 permissions:
@@ -36,5 +38,6 @@ jobs:
             pilot.test_transfer_connector_gate \
             pilot.test_request_lifecycle \
             maintenance.gtfs_refresh.test_query_sqlite \
-            maintenance.gtfs_refresh.test_connection_snapshot
+            maintenance.gtfs_refresh.test_connection_snapshot \
+            maintenance.gtfs_refresh.test_coordinate_journeys
           python3 -m pilot.acceptance_gate
