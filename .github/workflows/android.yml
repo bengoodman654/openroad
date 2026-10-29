@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'OpenRoad-v*-source.zip'
+      - 'android/**'
       - '.github/workflows/android.yml'
   workflow_dispatch:
 
@@ -37,17 +37,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
-      - name: Select newest Android source
+      - name: Use versioned, tracked Android source
         shell: bash
         run: |
           set -euo pipefail
-          file="$(find . -maxdepth 1 -name 'OpenRoad-v*-source.zip' -printf '%f\n' | sort -V | tail -1)"
-          test -n "$file" || { echo 'No Android source zip in repository' >&2; exit 1; }
-          mkdir -p extracted
-          unzip -q "$file" -d extracted
-          project="$(find extracted -mindepth 1 -maxdepth 1 -type d | head -1)"
-          test -f "$project/app/build.gradle"
-          mv "$project" android-src
+          test -f android/app/build.gradle
+          cp -a android android-src
           echo "PROJECT=android-src" >> "$GITHUB_ENV"
       - name: Verify source
         run: |
@@ -56,9 +51,10 @@ jobs:
           node android-src/tests/watchdog_test.js
           node android-src/tests/public_transport_navigation_test.cjs
           node android-src/tests/transit_map_readability_test.cjs
+          node android-src/tests/navigation_resilience_test.cjs
           name="$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" android-src/app/build.gradle | head -1)"
           [[ "$name" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Invalid Android version'; exit 1; }
-          test -f "OpenRoad-v${name}-source.zip" || { echo "Source ZIP version does not match Gradle version $name"; exit 1; }
+          echo "Building tracked OpenRoad Android version ${name}"
       - name: Inject optional build settings
         env:
           TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
