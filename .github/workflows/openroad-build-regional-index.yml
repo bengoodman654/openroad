@@ -117,7 +117,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: steps.artifact.outputs.ok == 'yes'
         with:
-          name: OpenRoad-SQLite-${{ matrix.region }}-INDEX-RESEARCH-ONLY
-          path: ${{ runner.temp }}/${{ matrix.region }}.sqlite
+          name: OpenRoad-SQLite-${{ matrix.region }}-COMPACT-INDEX-RESEARCH-ONLY
+          path: ${{ runner.temp }}/${{ matrix.region }}-compact.sqlite
           compression-level: 0
           retention-days: 1
