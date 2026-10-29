@@ -7,6 +7,8 @@ on:
       - 'integration/ptv2/php_v2_python_process.php'
       - 'integration/ptv2/test_city_planner_cli.py'
       - 'integration/ptv2/php_v2_python_process_test.php'
+      - 'maintenance/gtfs_refresh/city_snapshot_cache.py'
+      - 'maintenance/gtfs_refresh/test_city_snapshot_cache.py'
       - '.github/workflows/openroad-python-worker-test.yml'
   workflow_dispatch:
 permissions:
@@ -26,4 +28,6 @@ jobs:
       - name: Prove cancellation, worker deadline, output blocking and source hash
         run: php integration/ptv2/php_v2_python_process_test.php
       - name: Prove CLI source identity, fail-closed research output and GTFS connection search
-        run: python3 -m unittest -v integration.ptv2.test_city_planner_cli
+        run: |
+          python3 -m unittest -v integration.ptv2.test_city_planner_cli
+          python3 -m unittest -v maintenance.gtfs_refresh.test_city_snapshot_cache
