@@ -33,3 +33,24 @@ for word in ["openroadPtBackOneScreen","openroadPtXAction","setRoutePlanningActi
 for word in ["route","rail","live","routeWithStops","stop"]:
     at=[i for i,x in enumerate((base/"TransitClient.java").read_text().splitlines()) if word in x.lower()]
     print("JAVA_OCCURRENCES",word,"count",len(at))
+
+# Only previously inspected navigation functions; no keys, manifests or config.
+safe_windows={
+  "TransitClient.java":[(75,140),(202,330)],
+  "OpenRoadServerClient.java":[(67,104),(139,189)],
+}
+for filename,spans in safe_windows.items():
+    lines=(base/filename).read_text().splitlines()
+    for a,b in spans:
+        print("SOURCE_WINDOW",filename,a,b)
+        for i in range(a-1,min(b,len(lines))):
+            line=lines[i]
+            # Do not print any unexpected hardcoded tokens or credentials.
+            if re.search(r"(?:secret|api[_-]?key|private[_-]?key|password)",line,re.I):
+                print(f"{i+1}: [REDACTED-SENSITIVE-LINE]")
+            else:
+                print(f"{i+1}: {line[:220]}")
+for a,b in [(194,220),(1190,1260),(2080,2133)]:
+    print("SOURCE_WINDOW app.js",a,b)
+    for i in range(a-1,min(b,len(js))):
+        print(f"{i+1}: {js[i][:220]}")
