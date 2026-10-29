@@ -36,14 +36,29 @@ def diagnostic(index_path,region,origin,dest,day,depart_sec):
             'totalStops':db.execute('SELECT COUNT(*) FROM stops').fetchone()[0],
             'totalTrips':db.execute('SELECT COUNT(*) FROM trips').fetchone()[0]}
         variants=[]
-        for radius,limit in ((900,20),(900,40),(1400,40),(1800,60)):
+        for radius,limit in ((900,20),(1200,40),(1600,48),(1800,60)):
             origins=_nearest(db,*origin,radius,limit)
             destinations=_nearest(db,*dest,radius,limit)
             eligible={r[1] for r in destinations}
             boards=0
             direct=set()
             active_lines=set()
+            destination_lines=set()
+            destination_arrivals=0
             if totals['activeServiceIds']>0:
+                for _,dest_stop,_ in destinations:
+                    q=db.execute(
+                        'SELECT r.short_name FROM stop_times s '
+                        'JOIN trips t ON t.trip_id=s.trip_id '
+                        'JOIN routes r ON r.route_id=t.route_id '
+                        'JOIN service_days d ON d.service_id=t.service_id AND d.date=? '
+                        'WHERE s.stop_id=? AND s.dropoff=0 AND '
+                        's.arrival_sec BETWEEN ? AND ? '
+                        'ORDER BY s.arrival_sec LIMIT 50',
+                        (date,dest_stop,depart_sec+180,depart_sec+6*3600))
+                    for row in q:
+                        destination_arrivals+=1
+                        destination_lines.add(row['short_name'])
                 for walk,stop_id,_ in origins:
                     q=db.execute(
                         'SELECT s.trip_id,s.seq,s.departure_sec,r.short_name '
@@ -67,7 +82,9 @@ def diagnostic(index_path,region,origin,dest,day,depart_sec):
             variants.append({'radiusMetres':radius,'stopLimit':limit,
                 'originStops':len(origins),'destinationStops':len(destinations),
                 'scheduledBoardings':boards,'possibleDirectTrips':len(direct),
-                'activeDistinctLines':len(active_lines)})
+                'activeDistinctLines':len(active_lines),
+                'scheduledDestinationArrivals':destination_arrivals,
+                'activeDestinationLines':len(destination_lines)})
         return {'region':region,'serviceDate':date,'sourceArchiveSha256':
                 info.get('sourceArchiveSha256'),'schema':info.get('schema'),
                 'totals':totals,'variants':variants,
