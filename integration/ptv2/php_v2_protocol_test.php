@@ -109,6 +109,63 @@ try{
         ['from'=>['lat'=>'51.1','lon'=>-2.5],'to'=>$query['to']]),
         'coordinates supplied as string rejected');
     verify_pt(!isset($out['routes']), 'no v1 selectable route payload is exposed');
+    // Source-pinned Python planner is always research-only. Its typed
+    // scheduled/no-journey/search-limit outcomes must survive device auth.
+    $source=str_repeat('a',64);
+    $cityPlanner=static function($input,$check)use($source){
+        return ['outcome'=>'OK','researchOnly'=>true,
+                'snapshotId'=>$source,'results'=>[
+            ['clearRouteId'=>str_repeat('b',20),'selectable'=>false,
+             'researchOnly'=>true,'sourceArchiveSha256'=>$source,
+             'busLegs'=>[['tripOccurrence'=>'fixture:T1:2026-10-29']],
+             'departureSec'=>36000,'arrivalLowerBoundSec'=>38000,
+             'changes'=>1]
+        ]];
+    };
+    $issued=$request('issue',$deviceA,[
+        'query'=>$query,'sessionId'=>'fresh-session','generation'=>6]);
+    $city=ptv2_dispatch($deviceA,[
+        'action'=>'route','taskTicket'=>$issued['taskTicket'],
+        'query'=>$query],$reg,$choose,$cityPlanner,$clock);
+    verify_pt($city['outcome']==='OK'&&count($city['results'])===1&&
+              $city['results'][0]['id']==='scheduled-'.str_repeat('b',20)&&
+              $city['remoteJobStatus']==='COMPLETED',
+              'source-pinned scheduled research routes survive signed response');
+    verify_pt($city['results'][0]['selectable']===false&&
+              !isset($city['results'][0]['busLegs'])&&
+              !isset($city['results'][0]['geometry']),
+              'unreviewed boarding route and geometry never become navigation');
+    $issueNo=$request('issue',$deviceA,[
+        'query'=>$query,'sessionId'=>'fresh-session','generation'=>7]);
+    $noJourney=ptv2_dispatch($deviceA,[
+        'action'=>'route','taskTicket'=>$issueNo['taskTicket'],
+        'query'=>$query],$reg,$choose,static fn($q,$stop)=>[
+          'outcome'=>'NO_JOURNEY','researchOnly'=>true,'results'=>[]],$clock);
+    verify_pt($noJourney['outcome']==='NO_JOURNEY'&&
+              $noJourney['results']===[],
+              'real no-journey is not incorrectly reported as provider failure');
+    $issueBudget=$request('issue',$deviceA,[
+        'query'=>$query,'sessionId'=>'fresh-session','generation'=>8]);
+    $budget=ptv2_dispatch($deviceA,[
+        'action'=>'route','taskTicket'=>$issueBudget['taskTicket'],
+        'query'=>$query],$reg,$choose,static fn($q,$stop)=>[
+          'outcome'=>'SEARCH_LIMIT','researchOnly'=>true,'results'=>[]],$clock);
+    verify_pt($budget['outcome']==='SEARCH_LIMIT'&&$budget['results']===[],
+              'search budget never silently becomes false no-journey');
+    $issueForged=$request('issue',$deviceA,[
+        'query'=>$query,'sessionId'=>'fresh-session','generation'=>9]);
+    $forged=ptv2_dispatch($deviceA,[
+        'action'=>'route','taskTicket'=>$issueForged['taskTicket'],
+        'query'=>$query],$reg,$choose,static fn($q,$stop)=>[
+          'outcome'=>'OK','researchOnly'=>true,'results'=>[
+            ['clearRouteId'=>str_repeat('b',20),'selectable'=>true,
+             'researchOnly'=>true,'sourceArchiveSha256'=>str_repeat('a',64),
+             'busLegs'=>[['tripOccurrence'=>'fixture']],
+             'departureSec'=>36000,'arrivalLowerBoundSec'=>38000,
+             'changes'=>1]]],$clock);
+    verify_pt($forged['outcome']==='PROVIDER_UNAVAILABLE'&&
+              $forged['results']===[],
+              'forged selectable Python route is blocked at signed boundary');
     echo "PT v2 signed request/route/cancel/status protocol: ALL CHECKS PASSED\n";
 }finally{
     foreach(glob($dir.'/*')?:[] as $f)unlink($f);
