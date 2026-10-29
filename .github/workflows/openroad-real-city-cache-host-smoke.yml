@@ -1,0 +1,131 @@
+name: OpenRoad real BODS compact city packages on shared host (private smoke)
+on:
+  push:
+    branches: [release/openroad-completion]
+    paths: ['.github/workflows/openroad-real-city-cache-host-smoke.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: openroad-sharedhost-city-schedule-smoke
+  cancel-in-progress: false
+jobs:
+  city:
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        region: [south_west,west_midlands]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: 40866081561
+          name: OpenRoad-SQLite-${{ matrix.region }}-COMPACT-INDEX-RESEARCH-ONLY
+          path: ${{ runner.temp }}/index
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Precompute small, indexed official city schedule OFF-HOST
+        env:
+          REGION: ${{ matrix.region }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          db="$(find "$RUNNER_TEMP/index" -name '*.sqlite' -type f | head -1)"
+          test -s "$db"
+          mkdir -p "$RUNNER_TEMP/pack"/{pilot,maintenance/gtfs_refresh,integration/ptv2}
+          cp integration/ptv2/city_planner_cli.py "$RUNNER_TEMP/pack/integration/ptv2/"
+          cp pilot/{gtfs_engine.py,journey_options.py,request_lifecycle.py} \
+            "$RUNNER_TEMP/pack/pilot/"
+          cp maintenance/gtfs_refresh/{connection_snapshot.py,coordinate_journeys.py,city_snapshot_cache.py} \
+            "$RUNNER_TEMP/pack/maintenance/gtfs_refresh/"
+          touch "$RUNNER_TEMP/pack/maintenance/__init__.py"
+          touch "$RUNNER_TEMP/pack/maintenance/gtfs_refresh/__init__.py"
+          touch "$RUNNER_TEMP/pack/pilot/__init__.py"
+          PYTHONPATH=. python3 - "$db" "$REGION" "$RUNNER_TEMP/pack" <<'PY'
+          import datetime as dt,json,sys
+          from pathlib import Path
+          from maintenance.gtfs_refresh.connection_snapshot import load_city_snapshot
+          from maintenance.gtfs_refresh.city_snapshot_cache import encode_city_snapshot
+          filename,region,destination=sys.argv[1:]
+          points={"south_west":((51.438,-2.607),(51.459,-2.627)),
+                  "west_midlands":((52.4068,-1.5197),(52.420,-1.505))}
+          a,b=points[region]
+          snap=load_city_snapshot(
+            filename,region,("Bristol" if region=="south_west" else "Coventry"),
+            dt.date(2026,10,29),a,b,radius_m=2200,budget_s=14)
+          meta=encode_city_snapshot(snap,Path(destination)/"city-snapshot.json.gz")
+          (Path(destination)/"city-manifest.json").write_text(
+            json.dumps(meta,sort_keys=True))
+          print("CITY_OFFHOST_CACHE region=",region,
+                "compressed_bytes=",meta["compressedBytes"],
+                "trip_connections=",meta["connections"])
+          assert meta["researchOnly"] and meta["compressedBytes"]<20000000
+          PY
+          tar -czf "$RUNNER_TEMP/city-source-only.tar.gz" -C "$RUNNER_TEMP/pack" .
+          test "$(stat -c %s "$RUNNER_TEMP/city-source-only.tar.gz")" -lt 25000000
+      - name: Set up strict SSH host key
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_city
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Verify real city source under Python 3.11 in a disposable private folder
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+          REGION: ${{ matrix.region }}
+        run: |
+          set -euo pipefail
+          id="or-city-$REGION-$GITHUB_RUN_ID"
+          scp -i ~/.ssh/id_city -P "$SSH_PORT" -o StrictHostKeyChecking=yes \
+            -o BatchMode=yes "$RUNNER_TEMP/city-source-only.tar.gz" \
+            "$SSH_USER@$SSH_HOST:$id.tar.gz"
+          ssh -i ~/.ssh/id_city -p "$SSH_PORT" -o StrictHostKeyChecking=yes \
+            -o BatchMode=yes "$SSH_USER@$SSH_HOST" bash -s -- "$id" "$REGION" <<'REMOTE'
+          set -Eeuo pipefail
+          id="$1";region="$2"
+          [[ "$id" == or-city-* && "$region" =~ ^(south_west|west_midlands)$ ]] || exit 3
+          private="$(mktemp -d "$HOME/openroad-city-fixture.XXXXXX")"
+          trap 'rm -rf "$private" "$HOME/$id.tar.gz"' EXIT
+          tar -xzf "$HOME/$id.tar.gz" -C "$private" --no-same-owner
+          sha="$(php -r '$m=json_decode(file_get_contents($argv[1]),true);echo $m["sourceArchiveSha256"];' "$private/city-manifest.json")"
+          packsha="$(php -r '$m=json_decode(file_get_contents($argv[1]),true);echo $m["packageSha256"];' "$private/city-manifest.json")"
+          [[ "$sha" =~ ^[0-9a-f]{64}$ && "$packsha" =~ ^[0-9a-f]{64}$ ]] || exit 4
+          if test "$region" = south_west; then
+            query='{"from":{"lat":51.438,"lon":-2.607},"to":{"lat":51.459,"lon":-2.627},"serviceDate":"2026-10-29","earliestSec":63900,"maxWalkMetres":750}'
+          else
+            query='{"from":{"lat":52.4068,"lon":-1.5197},"to":{"lat":52.420,"lon":-1.505},"serviceDate":"2026-10-29","earliestSec":63900,"maxWalkMetres":750}'
+          fi
+          started="$(date +%s)"
+          printf '%s' "$query" | timeout 10 \
+            /opt/alt/python311/bin/python3.11 -B \
+            "$private/integration/ptv2/city_planner_cli.py" \
+            --snapshot-cache "$private/city-snapshot.json.gz" \
+            --package-sha "$packsha" --region "$region" \
+            --source-sha "$sha" > "$private/out.json"
+          php -r '
+            $result=json_decode(file_get_contents($argv[1]),true);
+            if(!is_array($result)||($result["outcome"]??"")!=="OK"||
+               ($result["researchOnly"]??false)!==true||
+               count($result["results"]??[])<1)exit(10);
+            foreach($result["results"] as $ride){
+              if(($ride["selectable"]??true)!==false ||
+                 ($ride["sourceArchiveSha256"]??"")!==$argv[2])exit(11);
+            }
+            echo "OPENROAD_REAL_CITY_HOST region=".$argv[3]." outcome=OK routes=".
+                 count($result["results"])." read_only=yes live_api_changed=no\n";
+          ' "$private/out.json" "$sha" "$region"
+          echo "OPENROAD_REAL_CITY_HOST completed_within_seconds=$(( $(date +%s)-started ))"
+          REMOTE
