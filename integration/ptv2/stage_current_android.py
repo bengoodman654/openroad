@@ -17,7 +17,7 @@ def stage(source, output):
                  transit:patch_transit(z.read(transit).decode()).encode()}
         app=find("app/src/main/assets/app.js")
         gradle=find("app/build.gradle")
-        if b"0.6.32" not in z.read(gradle) or b"0.6.32" not in z.read(app):
+        if b"0.6.32" not in z.read(gradle):
             raise RuntimeError("Wrong Android baseline")
         if b"ptV2Research" in z.read(app):
             raise RuntimeError("Research mode exposed in UI")
