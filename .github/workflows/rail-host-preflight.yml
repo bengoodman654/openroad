@@ -1,0 +1,50 @@
+name: OpenRoad rail shared-host capacity preflight
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/rail-host-preflight.yml']
+permissions:
+  contents: read
+concurrency:
+  group: openroad-production-rail
+  cancel-in-progress: false
+jobs:
+  assess:
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    timeout-minutes: 3
+    steps:
+      - name: Assess disk and individual archive without writing
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+          HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          USERNAME: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+          PRIVATE_DIR: ${{ vars.CPANEL_OPENROAD_PRIVATE_DIR }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS" && test -n "$HOST" && test -n "$USERNAME"
+          [[ "$PRIVATE_DIR" == /* ]]
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_rail"
+          printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          ssh -i "$HOME/.ssh/id_rail" -p "$SSH_PORT" -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            "$USERNAME@$HOST" bash -s -- "$PRIVATE_DIR" <<'REMOTE'
+          set -euo pipefail
+          priv="$1"
+          printf 'RAIL_PREFLIGHT_BEGIN\n'
+          df -Pk "$priv" | awk 'NR==2{print "DISK_FREE_KIB="$4" DISK_USED_PERCENT="$5}'
+          for folder in "$priv/cache/rail-routing" "$HOME/openroad-rail-stage-40962923080" "$HOME/openroad-rail-stage-40962728389"; do
+            if test -d "$folder"; then
+              du -sk "$folder" 2>/dev/null | awk '{print "FOLDER_KIB="$1}'
+            fi
+          done
+          if test -f "$HOME/openroad-rail-stage-40962923080/rail-index.tar.gz"; then
+            tar -tzf "$HOME/openroad-rail-stage-40962923080/rail-index.tar.gz" | \
+              awk 'END {print "RAIL_ARCHIVE_MEMBERS="NR}'
+          fi
+          printf 'RAIL_PREFLIGHT_DONE\n'
+          REMOTE
