@@ -1,0 +1,110 @@
+name: OpenRoad real shared-host Python 3.11 small GTFS smoke (private only)
+on:
+  push:
+    branches: [release/openroad-completion]
+    paths: ['.github/workflows/openroad-python-host-smoke.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: openroad-sharedhost-research-smoke
+  cancel-in-progress: false
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create tiny real SQLite fixture and audited minimal source package off-host
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/stage"/{pilot,maintenance/gtfs_refresh,integration/ptv2}
+          cp integration/ptv2/city_planner_cli.py "$RUNNER_TEMP/stage/integration/ptv2/"
+          cp maintenance/gtfs_refresh/{connection_snapshot.py,coordinate_journeys.py} \
+            "$RUNNER_TEMP/stage/maintenance/gtfs_refresh/"
+          cp pilot/{gtfs_engine.py,journey_options.py,request_lifecycle.py} \
+            "$RUNNER_TEMP/stage/pilot/"
+          touch "$RUNNER_TEMP/stage/maintenance/__init__.py"
+          touch "$RUNNER_TEMP/stage/maintenance/gtfs_refresh/__init__.py"
+          touch "$RUNNER_TEMP/stage/pilot/__init__.py"
+          python3 - "$RUNNER_TEMP/stage" <<'PY'
+          import json,shutil,sqlite3,sys
+          from pathlib import Path
+          from maintenance.gtfs_refresh.test_query_sqlite import IndexRoutingTests
+          root=Path(sys.argv[1])
+          fixture=IndexRoutingTests('test_refuse_unsupported_date')
+          fixture.setUp()
+          try:
+              target=root/'fixture.sqlite'
+              shutil.copy2(fixture.db,target)
+              with sqlite3.connect(target) as db:
+                  source=json.loads(db.execute(
+                      "SELECT value FROM info WHERE name='sourceArchiveSha256'"
+                  ).fetchone()[0])
+              (root/'expected-sha.txt').write_text(source+'\n')
+              assert len(source)==64
+          finally:
+              fixture.tearDown()
+          PY
+          tar -czf "$RUNNER_TEMP/city-fixture-smoke.tar.gz" -C "$RUNNER_TEMP/stage" .
+          test "$(stat -c %s "$RUNNER_TEMP/city-fixture-smoke.tar.gz")" -lt 2000000
+      - name: Configure pinned SSH
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_smoke"
+          printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+      - name: Run one no-network city planner process in temporary private HOME
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_HOST" && test -n "$SSH_USER"
+          id="openroad-small-cli-$GITHUB_RUN_ID"
+          scp -i "$HOME/.ssh/id_smoke" -o StrictHostKeyChecking=yes \
+              -o BatchMode=yes -P "$SSH_PORT" \
+              "$RUNNER_TEMP/city-fixture-smoke.tar.gz" \
+              "$SSH_USER@$SSH_HOST:$id.tar.gz"
+          ssh -i "$HOME/.ssh/id_smoke" -o StrictHostKeyChecking=yes \
+              -o BatchMode=yes -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+              bash -s -- "$id" <<'REMOTE'
+          set -Eeuo pipefail
+          id="$1"
+          [[ "$id" == openroad-small-cli-* ]] || exit 3
+          tmp="$(mktemp -d "$HOME/openroad-small-cli.XXXXXX")"
+          trap 'rm -rf "$tmp" "$HOME/$id.tar.gz"' EXIT
+          tar -xzf "$HOME/$id.tar.gz" -C "$tmp" --no-same-owner
+          test -f "$tmp/fixture.sqlite"
+          test -f "$tmp/integration/ptv2/city_planner_cli.py"
+          sha="$(cat "$tmp/expected-sha.txt")"
+          [[ "$sha" =~ ^[0-9a-f]{64}$ ]] || exit 4
+          query='{"from":{"lat":51.4545,"lon":-2.5879},"to":{"lat":51.46,"lon":-2.595},"serviceDate":"2026-10-29","earliestSec":31200,"maxWalkMetres":180}'
+          printf '%s' "$query" | timeout 8 \
+            /opt/alt/python311/bin/python3.11 -B \
+            "$tmp/integration/ptv2/city_planner_cli.py" \
+            --index "$tmp/fixture.sqlite" \
+            --region south_west --source-sha "$sha" > "$tmp/out.json"
+          php -r '
+            $r=json_decode(file_get_contents($argv[1]),true);
+            if(!is_array($r)||($r["outcome"]??"")!=="OK"||
+               ($r["researchOnly"]??false)!==true||
+               count($r["results"]??[])<1)exit(9);
+            foreach($r["results"] as $route){
+              if(($route["selectable"]??true)!==false)exit(10);
+            }
+            echo "OPENROAD_SHAREDHOST_PYTHON311 outcome=OK routes=".
+                 count($r["results"]).
+                 " live_api_changed=no regional_data_loaded=no\n";
+          ' "$tmp/out.json"
+          REMOTE
