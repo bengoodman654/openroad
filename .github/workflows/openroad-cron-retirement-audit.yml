@@ -1,0 +1,63 @@
+name: OpenRoad inspect retiring broken full-import cron (no changes)
+on:
+  push:
+    branches: [release/openroad-completion]
+    paths:
+      - 'maintenance/gtfs_refresh/retire_legacy_gtfs_cron.php'
+      - 'maintenance/gtfs_refresh/retire_legacy_gtfs_cron_test.php'
+      - '.github/workflows/openroad-cron-retirement-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - run: php -l maintenance/gtfs_refresh/retire_legacy_gtfs_cron.php
+      - run: php maintenance/gtfs_refresh/retire_legacy_gtfs_cron_test.php
+  inspect:
+    needs: test
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_readcron
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Check exact daily cron job but do not update crontab
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_HOST" && test -n "$SSH_USER"
+          scp -i ~/.ssh/id_readcron -P "$SSH_PORT" \
+            -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            maintenance/gtfs_refresh/retire_legacy_gtfs_cron.php \
+            "$SSH_USER@$SSH_HOST:openroad-audit-retire.php"
+          ssh -i ~/.ssh/id_readcron -p "$SSH_PORT" \
+              -o StrictHostKeyChecking=yes -o BatchMode=yes \
+              "$SSH_USER@$SSH_HOST" bash -s <<'REMOTE'
+          set -euo pipefail
+          umask 077
+          a="$(mktemp "$HOME/openroad-cron-audit.in.XXXX")"
+          b="$(mktemp "$HOME/openroad-cron-audit.out.XXXX")"
+          trap 'rm -f "$a" "$b" "$HOME/openroad-audit-retire.php"' EXIT
+          crontab -l > "$a"
+          php "$HOME/openroad-audit-retire.php" "$a" "$b"
+          echo "CRON_RETIRE_AUDIT ready_to_retire=one_exact_job; no_changes"
+          REMOTE
