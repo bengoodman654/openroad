@@ -1,0 +1,41 @@
+name: Materialise OpenRoad Android 0.6.34 source for maintenance
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/materialise-android-source.yml']
+permissions:
+  contents: write
+jobs:
+  extract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Extract validated source without private build settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e android || { echo "Already materialised"; exit 0; }
+          test -f OpenRoad-v0.6.34-source.zip
+          mkdir -p "$RUNNER_TEMP/source"
+          unzip -q OpenRoad-v0.6.34-source.zip -d "$RUNNER_TEMP/source"
+          buildfile="$(find "$RUNNER_TEMP/source" -type f -path '*/app/build.gradle' | head -1)"
+          test -n "$buildfile"
+          project="$(dirname "$(dirname "$buildfile")")"
+          test -f "$project/validate.sh"
+          cp -a "$project" android
+          find android -type d \( -name .gradle -o -name build -o -name .git -o -name .idea \) -prune -exec rm -rf {} +
+          find android -type f \( -name '*.jks' -o -name '*.keystore' -o -name '*signing.properties' -o -name 'local.properties' \) -delete
+          bash android/validate.sh
+          node --check android/app/src/main/assets/app.js
+          node android/tests/watchdog_test.js
+          node android/tests/public_transport_navigation_test.cjs
+          node android/tests/transit_map_readability_test.cjs
+          git config user.name "OpenRoad CI"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android
+          git diff --cached --quiet && exit 0
+          git commit -m 'Track OpenRoad 0.6.34 Android source for transparent maintenance'
+          git push origin HEAD:main
