@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""OpenRoad: create read-only, small, per-station rail timetable shards off-server."""
-import argparse,csv,datetime as dt,gzip,io,json,collections,hashlib
+"""OpenRoad: compile compact, indexed and read-only rail SQLite timetable off-host."""
+import argparse,csv,datetime as dt,io,json,collections,hashlib,sqlite3
 from pathlib import Path
 from zipfile import ZipFile
 from zoneinfo import ZoneInfo
@@ -55,29 +55,41 @@ def build(source,dest,today=None):
             if trip not in trips or code not in stations:continue
             try:calls[trip].append((int(r["stop_sequence"]),code,clock(r["arrival_time"]),clock(r["departure_time"])))
             except (KeyError,ValueError):continue
-        shards=collections.defaultdict(lambda:collections.defaultdict(list))
+        dest.mkdir(parents=True,exist_ok=True)
+        database=dest/"events.sqlite"
+        conn=sqlite3.connect(database)
+        conn.execute("PRAGMA journal_mode=OFF")
+        conn.execute("PRAGMA synchronous=OFF")
+        conn.execute("PRAGMA cache_size=-16000")
+        conn.execute("PRAGMA temp_store=FILE")
+        conn.execute("CREATE TABLE events (o TEXT NOT NULL, dep INTEGER NOT NULL, trip INTEGER NOT NULL, d TEXT NOT NULL, arr INTEGER NOT NULL, line TEXT NOT NULL, PRIMARY KEY (o,dep,trip,d,arr)) WITHOUT ROWID")
+        ids={trip:i+1 for i,trip in enumerate(calls)}
         total=0
+        batch=[]
+        conn.execute("BEGIN")
         for trip,call in calls.items():
             call.sort()
             ds,line,head=trips[trip]
-            for d in ds:
+            for day in ds:
                 def epoch(sec):
-                    d2=d+dt.timedelta(days=sec//86400)
+                    d2=day+dt.timedelta(days=sec//86400)
                     return int(dt.datetime.combine(d2,dt.time(sec//3600%24,sec//60%60,sec%60),TZ).timestamp())
                 for a,b in zip(call,call[1:]):
                     if a[1]==b[1]:continue
                     dep,arr=epoch(a[3]),epoch(b[2])
                     if dep>=arr or arr-dep>8*3600:continue
-                    shards[(d.strftime("%Y%m%d"),a[1][0])][a[1]].append([dep,arr,b[1],trip,line,head]);total+=1
+                    batch.append((a[1],dep,ids[trip],b[1],arr,line))
+                    total+=1
+                    if len(batch)>=5000:
+                        conn.executemany("INSERT OR IGNORE INTO events VALUES (?,?,?,?,?,?)",batch)
+                        batch.clear()
+        if batch:conn.executemany("INSERT OR IGNORE INTO events VALUES (?,?,?,?,?,?)",batch)
+        conn.commit()
+        conn.execute("PRAGMA optimize")
+        conn.close()
         if total<30000:raise ValueError("Rail timetable missing active connections")
-        dest.mkdir(parents=True,exist_ok=True)
-        for (d,letter),shard in shards.items():
-            folder=dest/"d"/d;folder.mkdir(parents=True,exist_ok=True)
-            for events in shard.values():events.sort(key=lambda e:e[0])
-            with gzip.open(folder/(letter+".json.gz"),"wb",compresslevel=7) as f:
-                f.write(json.dumps(shard,separators=(",",":"),ensure_ascii=False).encode())
         (dest/"stations.json").write_text(json.dumps(stations,separators=(",",":"),ensure_ascii=False))
-        manifest={"version":1,"from":days[0].isoformat(),"through":days[-1].isoformat(),
+        manifest={"version":2,"from":days[0].isoformat(),"through":days[-1].isoformat(),
                   "stations":len(stations),"connections":total,
                   "source":"GB Transit / Rail Delivery Group timetable",
                   "built_at":dt.datetime.now(dt.timezone.utc).isoformat(),
