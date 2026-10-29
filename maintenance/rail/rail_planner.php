@@ -1,0 +1,141 @@
+<?php
+declare(strict_types=1);
+/** OpenRoad read-only rail routing, no network/filesystem writes during requests. */
+function or_rail_km(float $a,float $b,float $c,float $d):float{
+    $x=deg2rad($c-$a);$y=deg2rad($d-$b);
+    return 12742*asin(min(1.0,sqrt(sin($x/2)**2+cos(deg2rad($a))*cos(deg2rad($c))*sin($y/2)**2)));
+}
+function or_rail_index(string $root):array{
+    if(!is_file($root.'/manifest.json')||!is_file($root.'/stations.json'))throw new RuntimeException('No indexed rail timetable');
+    if(filesize($root.'/stations.json')>800000||filesize($root.'/manifest.json')>10000)throw new RuntimeException('Invalid rail index');
+    $meta=json_decode((string)file_get_contents($root.'/manifest.json'),true);
+    $stations=json_decode((string)file_get_contents($root.'/stations.json'),true);
+    if(!is_array($meta)||($meta['version']??null)!==1||!is_array($stations)||count($stations)<1000)throw new RuntimeException('Invalid rail timetable');
+    $day=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d');
+    if(($meta['from']??'~')>$day||($meta['through']??'')<$day)throw new RuntimeException('Rail timetable expired');
+    return [$meta,$stations];
+}
+function or_rail_near(array $stations,float $lat,float $lon,int $limit):array{
+    $near=[];
+    foreach($stations as $code=>$s){
+        if(!preg_match('/^[A-Z]{3}$/D',(string)$code)||!is_array($s)||count($s)<3)continue;
+        $d=or_rail_km($lat,$lon,(float)$s[1],(float)$s[2])*1000;
+        $walk=(int)ceil($d*1.25/1.25);
+        if($walk>3000)continue;
+        $near[]=['station'=>(string)$code,'walk'=>$walk,'metres'=>$d];
+    }
+    usort($near,static fn($a,$b)=>$a['walk']<=>$b['walk']);
+    return array_slice($near,0,$limit);
+}
+function or_rail_shard(string $root,string $day,string $letter):array{
+    static $cache=[];
+    $id=$root.'/'.$day.'/'.$letter;
+    if(array_key_exists($id,$cache))return $cache[$id];
+    $file=$root.'/d/'.$day.'/'.$letter.'.json.gz';
+    if(!is_file($file)||filesize($file)>2500000)return $cache[$id]=[];
+    $bytes=@gzdecode((string)file_get_contents($file),8000001);
+    if(!is_string($bytes)||strlen($bytes)>8000000)return $cache[$id]=[];
+    $decoded=json_decode($bytes,true,32);
+    return $cache[$id]=is_array($decoded)?$decoded:[];
+}
+function or_rail_departures(string $root,string $code,int $start,int $end):array{
+    $dates=[];
+    $base=(new DateTimeImmutable('@'.$start))->setTimezone(new DateTimeZone('Europe/London'));
+    foreach([-1,0,1,2] as $n)$dates[]=$base->modify(($n>=0?'+':'').$n.' days')->format('Ymd');
+    $out=[];
+    foreach(array_unique($dates) as $day){
+        $shard=or_rail_shard($root,$day,$code[0]);
+        foreach($shard[$code]??[] as $r){
+            if(is_array($r)&&count($r)>=6&&(int)$r[0]>=$start&&(int)$r[0]<=$end&&(int)$r[1]>(int)$r[0])$out[]=$r;
+        }
+    }
+    usort($out,static fn($a,$b)=>$a[0]<=>$b[0]);
+    return array_slice($out,0,150);
+}
+function or_rail_format(array $edges,array $stations,float $a,float $b,float $c,float $d,int $now,int $walkIn,int $walkOut):array{
+    $first=$edges[0];$last=$edges[count($edges)-1];
+    $from=$stations[$first[2]];$to=$stations[$last[3]];
+    $groups=[];
+    foreach($edges as $e){
+        $n=count($groups);
+        if($n&&$groups[$n-1]['trip']===$e[4]&&$groups[$n-1]['to']===$e[2]){
+            $groups[$n-1]['to']=$e[3];$groups[$n-1]['arr']=$e[1];$groups[$n-1]['stops'][]=$e[3];
+        }else $groups[]=['dep'=>$e[0],'arr'=>$e[1],'from'=>$e[2],'to'=>$e[3],'trip'=>$e[4],
+                          'line'=>$e[5],'stops'=>[$e[2],$e[3]]];
+    }
+    $legs=[['mode'=>'foot','from'=>'My location','to'=>$from[0],'durationSeconds'=>$walkIn,
+            'departure'=>date('H:i',$now),'arrival'=>date('H:i',$now+$walkIn),
+            'timeStatus'=>'scheduled','geometryStatus'=>'loading']];
+    $geom=[['points'=>[['latitude'=>$a,'longitude'=>$b],['latitude'=>(float)$from[1],'longitude'=>(float)$from[2]]]];
+    foreach($groups as $g){
+        $stops=[];$coords=[];
+        foreach($g['stops'] as $code){
+            $s=$stations[$code];$stops[]=['id'=>$code,'name'=>$s[0],'lat'=>(float)$s[1],'lon'=>(float)$s[2]];
+            $coords[]=['latitude'=>(float)$s[1],'longitude'=>(float)$s[2]];
+        }
+        $u=$stations[$g['from']];$v=$stations[$g['to']];
+        $legs[]=['mode'=>'train','line'=>$g['line']==='Train'?'':$g['line'],
+                 'from'=>$u[0],'to'=>$v[0],'fromCrs'=>$g['from'],'toCrs'=>$g['to'],
+                 'fromLat'=>(float)$u[1],'fromLon'=>(float)$u[2],'toLat'=>(float)$v[1],'toLon'=>(float)$v[2],
+                 'departure'=>date('H:i',$g['dep']),'arrival'=>date('H:i',$g['arr']),
+                 'durationSeconds'=>$g['arr']-$g['dep'],'timeStatus'=>'scheduled',
+                 'dataSource'=>'GB Transit scheduled rail timetable','stops'=>$stops,'stopCount'=>count($stops)-2];
+        $geom[]=['points'=>$coords];
+    }
+    $legs[]=['mode'=>'foot','from'=>$to[0],'to'=>'Destination','durationSeconds'=>$walkOut,
+             'departure'=>date('H:i',$last[1]),'arrival'=>date('H:i',$last[1]+$walkOut),
+             'timeStatus'=>'scheduled','geometryStatus'=>'loading'];
+    $geom[]=['points'=>[['latitude'=>(float)$to[1],'longitude'=>(float)$to[2]],['latitude'=>$c,'longitude'=>$d]]];
+    $id=substr(hash('sha256',implode('|',array_map(static fn($g)=>$g['trip'],$groups)).'|'.$first[0]),0,24);
+    return ['clearRouteTransit'=>true,'clearRouteId'=>'rail-'.$id,
+            'summary'=>['travelTimeInSeconds'=>$last[1]+$walkOut-$now,'lengthInMeters'=>0],
+            'clearRouteDeparture'=>date('H:i',$first[0]),'clearRouteArrival'=>date('H:i',$last[1]+$walkOut),
+            'clearRouteDataStatus'=>'scheduled','clearRouteDataSource'=>'GB Transit rail timetable',
+            'clearRouteWarning'=>'Scheduled trains only. Check live updates before travelling; walking times are estimates.',
+            'transitLegs'=>$legs,'legs'=>$geom,'guidance'=>['instructions'=>[]]];
+}
+/** Bounded earliest-arrival search: same train has no transfer penalty; changes require 7 minutes. */
+function or_rail_plan(float $a,float $b,float $c,float $d,?string $root=null,?int $now=null):array{
+    $root=$root??dirname(__DIR__).'/cache/rail-routing/current';
+    [$meta,$stations]=or_rail_index($root);
+    $now=$now??time();
+    $start=or_rail_near($stations,$a,$b,5);$end=or_rail_near($stations,$c,$d,6);
+    if(!$start||!$end)return ['routes'=>[],'source'=>'rail','coverage'=>'no_nearby_station'];
+    $targets=[];foreach($end as $e)$targets[$e['station']]=$e;
+    $queue=new SplPriorityQueue();$queue->setExtractFlags(SplPriorityQueue::EXTR_DATA);
+    foreach($start as $s){
+        $ready=$now+$s['walk'];
+        $queue->insert(['at'=>$ready,'code'=>$s['station'],'trip'=>'','changes'=>-1,
+                        'edges'=>[],'walk'=>$s['walk']],-$ready);
+    }
+    $best=[];$routes=[];$expanded=0;$deadline=microtime(true)+3.5;
+    while(!$queue->isEmpty()&&$expanded++<650&&microtime(true)<$deadline){
+        $s=$queue->extract();
+        if($s['at']>$now+8*3600)continue;
+        if(isset($targets[$s['code']])&&$s['edges']){
+            $r=or_rail_format($s['edges'],$stations,$a,$b,$c,$d,$now,$s['walk'],$targets[$s['code']]['walk']);
+            $routes[$r['clearRouteId']]=$r;
+            if(count($routes)>=10)break;
+        }
+        foreach(or_rail_departures($root,$s['code'],$s['at'],$now+6*3600) as $e){
+            [$dep,$arr,$dest,$trip,$line,$head]=$e;
+            if(!isset($stations[$dest]))continue;
+            $same=$s['trip']!==''&&$s['trip']===$trip;
+            $extra=$s['trip']!==''&&!$same?420:0;
+            if($dep<$s['at']+$extra)continue;
+            $changes=$s['changes']+($same?0:1);
+            if($changes>2)continue;
+            $key=$dest.'|'.$trip.'|'.$changes.'|'.intdiv((int)$arr,180);
+            if(isset($best[$key])&&$best[$key]<=$arr)continue;
+            $best[$key]=$arr;
+            $edges=$s['edges'];$edges[]=[(int)$dep,(int)$arr,$s['code'],(string)$dest,(string)$trip,(string)$line];
+            if(count($edges)>50)continue;
+            $queue->insert(['at'=>(int)$arr,'code'=>$dest,'trip'=>$trip,'changes'=>$changes,
+                            'edges'=>$edges,'walk'=>$s['walk']],-((int)$arr));
+        }
+    }
+    $items=array_values($routes);
+    usort($items,static fn($a,$b)=>$a['summary']['travelTimeInSeconds']<=>$b['summary']['travelTimeInSeconds']);
+    return ['routes'=>array_slice($items,0,3),'source'=>'rail','coverage'=>'scheduled',
+            'calendarThrough'=>$meta['through']];
+}
