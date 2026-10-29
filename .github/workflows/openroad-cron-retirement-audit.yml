@@ -59,6 +59,23 @@ jobs:
           b="$(mktemp "$HOME/openroad-cron-audit.out.XXXX")"
           trap 'rm -f "$a" "$b" "$HOME/openroad-audit-retire.php"' EXIT
           crontab -l > "$a"
+          php -r '
+            $lines=preg_split("/\\r?\\n/",(string)file_get_contents($argv[1]));
+            $seen=0;
+            foreach($lines as $line){
+              if(str_starts_with(ltrim($line),"#") || !preg_match("/gtfs|openroad/i",$line))continue;
+              $seen++;
+              preg_match("/^\\s*((?:\\S+\\s+){5})/",$line,$match);
+              $schedule=trim($match[1]??"nonstandard");
+              $type=str_contains($line,"http")?"http":
+                    (str_contains($line,".php")?"php":"other");
+              echo "CRON_SANITIZED source=cron schedule=".
+                   preg_replace("/[^0-9*\\/,\\- ]/","",$schedule).
+                   " kind=".$type.
+                   " named_import=".(str_contains($line,"update_gtfs.php")?"yes":"no")."\\n";
+            }
+            echo "CRON_SANITIZED matching_entries=".$seen."\\n";
+          ' "$a"
           php "$HOME/openroad-audit-retire.php" "$a" "$b"
           echo "CRON_RETIRE_AUDIT ready_to_retire=one_exact_job; no_changes"
           REMOTE
