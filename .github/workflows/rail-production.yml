@@ -108,10 +108,13 @@ jobs:
           ssh rail-production bash -s -- "$stage" <<'REMOTE'
           set -euo pipefail
           [[ "$1" =~ ^openroad-rail-stage-[0-9]+$ ]]
-          mkdir -m 0700 "$HOME/$1"
+          mkdir -p -m 0700 "$HOME/$1"
+          echo RAIL_STAGE_DIRECTORY_READY
           REMOTE
-          scp /tmp/rail-index.tar.gz maintenance/rail/rail_planner.php maintenance/rail/rail_journeys.php \
+          echo "RAIL_UPLOAD_BEGIN compressed_kib=$(du -k /tmp/rail-index.tar.gz | cut -f1)"
+          scp -O -o ServerAliveInterval=5 -o ServerAliveCountMax=3 /tmp/rail-index.tar.gz maintenance/rail/rail_planner.php maintenance/rail/rail_journeys.php \
             maintenance/rail/test_real_smoke.php "rail-production:$stage/"
+          echo RAIL_UPLOAD_COMPLETE
           indexsum="$(sha256sum /tmp/rail-index.tar.gz | cut -d' ' -f1)"
           plannersum="$(sha256sum maintenance/rail/rail_planner.php | cut -d' ' -f1)"
           endpointsum="$(sha256sum maintenance/rail/rail_journeys.php | cut -d' ' -f1)"
@@ -121,6 +124,7 @@ jobs:
           priv="$1"; pub="$2"; rid="$3"; idxhash="$4"; phash="$5"; ehash="$6"
           [[ "$priv" == /* && "$pub" == /* && "$rid" =~ ^[0-9]+$ ]]
           stage="$HOME/openroad-rail-stage-$rid"
+          echo RAIL_REMOTE_CHECK_BEGIN
           test -f "$priv/lib/auth.php" && test -f "$pub/api/v1/journeys.php"
           test "$(sha256sum "$stage/rail-index.tar.gz" | cut -d' ' -f1)" = "$idxhash"
           test "$(sha256sum "$stage/rail_planner.php" | cut -d' ' -f1)" = "$phash"
@@ -134,11 +138,13 @@ jobs:
           dest="$base/versions/$rid"
           test ! -e "$dest"
           mkdir -p "$dest"
+          echo RAIL_INDEX_EXTRACT_BEGIN
           tar -xzf "$stage/rail-index.tar.gz" -C "$dest"
           test -f "$dest/rail-index/manifest.json"
           size="$(du -sk "$dest" | cut -f1)"
           test "$size" -gt 0 && test "$size" -le 65000
           timeout 8 php -d memory_limit=96M "$stage/test_real_smoke.php" "$dest/rail-index"
+          echo RAIL_INDEX_VERIFIED
           if test -e "$base/current" && test ! -L "$base/current"; then
             echo 'Unmanaged rail index; refusing activation' >&2
             exit 1
