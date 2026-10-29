@@ -1,0 +1,10 @@
+# Copy this file to local.properties, then add the private values from your existing OpenRoad build.
+# Never commit or publish local.properties.
+openroad.tomtomKey=
+openroad.bodsKey=
+openroad.tflPrimaryKey=
+openroad.tflSecondaryKey=
+openroad.railDataApiKey=
+openroad.transportApiAppId=
+openroad.transportApiAppKey=
+openroad.serverUrl=https://openroad.bengoodman.co.uk

@@ -1,0 +1,138 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'uk.co.bengoodman.clearroute'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'uk.co.bengoodman.clearroute'
+        minSdk 26
+        targetSdk 35
+        versionCode 94
+        versionName '0.6.34'
+        // Personal build credentials are read from local.properties (git-ignored) rather than
+        // committed to build.gradle. They are still embedded in a personal APK where required,
+        // so provider-side restrictions remain important.
+        def secretProps = new Properties()
+        def secretFile = rootProject.file('local.properties')
+        if (secretFile.exists()) secretFile.withInputStream { secretProps.load(it) }
+        def quoted = { String key, String fallback = '' ->
+            String value = secretProps.getProperty(key, fallback) ?: ''
+            return '"' + value.replace('\\','\\\\').replace('\"','\\\"') + '"'
+        }
+        buildConfigField "String", "BUNDLED_TOMTOM_API_KEY", quoted('openroad.tomtomKey')
+        buildConfigField "String", "BUNDLED_BODS_API_KEY", quoted('openroad.bodsKey')
+        buildConfigField "String", "BUNDLED_TFL_API_KEY", quoted('openroad.tflPrimaryKey')
+        buildConfigField "String", "BUNDLED_TFL_SECONDARY_API_KEY", quoted('openroad.tflSecondaryKey')
+        buildConfigField "String", "BUNDLED_DARWIN_USERNAME", '""'
+        buildConfigField "String", "BUNDLED_DARWIN_PASSWORD", '""'
+        buildConfigField "String", "BUNDLED_TRANSPORTAPI_APP_ID", quoted('openroad.transportApiAppId')
+        buildConfigField "String", "BUNDLED_TRANSPORTAPI_APP_KEY", quoted('openroad.transportApiAppKey')
+        buildConfigField "String", "BUNDLED_OPENROAD_SERVER_URL", quoted('openroad.serverUrl', 'https://openroad.bengoodman.co.uk')
+    }
+
+    compileOptions {
+        // AGP 8.x requires JDK 17+; targeting Java 17 also avoids JDK 25's obsolete Java 8 warning.
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        // AGP 8.x can leave BuildConfig generation disabled unless explicitly requested.
+        // MainActivity uses BuildConfig.DEBUG so WebView debugging is enabled only in debug builds.
+        buildConfig true
+    }
+
+    sourceSets {
+        main {
+            // MapLibre is downloaded while building, then packaged inside the APK.
+            // The phone no longer has to fetch the mapping library from a CDN at runtime.
+            assets.srcDir("$buildDir/generated/maplibre-assets")
+        }
+    }
+
+    // The CI release pipeline supplies the same persistent key for every APK.
+    // Local debug builds remain debug-signed and cannot update a release-signed install.
+    def signingProps = new Properties()
+    def signingFile = rootProject.file('release-signing.properties')
+    if (signingFile.exists()) signingFile.withInputStream { signingProps.load(it) }
+    signingConfigs {
+        release {
+            if (signingFile.exists()) {
+                storeFile rootProject.file(signingProps.getProperty('storeFile'))
+                storePassword signingProps.getProperty('storePassword')
+                keyAlias signingProps.getProperty('keyAlias')
+                keyPassword signingProps.getProperty('keyPassword')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            if (signingFile.exists()) signingConfig signingConfigs.release
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.16.0'
+    implementation 'androidx.core:core:1.16.0'
+    implementation 'com.google.android.gms:play-services-location:21.4.0'
+}
+
+def mapLibreVersion = '5.24.0'
+def generatedMapLibreDir = file("$buildDir/generated/maplibre-assets")
+
+tasks.register('prepareMapLibreAssets') {
+    def outputDir = generatedMapLibreDir
+    def mapLibreJs = new File(outputDir, 'maplibre-gl.js')
+    def mapLibreCss = new File(outputDir, 'maplibre-gl.css')
+    outputs.files(mapLibreJs, mapLibreCss)
+
+    doLast {
+        outputDir.mkdirs()
+
+        def download = { File destination, List<String> urls, long minimumBytes ->
+            if (destination.exists() && destination.length() > minimumBytes) return
+            Exception lastError = null
+            for (String sourceUrl : urls) {
+                try {
+                    println "OpenRoad: downloading ${destination.name} from ${sourceUrl}"
+                    def connection = new java.net.URL(sourceUrl).openConnection()
+                    connection.setConnectTimeout(15000)
+                    connection.setReadTimeout(30000)
+                    connection.setRequestProperty('User-Agent', 'OpenRoad-Android-Build/0.6.34')
+                    connection.inputStream.withCloseable { input ->
+                        destination.withOutputStream { output -> output << input }
+                    }
+                    if (destination.length() <= minimumBytes) {
+                        throw new GradleException("Downloaded ${destination.name} is unexpectedly small")
+                    }
+                    lastError = null
+                    break
+                } catch (Exception e) {
+                    lastError = e
+                    destination.delete()
+                }
+            }
+            if (lastError != null) {
+                throw new GradleException("Could not download ${destination.name}. Check the Mac's internet connection and rebuild.", lastError)
+            }
+        }
+
+        download(mapLibreJs, [
+                "https://unpkg.com/maplibre-gl@${mapLibreVersion}/dist/maplibre-gl.js",
+                "https://cdn.jsdelivr.net/npm/maplibre-gl@${mapLibreVersion}/dist/maplibre-gl.js"
+        ], 10000)
+        download(mapLibreCss, [
+                "https://unpkg.com/maplibre-gl@${mapLibreVersion}/dist/maplibre-gl.css",
+                "https://cdn.jsdelivr.net/npm/maplibre-gl@${mapLibreVersion}/dist/maplibre-gl.css"
+        ], 1000)
+    }
+}
+
+tasks.named('preBuild').configure { dependsOn tasks.named('prepareMapLibreAssets') }

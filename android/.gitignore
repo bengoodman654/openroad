@@ -1,0 +1,19 @@
+# Android/Gradle output
+.gradle/
+build/
+**/build/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+
+# Machine-local Android SDK and personal OpenRoad credentials
+local.properties
+
+# OS/editor noise
+.DS_Store
+*.swp
+
+release-signing.properties
+*.jks
+*.keystore
