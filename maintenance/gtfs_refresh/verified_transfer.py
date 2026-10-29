@@ -60,10 +60,13 @@ def reviewed_transfer_links(db, index_info: dict, certified: dict | None,
         if (walk.a == walk.b or not walk.verified or
             walk.provider != "OpenStreetMap" or
             walk.source_sha256 != graph or
-            walk.metres <= 0 or walk.metres > max_walk_metres or
-            walk.seconds <= 0 or walk.seconds > 3600 or
-            (avoid_steps and walk.includes_steps)):
+            walk.metres <= 0 or walk.seconds <= 0 or
+            walk.seconds > 3600):
             raise ValueError("Invalid reviewed walking transfer")
+        # A valid but over-limit or stair-using connector is ineligible,
+        # not evidence that the underlying GTFS/OSM source is corrupted.
+        if walk.metres > max_walk_metres or (avoid_steps and walk.includes_steps):
+            continue
         if (walk.a,walk.b) in seen:
             raise ValueError("Ambiguous duplicate walking transfer")
         seen.add((walk.a,walk.b))
