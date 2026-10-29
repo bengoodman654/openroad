@@ -46,5 +46,13 @@ jobs:
             tar -tzf "$HOME/openroad-rail-stage-40962923080/rail-index.tar.gz" | \
               awk 'END {print "RAIL_ARCHIVE_MEMBERS="NR}'
           fi
+          for folder in "$priv/cache/rail-routing/versions/40962923080" "$priv/cache/rail-routing/versions/40962728389"; do
+            if test -d "$folder"; then
+              echo "RAIL_EXTRACT_FOLDER_EXISTS"
+              test -f "$folder/rail-index/manifest.json" && echo "RAIL_MANIFEST_EXISTS" || echo "RAIL_MANIFEST_MISSING"
+              find "$folder" -type f | awk 'END{print "RAIL_EXTRACT_FILES="NR}'
+              du -sk "$folder" | awk '{print "RAIL_EXTRACT_KIB="$1}'
+            fi
+          done
           printf 'RAIL_PREFLIGHT_DONE\n'
           REMOTE
