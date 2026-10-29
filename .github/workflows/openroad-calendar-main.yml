@@ -1,0 +1,77 @@
+name: OpenRoad weekly calendar-only refresh on production
+on:
+  schedule:
+    - cron: '19 4 * * 1'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'maintenance/pt-calendar/**'
+      - '.github/workflows/openroad-calendar-main.yml'
+permissions:
+  contents: read
+concurrency:
+  group: openroad-production-server
+  cancel-in-progress: false
+jobs:
+  check-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          set -euo pipefail
+          php -l maintenance/pt-calendar/calendar_extension.php
+          php -l maintenance/pt-calendar/extend_service_calendar.php
+  extend:
+    needs: check-source
+    if: github.event_name != 'push'
+    runs-on: ubuntu-24.04
+    environment: openroad-production
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure pinned SSH
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS"
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_openroad_calendar
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Calendar-only extension with exact private source checks
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+          PRIVATE_DIR: ${{ vars.CPANEL_OPENROAD_PRIVATE_DIR }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_HOST" && test -n "$SSH_USER"
+          [[ "$PRIVATE_DIR" == /* ]] || exit 1
+          libsha="$(sha256sum maintenance/pt-calendar/calendar_extension.php | cut -d' ' -f1)"
+          runsha="$(sha256sum maintenance/pt-calendar/extend_service_calendar.php | cut -d' ' -f1)"
+          ssh -i ~/.ssh/id_openroad_calendar -p "$SSH_PORT" \
+            -o StrictHostKeyChecking=yes -o BatchMode=yes "$SSH_USER@$SSH_HOST" \
+            bash -s -- "$PRIVATE_DIR" "$libsha" "$runsha" <<'REMOTE'
+          set -euo pipefail
+          root="$1";libsha="$2";runsha="$3"
+          lib="$root/lib/calendar_extension.php"
+          runner="$root/bin/extend_service_calendar.php"
+          for f in "$lib" "$runner"; do
+            test -f "$f" && test ! -L "$f"
+            php -l "$f" >/dev/null
+          done
+          test "$(sha256sum "$lib" | cut -d' ' -f1)" = "$libsha"
+          test "$(sha256sum "$runner" | cut -d' ' -f1)" = "$runsha"
+          # Fails closed on source age, dataset changes and import lock.
+          timeout 180 php -d memory_limit=128M "$runner" south_west
+          timeout 180 php -d memory_limit=128M "$runner" south_west --apply
+          timeout 180 php -d memory_limit=128M "$runner" south_west
+          echo "WEEKLY_CALENDAR_VERIFIED"
+          REMOTE
