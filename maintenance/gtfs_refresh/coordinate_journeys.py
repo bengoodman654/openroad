@@ -77,17 +77,22 @@ def coordinate_journeys(snapshot, origin, destination, earliest_sec,
         return {"outcome":"COVERAGE_MISSING",
                 "reasonCode":"NO_STOP_WITHIN_USER_WALK_LIMIT",
                 "results":[],"researchOnly":True}
+    # The nearest-stop shortlist is a performance cap, not evidence
+    # that a city has no other valid service. Report incomplete searches.
+    incomplete=(len(origin_candidates)>max_nearby or
+                len(destination_candidates)>max_nearby)
     pairs=[]
     for access,a in origin_candidates[:max_nearby]:
         for egress,b in destination_candidates[:max_nearby]:
             if a != b and access+egress<=max_walk_m:
                 pairs.append((access+egress,access,egress,a,b))
     pairs.sort(key=lambda x:(x[0],x[3],x[4]))
-    incomplete=len(pairs)>max_pairs
+    incomplete=incomplete or len(pairs)>max_pairs
     results=[]
     if not pairs:
-        return {"outcome":"NO_JOURNEY",
-                "reasonCode":"ACCESS_EGRESS_LOWER_BOUNDS_EXCEED_WALK_LIMIT",
+        return {"outcome":"SEARCH_LIMIT" if incomplete else "NO_JOURNEY",
+                "reasonCode":"STOP_CANDIDATE_CAP" if incomplete else
+                  "ACCESS_EGRESS_LOWER_BOUNDS_EXCEED_WALK_LIMIT",
                 "results":[],"researchOnly":True}
     for _,access,egress,board_stop,last_stop in pairs[:max_pairs]:
         if cancelled():
@@ -103,9 +108,14 @@ def coordinate_journeys(snapshot, origin, destination, earliest_sec,
             footpaths=links,max_walk_m=remaining,
             max_transfers=2,max_horizon_sec=7200,
             max_results=3,max_labels=45000,
-            cancel_check=cancelled)
+            # Both explicit cancellation and request deadline must stop
+            # a long-running connection scan, not only the next stop pair.
+            cancel_check=lambda: cancelled() or time_expired())
         if result.get("outcome")=="CANCELLED":
-            return {"outcome":"CANCELLED","results":[],"researchOnly":True}
+            if cancelled():
+                return {"outcome":"CANCELLED","results":[],"researchOnly":True}
+            incomplete=True
+            break
         if result.get("outcome")=="SEARCH_LIMIT":
             incomplete=True
             continue
