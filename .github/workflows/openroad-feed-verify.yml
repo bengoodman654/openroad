@@ -1,0 +1,62 @@
+name: OpenRoad fresh GTFS sources — isolated off-host validation
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'maintenance/gtfs_refresh/**'
+      - '.github/workflows/openroad-feed-verify.yml'
+  schedule:
+    - cron: '45 4 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: openroad-bods-source-validation
+  cancel-in-progress: true
+jobs:
+  unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rejected feed fixtures, valid Bristol/Coventry examples
+        run: python3 -m unittest discover -s maintenance/gtfs_refresh -p 'test_*.py' -v
+  source:
+    needs: unit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - region: south_west
+            path: south_west
+          - region: west_midlands
+            path: west_midlands
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate official regional source URL without touching JustHostMe
+        shell: bash
+        env:
+          REGION: ${{ matrix.region }}
+          SUFFIX: ${{ matrix.path }}
+        run: |
+          set -euo pipefail
+          # BODS official regional archive route, not a third-party mirror.
+          url="https://data.bus-data.dft.gov.uk/timetable/download/gtfs-file/$SUFFIX/"
+          # Redirects are allowed only to HTTPS; curl refuses HTTP errors
+          # and enforces archive size/time limits on the isolated runner.
+          curl --fail --location --show-error --silent \
+               --proto '=https' --proto-redir '=https' \
+               --connect-timeout 20 --max-time 540 \
+               --retry 1 --retry-delay 10 \
+               --max-filesize 734003200 \
+               --output "$RUNNER_TEMP/bods-gtfs.zip" "$url"
+          python3 maintenance/gtfs_refresh/validate_gtfs.py \
+            "$RUNNER_TEMP/bods-gtfs.zip" --region "$REGION" \
+            --output "$RUNNER_TEMP/$REGION-provenance.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gtfs-source-validation-${{ matrix.region }}
+          path: ${{ runner.temp }}/${{ matrix.region }}-provenance.json
+          retention-days: 14
