@@ -66,8 +66,12 @@ def _query_one_service_day(index_path,region,from_point,to_point,
         info={r["name"]:json.loads(r["value"]) for r in db.execute("SELECT * FROM info")}
         if info.get("region")!=region or info.get("schema") not in ("openroad-bus-sqlite-1","openroad-bus-sqlite-compact-2"):
             raise ValueError("Source pinned timetable mismatch")
-        origin=close_stops(db,*from_point,walk_cap_m,20)
-        destination=close_stops(db,*to_point,walk_cap_m,20)
+        # Retain more stop candidates for broad walking preferences.
+        # A hard 20-stop cap missed busy interchanges; a larger radius
+        # must not silently discard previously eligible nearby stops.
+        stop_limit=min(48,max(24,int(math.ceil(walk_cap_m/40))))
+        origin=close_stops(db,*from_point,walk_cap_m,stop_limit)
+        destination=close_stops(db,*to_point,walk_cap_m,stop_limit)
         if not origin or not destination:
             return {"outcome":"COVERAGE_MISSING","results":[],"researchOnly":True}
         eligible={x[1]:x[0] for x in destination}
