@@ -403,7 +403,7 @@ public final class TransitClient {
                     // Bristol bus directions. No repeated retry on this search.
                 }
             }
-            if(scheduledRail!=null && (!busEnabled || directMetres>=35000))
+            if(scheduledRail!=null && !busEnabled)
                 return scheduledRail;
             if(!busEnabled)
                 throw new Exception("No scheduled train journey was found within walking distance.");
