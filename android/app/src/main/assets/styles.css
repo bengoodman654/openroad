@@ -488,3 +488,24 @@ svg{display:block}
 .route-sheet:not(.minimised)>.sheet-handle{top:0;height:19px!important;min-height:19px;max-height:19px;margin:0!important;z-index:3}
 .route-sheet:not(.minimised)>.sheet-handle::after{top:5px;width:54px;height:5px}
 .route-sheet.transit-active:not(.minimised) .mode-switch{margin-top:0}
+
+/* v0.6.35: one readable sheet at a time; never taller than half the viewport. */
+.route-sheet, .route-sheet.transit-active, .transit-detail-sheet, .bus-service-sheet, .bus-stop-sheet {
+  max-height: min(50dvh, 50vh) !important;
+  overflow-y: auto;
+  overscroll-behaviour: contain;
+}
+.route-sheet.transit-active { overflow: hidden; }
+.route-sheet.transit-active .route-options { min-height: 0; overflow-y: auto; }
+.transit-detail-sheet, .bus-service-sheet, .bus-stop-sheet { display:flex; flex-direction:column; overflow:hidden; }
+.transit-detail-legs, .bus-service-content, .bus-stop-services { flex:1 1 auto; min-height:0; overflow-y:auto; }
+.pt-sheet-navigation {flex:0 0 auto;}
+.update-panel {padding:14px;display:flex;flex-direction:column;gap:12px;}
+.update-version-card {width:100%;min-width:0;display:flex;flex-direction:column;gap:5px;border:1px solid #dce4e8;border-radius:14px;padding:14px;background:#f8fafc;overflow-wrap:anywhere;}
+.update-version-card strong {font-size:20px;line-height:1.35;}
+.update-version-card small {font-size:13px;line-height:1.45;color:var(--muted);}
+.update-version-label {color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.08em;}
+.update-available-card {background:#fff;}
+.update-actions {display:flex;flex-wrap:wrap;gap:10px;}
+.update-actions .settings-text-button {flex:1 1 135px;padding:12px 14px;border-radius:11px;border:1px solid #d6e4f7;background:#eaf3ff;text-align:center;}
+.update-footnote {font-size:12px;line-height:1.45;margin:2px 0 0;color:var(--muted);}
