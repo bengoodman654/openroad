@@ -35,6 +35,17 @@ try{
     $reply=ptv2_run_city_process($q,$never,$opts);
     must($reply['outcome']==='OK'&&count($reply['results'])===1,
          'verified source route delivered as research-only');
+    $cache="$root/city.json.gz";
+    file_put_contents($cache,'fixture cached package placeholder');
+    $cacheMode=[...$opts,'index'=>'',
+                'snapshotCache'=>$cache,
+                'packageSha256'=>str_repeat('b',64)];
+    $cached=ptv2_run_city_process($q,$never,$cacheMode);
+    must($cached['outcome']==='OK',
+         'bounded process accepts protected compressed city snapshots');
+    $badCache=[...$cacheMode,'packageSha256'=>'bad'];
+    rejected(static fn()=>ptv2_run_city_process($q,$never,$badCache),
+             'uncertified city-cache checksum rejected before worker launch');
 
     file_put_contents($script,
         "import json\n".
