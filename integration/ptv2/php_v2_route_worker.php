@@ -25,6 +25,20 @@ function ptv2_run_authenticated_task(
     try{
         if($check())throw new RuntimeException('REQUEST_CANCELLED');
         $result=$work($check);
+        // Legacy planner returns a simple routes list. The newer
+        // source-pinned city planner returns a typed outcome envelope.
+        $isEnvelope=is_array($result)&&isset($result['outcome']);
+        if($isEnvelope){
+            $allowed=['OK','NO_JOURNEY','COVERAGE_MISSING',
+                      'CALENDAR_MISSING','SEARCH_LIMIT',
+                      'INPUT_INVALID','PROVIDER_UNAVAILABLE','CANCELLED'];
+            if(!in_array($result['outcome'],$allowed,true)||
+               !is_array($result['results']??null)||
+               ($result['researchOnly']??false)!==true)
+                throw new RuntimeException('INVALID_RESEARCH_OUTCOME');
+            if($result['outcome']==='CANCELLED')
+                throw new RuntimeException('REQUEST_CANCELLED');
+        }
         if($check()){
             $state=$registry->finish($ticket,$principal,(int)$clock());
             return ['outcome'=>'CANCELLED','remoteJobStatus'=>$state,
@@ -34,8 +48,10 @@ function ptv2_run_authenticated_task(
         if($state!=='COMPLETED')
             return ['outcome'=>'CANCELLED','remoteJobStatus'=>$state,
                     'results'=>[],'researchOnly'=>true];
-        return ['outcome'=>'OK','remoteJobStatus'=>'COMPLETED',
-                'results'=>$result,'researchOnly'=>true];
+        return ['outcome'=>$isEnvelope?$result['outcome']:'OK',
+                'remoteJobStatus'=>'COMPLETED',
+                'results'=>$isEnvelope?$result['results']:$result,
+                'researchOnly'=>true];
     } catch(Throwable $e){
         // Evaluate cancellation BEFORE marking worker completed. A finished
         // job is not RUNNING, so checking afterwards would misclassify
