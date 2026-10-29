@@ -36,7 +36,7 @@ def close_stops(db,lat,lon,radius_m=1000,limit=15):
         if d<=radius_m:out.append((d,s["stop_id"],s["name"]))
     return sorted(out)[:limit]
 
-def timetable_query(index_path,region,from_point,to_point,
+def _query_one_service_day(index_path,region,from_point,to_point,
                     service_date,earliest_secs,budget_secs=4,
                     cancel=lambda:False,walk_cap_m=900):
     started=time.monotonic()
@@ -158,3 +158,48 @@ def timetable_query(index_path,region,from_point,to_point,
                 "results":out,"researchOnly":True}
     finally:
         db.close()
+
+
+def timetable_query(index_path,region,from_point,to_point,
+                    service_date,earliest_secs,budget_secs=4,
+                    cancel=lambda:False,walk_cap_m=900):
+    """Merge current and previous service days for GTFS 24+ hour journeys."""
+    if not isinstance(service_date,dt.date):
+        raise ValueError("Service date required")
+    started=time.monotonic()
+    current=_query_one_service_day(index_path,region,from_point,to_point,
+                                   service_date,earliest_secs,
+                                   budget_secs,cancel,walk_cap_m)
+    if earliest_secs>=4*3600:
+        return current
+    if cancel():raise SearchCancelled()
+    remain=budget_secs-(time.monotonic()-started)
+    if remain<=0.12:
+        # Never claim NO_JOURNEY when budget prevented previous-day check.
+        return current if current["outcome"]=="OK" else {
+            "outcome":"TIME_BUDGET","results":[],"researchOnly":True}
+    previous=_query_one_service_day(
+        index_path,region,from_point,to_point,
+        service_date-dt.timedelta(days=1),earliest_secs+86400,
+        remain,cancel,walk_cap_m)
+    combined=[]
+    for r in current.get("results",[]):
+        combined.append(r)
+    for item in previous.get("results",[]):
+        r=dict(item)
+        r["departureSec"]-=86400
+        r["arrivalLowerBoundSec"]-=86400
+        combined.append(r)
+    if combined:
+        combined.sort(key=lambda x:(
+            x["arrivalLowerBoundSec"],x["departureSec"],len(x["trips"])))
+        return {"outcome":"OK",
+                "researchOnly":True,
+                "snapshotId":current.get("snapshotId") or previous.get("snapshotId"),
+                "results":combined[:3]}
+    if current["outcome"]=="CALENDAR_MISSING" and previous["outcome"]=="CALENDAR_MISSING":
+        outcome="CALENDAR_MISSING"
+    elif current["outcome"]=="COVERAGE_MISSING" or previous["outcome"]=="COVERAGE_MISSING":
+        outcome="COVERAGE_MISSING"
+    else:outcome="NO_JOURNEY"
+    return {"outcome":outcome,"results":[],"researchOnly":True}

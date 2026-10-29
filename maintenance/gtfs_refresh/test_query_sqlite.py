@@ -28,7 +28,8 @@ class IndexRoutingTests(unittest.TestCase):
             "T0,09:00:00,09:00:00,A,1,0,1\nT0,09:20:00,09:20:00,B,2,1,0\n"+
             "T1,09:05:00,09:05:00,A,1,0,1\nT1,09:10:00,09:10:00,X,2,1,0\n"+
             "T2,09:15:00,09:15:00,X,1,0,1\nT2,09:30:00,09:30:00,B,2,1,0\n"+
-            "".join(f"T{i},12:00:00,12:00:00,P0,1,0,0\n" for i in range(3,60)),
+            "T3,24:05:00,24:05:00,A,1,0,1\nT3,24:45:00,24:45:00,B,2,1,0\n"+
+            "".join(f"T{i},12:00:00,12:00:00,P0,1,0,0\n" for i in range(4,60)),
           "calendar.txt":"service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\nS,1,1,1,1,1,1,1,20261001,20270201\n",
           "calendar_dates.txt":"service_id,date,exception_type\nS,20261101,1\n",
           "notes.txt":"x"*12000,
@@ -50,6 +51,15 @@ class IndexRoutingTests(unittest.TestCase):
             (51.46,-2.595),dt.date(2026,10,29),9*3600+1*60,walk_cap_m=180)
         self.assertEqual(a["outcome"],"OK")
         self.assertTrue(any(len(x["trips"])==2 for x in a["results"]))
+    def test_after_midnight_service_can_use_previous_calendar_day(self):
+        results=timetable_query(self.db,"south_west",(51.4545,-2.5879),
+            (51.46,-2.595),dt.date(2026,10,29),5*60,
+            walk_cap_m=180)
+        self.assertEqual(results["outcome"],"OK")
+        self.assertEqual(results["results"][0]["trips"],["T3"])
+        self.assertEqual(results["results"][0]["departureSec"],5*60)
+        self.assertFalse(results["results"][0]["selectable"])
+
     def test_cancellation_propagated(self):
         with self.assertRaises(SearchCancelled):
             timetable_query(self.db,"south_west",(51.4545,-2.5879),

@@ -71,7 +71,8 @@ def batch_insert(db,sql,iterable,batch=BATCH):
 
 def add_service_calendar(db,z,members,services,today,horizon=56):
     if not 7<=horizon<=90:raise FeedRejected("Calendar horizon unsafe")
-    wanted=[today+dt.timedelta(days=i) for i in range(horizon+1)]
+    # Yesterday matters for GTFS departures at 24:xx or 26:xx after midnight.
+    wanted=[today+dt.timedelta(days=i) for i in range(-1,horizon+1)]
     dates={d.strftime("%Y%m%d"):d for d in wanted}
     byday={d: set() for d in wanted}
     if "calendar.txt" in members:
