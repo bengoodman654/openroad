@@ -66,7 +66,7 @@ function or_rail_format(array $edges,array $stations,float $a,float $b,float $c,
     $legs=[['mode'=>'foot','from'=>'My location','to'=>$from[0],'durationSeconds'=>$walkIn,
             'departure'=>date('H:i',$now),'arrival'=>date('H:i',$now+$walkIn),
             'timeStatus'=>'scheduled','geometryStatus'=>'loading']];
-    $geom=[['points'=>[['latitude'=>$a,'longitude'=>$b],['latitude'=>(float)$from[1],'longitude'=>(float)$from[2]]]];
+    $geom = [ ['points' => [ ['latitude'=>$a,'longitude'=>$b], ['latitude'=>(float)$from[1],'longitude'=>(float)$from[2]] ] ] ];
     foreach($groups as $g){
         $stops=[];$coords=[];
         foreach($g['stops'] as $code){
