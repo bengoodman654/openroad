@@ -22,6 +22,7 @@ jobs:
       - name: Rejected feed fixtures, valid Bristol/Coventry examples
         run: python3 -m unittest discover -s maintenance/gtfs_refresh -p 'test_*.py' -v
   source:
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     needs: unit
     runs-on: ubuntu-24.04
     timeout-minutes: 20
