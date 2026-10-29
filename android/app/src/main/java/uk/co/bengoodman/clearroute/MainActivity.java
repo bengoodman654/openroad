@@ -904,6 +904,35 @@ public class MainActivity extends Activity implements LocationListener {
             runOnUiThread(() -> requestPermissions(new String[]{Manifest.permission.READ_CONTACTS}, REQ_CONTACTS));
         }
 
+        /** Return only a bounded, addressed subset for an explicitly enabled map layer. */
+        @JavascriptInterface public String getContactMapCandidates() {
+            JSONArray out = new JSONArray();
+            if (!hasContactsPermission()) return out.toString();
+            String[] projection = new String[]{
+                ContactsContract.CommonDataKinds.StructuredPostal.DISPLAY_NAME,
+                ContactsContract.CommonDataKinds.StructuredPostal.FORMATTED_ADDRESS
+            };
+            String selection = ContactsContract.CommonDataKinds.StructuredPostal.FORMATTED_ADDRESS + " IS NOT NULL";
+            try (Cursor cursor = getContentResolver().query(
+                ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_URI,
+                projection, selection, null,
+                ContactsContract.CommonDataKinds.StructuredPostal.DISPLAY_NAME + " COLLATE NOCASE ASC")) {
+                java.util.HashSet<String> unique = new java.util.HashSet<>();
+                while (cursor != null && cursor.moveToNext() && out.length() < 15) {
+                    String name = cursor.getString(0), addr = cursor.getString(1);
+                    if (addr == null || addr.trim().isEmpty()) continue;
+                    if (name == null || name.trim().isEmpty()) name = "Contact";
+                    if (!unique.add(name.toLowerCase(java.util.Locale.ROOT) + "|" + addr.trim().toLowerCase(java.util.Locale.ROOT))) continue;
+                    out.put(new JSONObject().put("name", name).put("address", addr.trim()));
+                }
+            } catch (Exception e) { Log.w("ClearRouteContacts", "Contacts map query unavailable", e); }
+            return out.toString();
+        }
+
+        @JavascriptInterface public String getInstalledAppVersion() {
+            return BuildConfig.VERSION_NAME;
+        }
+
         @JavascriptInterface public String getContactMatches(String query) {
             JSONArray out = new JSONArray();
             if (!hasContactsPermission() || query == null) return out.toString();
@@ -937,9 +966,9 @@ public class MainActivity extends Activity implements LocationListener {
                         JSONObject pos = first == null ? null : first.optJSONObject("position");
                         if (pos == null) throw new Exception("No geocode");
                         js("ClearRoute.onContactGeocoded(" + JSONObject.quote(name == null ? "Contact" : name) + "," + JSONObject.quote(address) + "," + pos.optDouble("lat") + "," + pos.optDouble("lon") + ")");
-                    } catch (Exception e) { js("ClearRoute.onError('Could not locate that contact address')"); }
+                    } catch (Exception e) { js("ClearRoute.onContactGeocodeFailed(" + JSONObject.quote(name == null ? "Contact" : name) + "," + JSONObject.quote(address) + ")"); }
                 }
-                @Override public void onError(String message) { js("ClearRoute.onError('Could not locate that contact address')"); }
+                @Override public void onError(String message) { js("ClearRoute.onContactGeocodeFailed(" + JSONObject.quote(name == null ? "Contact" : name) + "," + JSONObject.quote(address) + ")"); }
             });
         }
 
@@ -1571,6 +1600,10 @@ public class MainActivity extends Activity implements LocationListener {
         }
 
         @JavascriptInterface public void startNavigation(int routeIndex, double destLat, double destLon, String mode) {
+            startNavigationWithStops(routeIndex, destLat, destLon, mode, "[]");
+        }
+
+        @JavascriptInterface public void startNavigationWithStops(int routeIndex, double destLat, double destLon, String mode, String stopsJson) {
             if ("transit".equals(mode)) {
                 js("ClearRoute.onError('Public-transport journeys use the Journey/Steps view rather than driving-style turn-by-turn navigation')");
                 return;
@@ -1586,6 +1619,17 @@ public class MainActivity extends Activity implements LocationListener {
                 state.put("destLon", destLon);
                 state.put("mode", mode);
                 state.put("response", new JSONObject(lastRouteResponse));
+                JSONArray via = new JSONArray(stopsJson == null ? "[]" : stopsJson);
+                if (via.length() > 0) {
+                    JSONObject stop = via.getJSONObject(0);
+                    double lat = stop.getDouble("lat"), lon = stop.getDouble("lon");
+                    if (!Double.isFinite(lat) || !Double.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180)
+                        throw new IllegalArgumentException("Invalid navigation stop");
+                    state.put("hasWaypoint", true);
+                    state.put("waypointLat", lat);
+                    state.put("waypointLon", lon);
+                    state.put("waypointName", stop.optString("name", "Stop"));
+                }
                 ActiveRouteStore.save(MainActivity.this, state);
                 Intent service = new Intent(MainActivity.this, NavigationService.class)
                         .putExtra("routeIndex", routeIndex)
