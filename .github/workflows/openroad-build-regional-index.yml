@@ -64,6 +64,13 @@ jobs:
           print("RESEARCH_ORACLE",sys.argv[2],result["outcome"],
                 "choices",len(result.get("results",[])))
           PY
+      - name: Diagnose Bristol or Coventry research coverage without changing server
+        shell: bash
+        env:
+          REGION: ${{ matrix.region }}
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$GITHUB_WORKSPACE" python3 maintenance/gtfs_refresh/diagnose_index.py             "$RUNNER_TEMP/$REGION.sqlite" --region "$REGION"
       - name: Compact IDs losslessly and cross-check query equivalence
         shell: bash
         env:
