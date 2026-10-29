@@ -76,6 +76,10 @@ jobs:
             }
             echo "CRON_SANITIZED matching_entries=".$seen."\\n";
           ' "$a"
+          if ! grep -q 'update_gtfs.php' "$a"; then
+            echo "CRON_RETIRE_STATUS already_absent=yes changes=none"
+            exit 0
+          fi
           php "$HOME/openroad-audit-retire.php" "$a" "$b"
           echo "CRON_RETIRE_AUDIT ready_to_retire=one_exact_job; no_changes"
           REMOTE
