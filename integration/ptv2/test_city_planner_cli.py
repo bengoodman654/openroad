@@ -29,10 +29,12 @@ class CLIContractTests(unittest.TestCase):
 
     def tearDown(self):self.fixture.tearDown()
 
-    def invoke(self,request=None,sha=None):
+    def invoke(self,request=None,sha=None,cache=None,package_sha=None):
+        source_args=(["--index",str(self.path)] if cache is None else
+                     ["--snapshot-cache",str(cache),"--package-sha",package_sha])
         r=subprocess.run([
             sys.executable,"-B",str(SCRIPT),
-            "--index",str(self.path),
+            *source_args,
             "--region","south_west",
             "--source-sha",sha or self.sha
         ],input=json.dumps(self.query if request is None else request),
@@ -48,6 +50,23 @@ class CLIContractTests(unittest.TestCase):
         self.assertTrue(response["results"])
         self.assertTrue(all(x["researchOnly"] and
                             not x["selectable"] for x in response["results"]))
+
+    def test_small_immutable_cache_matches_index_research_routes(self):
+        from maintenance.gtfs_refresh.connection_snapshot import load_city_snapshot
+        from maintenance.gtfs_refresh.city_snapshot_cache import encode_city_snapshot
+        cache=Path(self.fixture.t.name)/"source-city.json.gz"
+        snapshot=load_city_snapshot(
+            self.path,"south_west","Bristol",__import__("datetime").date(2026,10,29),
+            (51.4545,-2.5879),(51.46,-2.595),radius_m=700)
+        metadata=encode_city_snapshot(snapshot,cache)
+        direct=self.invoke()
+        cached=self.invoke(cache=cache,package_sha=metadata["packageSha256"])
+        self.assertEqual(direct["outcome"],cached["outcome"])
+        self.assertEqual([r["clearRouteId"] for r in direct["results"]],
+                         [r["clearRouteId"] for r in cached["results"]])
+        bad=self.invoke(cache=cache,package_sha="0"*64)
+        self.assertEqual(bad["outcome"],"INPUT_INVALID")
+        self.assertFalse(bad["results"])
 
     def test_untrusted_source_digest_cannot_return_journey(self):
         result=self.invoke(sha="a"*64)
