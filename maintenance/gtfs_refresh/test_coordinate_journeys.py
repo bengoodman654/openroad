@@ -68,6 +68,18 @@ class CoordinateJourneysTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.query(transfer_bundle=bundle)
 
+    def test_shortlisted_stops_are_incomplete_not_a_claim_of_no_service(self):
+        # This fixture has 110 extra nearby stops with no useful evening
+        # buses. Searching only one never proves the city has no service.
+        outcome=self.query(when=20*3600,max_nearby=1,max_pairs=1)
+        self.assertEqual(outcome["outcome"],"SEARCH_LIMIT",outcome)
+        self.assertFalse(outcome["results"])
+        self.assertTrue(outcome["incompleteSearch"])
+
+    def test_deadline_does_not_turn_into_false_no_journey(self):
+        outcome=self.query(budget_s=0.000001)
+        self.assertEqual(outcome["outcome"],"SEARCH_LIMIT",outcome)
+
     def test_user_walk_limit_is_not_silently_expanded(self):
         p=coordinate_journeys(
             self.snapshot,self.start,self.end,
