@@ -2,7 +2,11 @@ name: OpenRoad regional bus SQLite integration — off-host data build
 on:
   push:
     branches: [release/openroad-completion]
-    paths: ['.github/workflows/openroad-build-regional-index.yml']
+    paths:
+      - '.github/workflows/openroad-build-regional-index.yml'
+      - 'maintenance/gtfs_refresh/query_sqlite.py'
+      - 'maintenance/gtfs_refresh/test_query_sqlite.py'
+      - 'maintenance/gtfs_refresh/diagnose_index.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -59,6 +63,12 @@ jobs:
           result=timetable_query(sys.argv[1],sys.argv[2],a,b,
                 dt.date.today(),9*3600,budget_secs=6)
           assert result["researchOnly"] is True
+          if sys.argv[2]=="south_west":
+              # This reference city previously yielded a false NO_JOURNEY.
+              # A current feed with no verified boarding path is a blocker
+              # for production rather than a deployable index.
+              print("BRISTOL_ORACLE_OUTCOME",result["outcome"],
+                    "routes",len(result.get("results",[])))
           assert all(not r["selectable"] and not r["walkGeometryVerified"]
                      for r in result.get("results",[]))
           print("RESEARCH_ORACLE",sys.argv[2],result["outcome"],
