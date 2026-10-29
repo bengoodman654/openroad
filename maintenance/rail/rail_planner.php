@@ -106,9 +106,14 @@ function or_rail_plan(float $a,float $b,float $c,float $d,?string $root=null,?in
     foreach($start as $s){
         $ready=$now+$s['walk'];
         $queue->insert(['at'=>$ready,'code'=>$s['station'],'trip'=>'','changes'=>-1,
-                        'edges'=>[],'walk'=>$s['walk']],-$ready);
+                        'edges'=>[],'walk'=>$s['walk']],-($ready+(int)(or_rail_km((float)$stations[$s['station']][1],(float)$stations[$s['station']][2],$c,$d)*32)));
     }
-    $best=[];$routes=[];$expanded=0;$deadline=microtime(true)+3.5;
+    $best=[];$routes=[];$expanded=0;$deadline=microtime(true)+4.0;
+    $goalCost=static function(string $station)use($stations,$c,$d):int{
+        $p=$stations[$station];
+        // Geographic guidance only: queue priority, not the journey's actual score.
+        return (int)round(or_rail_km((float)$p[1],(float)$p[2],$c,$d)*32);
+    };
     while(!$queue->isEmpty()&&$expanded++<650&&microtime(true)<$deadline){
         $s=$queue->extract();
         if($s['at']>$now+8*3600)continue;
@@ -131,9 +136,11 @@ function or_rail_plan(float $a,float $b,float $c,float $d,?string $root=null,?in
             $edges=$s['edges'];$edges[]=[(int)$dep,(int)$arr,$s['code'],(string)$dest,(string)$trip,(string)$line];
             if(count($edges)>50)continue;
             $queue->insert(['at'=>(int)$arr,'code'=>$dest,'trip'=>$trip,'changes'=>$changes,
-                            'edges'=>$edges,'walk'=>$s['walk']],-((int)$arr));
+                            'edges'=>$edges,'walk'=>$s['walk']],-((int)$arr+$goalCost($dest)));
         }
     }
+    if(PHP_SAPI==='cli'&&getenv('OPENROAD_RAIL_DEBUG')==='1')
+        fwrite(STDERR,"RAIL_DEBUG expanded=$expanded candidates=".count($routes)."\n");
     $items=array_values($routes);
     usort($items,static fn($a,$b)=>$a['summary']['travelTimeInSeconds']<=>$b['summary']['travelTimeInSeconds']);
     return ['routes'=>array_slice($items,0,3),'source'=>'rail','coverage'=>'scheduled',
