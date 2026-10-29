@@ -1,21 +1,37 @@
-name: OpenRoad rail integration source inventory
+name: OpenRoad verified server source extraction
 on:
   push:
     branches: [main]
     paths: ['.github/workflows/rail-source-inventory.yml']
 permissions:
-  contents: read
+  contents: write
 jobs:
-  inventory:
+  extract:
     runs-on: ubuntu-24.04
-    timeout-minutes: 4
+    timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
-      - name: Inspect versioned server source archive
+        with:
+          persist-credentials: true
+      - name: Extract public versioned server code only
         shell: bash
         run: |
           set -euo pipefail
-          file='OpenRoad-Transport-Server-v0.2.5-source.zip'
-          test -f "$file"
-          unzip -Z1 "$file" | grep -E '(^|/)(api/v1/(rail|journeys|status)\.php|lib/(rail_gateway|router|bootstrap)\.php|schema\.sql|README\.md)$' | head -50
-          unzip -Z1 "$file" | head -60
+          src='OpenRoad-Transport-Server-v0.2.5-source.zip'
+          root='OpenRoad-Transport-Server-v0.2.5-source'
+          mkdir -p maintenance/rail/server_base
+          for p in private/lib/bootstrap.php private/lib/auth.php private/lib/router.php private/lib/rail_gateway.php public/api/v1/journeys.php public/api/v1/rail.php private/schema.sql; do
+            dest="maintenance/rail/server_base/$p"
+            mkdir -p "$(dirname "$dest")"
+            unzip -p "$src" "$root/$p" > "$dest"
+            test -s "$dest"
+            case "$dest" in *.php) php -l "$dest" >/dev/null;; esac
+          done
+          # Source should not contain host-specific settings or access keys.
+          ! grep -ERn '(sk_live_|ghp_[A-Za-z0-9]{20}|-----BEGIN PRIVATE KEY-----)' maintenance/rail/server_base
+          git config user.name 'OpenRoad CI'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add maintenance/rail/server_base
+          git diff --cached --quiet && exit 0
+          git commit -m 'Track audited OpenRoad PHP server baseline for rail integration'
+          git push origin HEAD:main
