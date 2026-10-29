@@ -187,7 +187,7 @@
     });
     const origin=routeOrigin();const from=el('routeCard')?.querySelector('.route-from');if(from)from.textContent=origin?.name||'My location';
   }
-  function beginAddTransitStop(){if(mode!=='transit'&&transitViaStops.length>=1)return toast('Driving, cycling and walking currently support one added stop.');beginRoutePointSearch('add');}
+  function beginAddTransitStop(){const limit=mode==='drive'||mode==='transit'?6:1;if(transitViaStops.length>=limit)return toast('This travel mode supports up to '+limit+' intermediate stop'+(limit===1?'':'s')+'.');beginRoutePointSearch('add');}
   function addTransitViaStop(lat,lon,name,address=''){if(!Number.isFinite(Number(lat))||!Number.isFinite(Number(lon)))return;transitViaStops.push({lat:Number(lat),lon:Number(lon),name:routePointName(name,address)||'Stop',address:address||'',source:'via'});finishRoutePointSearch();if(destination&&routeOrigin())calculateRoute();}
   function applyRoutePointSelection(lat,lon,label,address='',meta=null){
     lat=Number(lat);lon=Number(lon);if(!Number.isFinite(lat)||!Number.isFinite(lon))return;label=routePointName(label,address);
@@ -387,6 +387,7 @@
     clearPlaceCategoryMarkers('contacts');if(!mapLoaded||!poiVisible||!placeCategories.contacts)return;
     const markers=[];contactPlaceCache.forEach(c=>{const lat=Number(c.lat),lon=Number(c.lon);if(!Number.isFinite(lat)||!Number.isFinite(lon))return;const node=document.createElement('button');node.type='button';node.className='place-category-marker contacts';node.textContent='👤';node.title=c.name||'Contact';node.setAttribute('aria-label',c.name||'Contact');node.onclick=e=>{e.stopPropagation();setDestination(lat,lon,c.name||'Contact',c.address||'',{category:'Contact'});};try{markers.push(new maplibregl.Marker({element:node,anchor:'center'}).setLngLat([lon,lat]).addTo(map));}catch(_){}});placeCategoryMarkers.set('contacts',markers);
   }
+  const contactGeocodeAttempted=new Set();
   function warmContactPlaceCache(){
     if(!placeCategories.contacts||!native()?.hasContactsPermission?.()||!native()?.getContactMapCandidates)return;
     if(localStorage.getItem('openroad.contactsMapGeocodingConsent')!=='yes')return;
@@ -395,7 +396,8 @@
     let delay=0;
     all.slice(0,15).forEach(c=>{
       const key=`${c.name||'Contact'}|${c.address||''}`.toLowerCase();
-      if(!c.address||cached.has(key)||contactBackgroundGeocodes.has(key))return;
+      if(!c.address||cached.has(key)||contactBackgroundGeocodes.has(key)||contactGeocodeAttempted.has(key))return;
+      contactGeocodeAttempted.add(key);
       contactBackgroundGeocodes.add(key);
       setTimeout(()=>{
         if(!placeCategories.contacts){contactBackgroundGeocodes.delete(key);return;}
@@ -1352,9 +1354,15 @@
       if(origin.custom&&native()?.calculateTransitRouteWithStopsFrom)native().calculateTransitRouteWithStopsFrom(origin.lat,origin.lon,destination.lat,destination.lon,JSON.stringify(transitViaStops),settings,id);
       else native()?.calculateTransitRouteWithStops?.(destination.lat,destination.lon,JSON.stringify(transitViaStops),settings,id);
     } else if(transitViaStops.length){
-      const via=transitViaStops[0];
-      if(origin.custom&&native()?.calculateRouteViaStopFrom)native().calculateRouteViaStopFrom(origin.lat,origin.lon,destination.lat,destination.lon,Number(via.lat),Number(via.lon),mode,id);
-      else native()?.calculateRouteViaStop?.(destination.lat,destination.lon,Number(via.lat),Number(via.lon),mode,id);
+      if(mode==='drive'&&native()?.calculateRouteWithStops){
+        const stops=JSON.stringify(transitViaStops);
+        if(origin.custom&&native()?.calculateRouteWithStopsFrom)native().calculateRouteWithStopsFrom(origin.lat,origin.lon,destination.lat,destination.lon,stops,mode,id);
+        else native().calculateRouteWithStops(destination.lat,destination.lon,stops,mode,id);
+      }else{
+        const via=transitViaStops[0];
+        if(origin.custom&&native()?.calculateRouteViaStopFrom)native().calculateRouteViaStopFrom(origin.lat,origin.lon,destination.lat,destination.lon,Number(via.lat),Number(via.lon),mode,id);
+        else native()?.calculateRouteViaStop?.(destination.lat,destination.lon,Number(via.lat),Number(via.lon),mode,id);
+      }
     } else if(origin.custom&&native()?.calculateRouteFrom)native().calculateRouteFrom(origin.lat,origin.lon,destination.lat,destination.lon,mode,id);
     else native()?.calculateRoute?.(destination.lat,destination.lon,mode,id);
   }
