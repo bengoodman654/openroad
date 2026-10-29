@@ -1250,7 +1250,18 @@ public class MainActivity extends Activity implements LocationListener {
             double finalLat = state.optDouble("destLat", 0);
             double finalLon = state.optDouble("destLon", 0);
             String travelMode = state.optString("mode", "drive");
-            ApiClient.routeVia(MainActivity.this, originLat, originLon, stopLat, stopLon, finalLat, finalLon, travelMode,
+            JSONArray original = state.optJSONArray("remainingWaypoints");
+            JSONArray pending = new JSONArray();
+            try {
+                pending.put(new JSONObject().put("lat",stopLat).put("lon",stopLon).put("name",stopName == null ? "Stop" : stopName));
+                if (original != null) {
+                    for(int i=0;i<original.length()&&pending.length()<6;i++) pending.put(original.getJSONObject(i));
+                } else if (state.optBoolean("hasWaypoint",false)) {
+                    pending.put(new JSONObject().put("lat",state.optDouble("waypointLat")).put("lon",state.optDouble("waypointLon"))
+                            .put("name",state.optString("waypointName","Stop")));
+                }
+            } catch (Exception e) { js("ClearRoute.onError('Could not prepare additional stop')");return; }
+            ApiClient.routeWithStops(MainActivity.this, originLat, originLon, pending, finalLat, finalLon, travelMode,
                     new ApiClient.Callback() {
                         @Override public void onSuccess(String json) {
                             try {
@@ -1262,6 +1273,7 @@ public class MainActivity extends Activity implements LocationListener {
                                 updated.put("waypointLat", stopLat);
                                 updated.put("waypointLon", stopLon);
                                 updated.put("waypointName", stopName == null ? "Stop" : stopName);
+                                updated.put("remainingWaypoints", pending);
                                 ActiveRouteStore.save(MainActivity.this, updated);
                                 lastRouteResponse = json;
                                 Intent reload = new Intent(MainActivity.this, NavigationService.class)
@@ -1379,6 +1391,40 @@ public class MainActivity extends Activity implements LocationListener {
                 return;
             }
             calculateRouteFromPoints(originLat, originLon, destLat, destLon, mode, requestId);
+        }
+
+        private void calculateRouteWithStopsFromPoints(double originLat, double originLon,
+                                                        double destLat, double destLon, String stopsJson,
+                                                        String mode, long requestId) {
+            latestRouteRequestId = requestId;
+            try {
+                JSONArray stops = new JSONArray(stopsJson == null ? "[]" : stopsJson);
+                if (stops.length() > 6) throw new IllegalArgumentException("A maximum of six intermediate stops is supported");
+                ApiClient.routeWithStops(MainActivity.this, originLat, originLon, stops,
+                        destLat, destLon, mode, routeCallback(requestId));
+            } catch (Exception e) {
+                js("ClearRoute.onRouteError(" + requestId + "," + JSONObject.quote(e.getMessage() == null ? "Invalid stops" : e.getMessage()) + ")");
+            }
+        }
+
+        @JavascriptInterface public void calculateRouteWithStops(double destLat, double destLon, String stopsJson, String mode, long requestId) {
+            if (lastLocation == null || SystemClock.elapsedRealtime() - lastLocationElapsed > 30000L) {
+                latestRouteRequestId = requestId;
+                js("ClearRoute.onRouteNeedsLocation(" + requestId + ")");
+                return;
+            }
+            calculateRouteWithStopsFromPoints(lastLocation.getLatitude(),lastLocation.getLongitude(),
+                    destLat,destLon,stopsJson,mode,requestId);
+        }
+
+        @JavascriptInterface public void calculateRouteWithStopsFrom(double originLat, double originLon,
+                            double destLat, double destLon, String stopsJson, String mode, long requestId) {
+            if (!Double.isFinite(originLat) || !Double.isFinite(originLon)) {
+                latestRouteRequestId = requestId;
+                js("ClearRoute.onRouteError(" + requestId + ",'Invalid start location')");
+                return;
+            }
+            calculateRouteWithStopsFromPoints(originLat,originLon,destLat,destLon,stopsJson,mode,requestId);
         }
 
         private void calculateRouteViaStopFromPoints(double originLat, double originLon, double destLat, double destLon,
@@ -1620,7 +1666,9 @@ public class MainActivity extends Activity implements LocationListener {
                 state.put("mode", mode);
                 state.put("response", new JSONObject(lastRouteResponse));
                 JSONArray via = new JSONArray(stopsJson == null ? "[]" : stopsJson);
+                if (via.length() > 6) throw new IllegalArgumentException("Too many intermediate stops");
                 if (via.length() > 0) {
+                    state.put("remainingWaypoints", via);
                     JSONObject stop = via.getJSONObject(0);
                     double lat = stop.getDouble("lat"), lon = stop.getDouble("lon");
                     if (!Double.isFinite(lat) || !Double.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180)
