@@ -36,11 +36,23 @@ jobs:
                    (function_exists($f)?"yes":"no")."\n";
             }
           '
+          for tag in system39 system310 system311 alt39 alt310 alt311; do
+            case "$tag" in
+              system39) exe="$(command -v python3.9 || true)" ;;
+              system310) exe="$(command -v python3.10 || true)" ;;
+              system311) exe="$(command -v python3.11 || true)" ;;
+              alt39) exe="/opt/alt/python39/bin/python3.9" ;;
+              alt310) exe="/opt/alt/python310/bin/python3.10" ;;
+              alt311) exe="/opt/alt/python311/bin/python3.11" ;;
+            esac
+            if test -n "$exe" && test -x "$exe"; then
+              "$exe" -c 'import sys,sqlite3,json;from importlib.util import find_spec;print("PYTHON_RUNTIME tag="+sys.argv[1]+" version=%d.%d sqlite=yes zoneinfo=%s"%(sys.version_info.major,sys.version_info.minor,"yes" if find_spec("zoneinfo") else "no"))' "$tag"
+            else
+              echo "PYTHON_RUNTIME tag=$tag available=no"
+            fi
+          done
           if command -v python3 >/dev/null 2>&1; then
-            echo "PYTHON3 executable=yes"
-            python3 -c 'import sys,sqlite3,zoneinfo,json;print("PYTHON3_STDLIB version=%d.%d sqlite=%s zoneinfo=yes"%(sys.version_info.major,sys.version_info.minor,sqlite3.sqlite_version))'
-          else
-            echo "PYTHON3 executable=no"
+            python3 -c 'import sys;print("PYTHON_RUNTIME tag=default version=%d.%d"%(sys.version_info.major,sys.version_info.minor))'
           fi
           if command -v timeout >/dev/null 2>&1; then
             echo "CLI_TIMEOUT_TOOL available=yes"
