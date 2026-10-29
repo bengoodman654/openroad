@@ -62,7 +62,7 @@ jobs:
               if z.testzip() is not None: raise SystemExit('GTFS archive checksum error')
           PY
           python3 maintenance/rail/build_rail_index.py /tmp/rail-gtfs.zip /tmp/rail-index
-          php maintenance/rail/test_real_smoke.php /tmp/rail-index
+          php -d memory_limit=64M maintenance/rail/test_real_smoke.php /tmp/rail-index
           tar -czf /tmp/rail-index.tar.gz -C /tmp rail-index
           test "$(stat -c %s /tmp/rail-index.tar.gz)" -lt 50000000
           echo 'RAIL_BUILD_AND_BRISTOL_COVENTRY_SMOKE_PASSED'
