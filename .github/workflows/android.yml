@@ -52,6 +52,9 @@ jobs:
       - name: Verify source
         run: |
           bash android-src/validate.sh
+          node --check android-src/app/src/main/assets/app.js
+          node android-src/tests/watchdog_test.js
+          node android-src/tests/public_transport_navigation_test.cjs
           name="$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" android-src/app/build.gradle | head -1)"
           [[ "$name" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Invalid Android version'; exit 1; }
           test -f "OpenRoad-v${name}-source.zip" || { echo "Source ZIP version does not match Gradle version $name"; exit 1; }
