@@ -37,7 +37,7 @@ jobs:
           REGION: ${{ matrix.region }}
         run: |
           set -euo pipefail
-          python3 maintenance/gtfs_refresh/build_sqlite.py "$RUNNER_TEMP/region.zip" \
+          PYTHONPATH="$GITHUB_WORKSPACE" python3 maintenance/gtfs_refresh/build_sqlite.py "$RUNNER_TEMP/region.zip" \
             --region "$REGION" --output "$RUNNER_TEMP/$REGION.sqlite" \
             --report "$RUNNER_TEMP/$REGION-index-metadata.json"
           python3 - "$RUNNER_TEMP/$REGION.sqlite" <<'PY'
