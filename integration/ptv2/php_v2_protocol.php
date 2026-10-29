@@ -96,6 +96,58 @@ function ptv2_research_routes($raw): array {
 }
 
 /**
+ * Adapt the source-pinned Python city planner into a NON-NAVIGABLE signed
+ * response. No map geometry, boarding instructions or accessibility claim
+ * may enter the existing Android guidance path at this stage.
+ */
+function ptv2_city_research_output($raw):array{
+    if(!is_array($raw)||($raw['researchOnly']??null)!==true||
+       !is_array($raw['results']??null)||count($raw['results'])>3)
+        throw new RuntimeException('Invalid city research output');
+    $outcome=$raw['outcome']??null;
+    if(!in_array($outcome,['OK','NO_JOURNEY','COVERAGE_MISSING',
+                            'CALENDAR_MISSING','SEARCH_LIMIT',
+                            'INPUT_INVALID','PROVIDER_UNAVAILABLE',
+                            'CANCELLED'],true))
+        throw new RuntimeException('Unknown city research status');
+    if($outcome!=='OK'&&count($raw['results'])!==0)
+        throw new RuntimeException('Failed city search cannot contain routes');
+    $out=[];
+    foreach($raw['results'] as $route){
+        if(!is_array($route)||($route['researchOnly']??false)!==true||
+           ($route['selectable']??null)!==false||
+           !is_string($route['clearRouteId']??null)||
+           !preg_match('/^[0-9a-f]{20}$/D',$route['clearRouteId'])||
+           !is_string($route['sourceArchiveSha256']??null)||
+           !preg_match('/^[0-9a-f]{64}$/D',$route['sourceArchiveSha256'])||
+           !is_array($route['busLegs']??null)||
+           count($route['busLegs'])<1||count($route['busLegs'])>3||
+           !is_int($route['departureSec']??null)||
+           !is_int($route['arrivalLowerBoundSec']??null)||
+           $route['arrivalLowerBoundSec']<$route['departureSec']||
+           !is_int($route['changes']??null)||$route['changes']<0||
+           $route['changes']>2)
+            throw new RuntimeException('Invalid source-pinned itinerary');
+        if(is_string($raw['snapshotId']??null) &&
+           !hash_equals($raw['snapshotId'],$route['sourceArchiveSha256']))
+            throw new RuntimeException('Itinerary source snapshot mismatch');
+        $id='scheduled-'.$route['clearRouteId'];
+        if(isset($out[$id]))continue;
+        $out[$id]=[
+            'id'=>$id,'selectable'=>false,
+            'selectionBlocker'=>'UNVERIFIED_ENDPOINT_PEDESTRIAN_ACCESS',
+            'travelTimeSeconds'=>$route['arrivalLowerBoundSec']-
+                                 $route['departureSec'],
+            'changes'=>$route['changes'],
+            'scheduledOnly'=>true,
+            'researchOnly'=>true,
+        ];
+    }
+    return ['outcome'=>$outcome,'results'=>array_values($out),
+            'researchOnly'=>true];
+}
+
+/**
  * All actions are authenticated by signed request at the HTTP boundary.
  * Query and snapshot must match the server-issued signed ticket exactly.
  */
@@ -160,6 +212,9 @@ function ptv2_dispatch(array $auth,array $input,
     $worked=ptv2_run_authenticated_task($registry,$auth,$token,
         static function($check)use($planner,$query) {
             $raw=$planner($query,$check);
+            if(is_array($raw)&&isset($raw['outcome'])&&
+               array_key_exists('results',$raw))
+                return ptv2_city_research_output($raw);
             return ptv2_research_routes($raw);
         },$clock);
     return array_merge($identity,$worked);
