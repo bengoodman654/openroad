@@ -15,6 +15,16 @@ import math
 import os
 import resource
 import sys
+from pathlib import Path
+
+# Locate only the adjacent, source-controlled library tree; no user-provided
+# Python import path is trusted by this process.
+ROOT=Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0,str(ROOT))
+
+class SourceMismatch(RuntimeError):
+    pass
 
 from maintenance.gtfs_refresh.connection_snapshot import (
     load_city_snapshot,CitySnapshotBudgetExceeded,CitySnapshotCancelled)
@@ -63,7 +73,7 @@ def run_source(index,region,expected_sha,request):
     snapshot=load_city_snapshot(index,region,SOURCE_REGIONS[region],
          service_date,origin,destination,radius_m=2200,budget_s=7)
     if snapshot.source_sha256!=expected_sha:
-        raise ValueError("Index source digest changed")
+        raise SourceMismatch("Index source digest changed")
     return coordinate_journeys(snapshot,origin,destination,
                 seconds,max_walk_m=walk,max_nearby=5,
                 max_pairs=25,max_results=3,budget_s=6)
