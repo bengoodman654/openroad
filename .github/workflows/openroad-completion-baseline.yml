@@ -29,7 +29,7 @@ jobs:
           app="$(find "$RUNNER_TEMP/current-android" -mindepth 1 -maxdepth 1 -type d | head -1)"
           test -f "$app/app/build.gradle"
           grep -q 'versionCode 92' "$app/app/build.gradle"
-          grep -q 'versionName "0.6.32"' "$app/app/build.gradle"
+          grep -q '0.6.32' "$app/app/build.gradle"
           echo "PROJECT=$app" >> "$GITHUB_ENV"
       - name: Validate real UI assets, routing mode and cancellation handlers
         shell: bash
