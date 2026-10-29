@@ -40,7 +40,7 @@ jobs:
              "openroad_plan_bus"] as $fn)
                 if(!function_exists($fn))exit(3);
             $r=new ReflectionFunction("openroad_plan_bus");
-            if($r->getNumberOfParameters()!=8)exit(4);
+            if($r->getNumberOfParameters()!=7)exit(4);
             echo "CURRENT_V029_ROUTER_WITH_OPTIONAL_CANCEL_OK\n";
           ' "$router"
           php "$(dirname "$(dirname "$router")")/../tests/router_test.php"
