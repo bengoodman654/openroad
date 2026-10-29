@@ -20,6 +20,8 @@
   let busRouteLayerIds = [], busRouteStopData = new Map(), busRouteRequestId = 0, busLiveRequestId = 0, busStopRequestId = 0, transitPreloadAreaRequestId = 0, tomTomRevealed = false;
   let alongRouteLayoutFrame = 0;
   let contactsEnabled = false;
+  let railBoardContext = null;
+  const lastRailBoardLookup = new Map();
   let savedReturnToSettings = false;
   let transitPreference = 'balanced', transitViaStops = [], pendingTransitStop = false, pendingOriginSelection = false, pendingDestinationSelection = false, pendingViaEditIndex = -1;
   const TRANSIT_RESULT_LIMIT = 3;
@@ -1567,6 +1569,19 @@
       if((modeKey==='bus'||modeKey==='coach')&&leg.line){const link=document.createElement('button');link.type='button';link.className='transit-service-link';link.textContent=`${transitModeLabel(modeKey)} ${leg.line}`;link.onclick=()=>openBusService(leg);heading.appendChild(link);}else heading.textContent=modeKey==='foot'?'Walk':`${transitModeLabel(modeKey)}${leg.line?` ${leg.line}`:''}`;
       const detail=document.createElement('small');const bits=[];if(leg.from)bits.push(leg.from);if(leg.to)bits.push(`→ ${leg.to}`);if(leg.stopCount)bits.push(`${leg.stopCount} stops`);if(leg.platform)bits.push(`Platform ${leg.platform}`);if(leg.cancelled)bits.push('Cancelled');detail.textContent=bits.join(' · ');
       const quality=document.createElement('small');quality.textContent=`${leg.timeStatus==='live'?'Live':'Scheduled'}${leg.dataSource?` · ${leg.dataSource}`:''}${leg.liveNote?` · ${leg.liveNote}`:''}`;main.append(heading,detail,quality);
+      if(modeKey==='train' && /^[A-Z]{3}$/.test(String(leg.fromCrs||''))){
+        const live=document.createElement('button');live.type='button';live.className='rail-live-check';
+        live.textContent='Check live departures';
+        live.onclick=()=>{
+          const crs=String(leg.fromCrs).toUpperCase(),now=Date.now();
+          if(now-(lastRailBoardLookup.get(crs)||0)<120000){toast('Recently checked this station. Try again shortly.');return;}
+          lastRailBoardLookup.set(crs,now);
+          railBoardContext={routeIndex:index,legIndex:li,crs};
+          live.disabled=true;live.textContent='Checking live board…';
+          native()?.checkRailDepartures?.(crs);
+        };
+        main.appendChild(live);
+      }
       const time=document.createElement('div');time.className='transit-detail-time';time.textContent=`${leg.liveDeparture||leg.departure||''}${leg.arrival?`
 ${leg.arrival}`:''}`;row.append(icon,main,time);box.appendChild(row);
     });
@@ -2105,6 +2120,33 @@ ${leg.arrival}`:''}`;row.append(icon,main,time);box.appendChild(row);
       else toast('Could not save those public-transport credentials.');
     },
     onRailDepartures(ok,payload){
+      const context=railBoardContext;railBoardContext=null;
+      if(context){
+        const route=routeResponse?.routes?.[context.routeIndex];
+        const leg=route?.transitLegs?.[context.legIndex];
+        if(!ok){toast('Live train information is unavailable. Scheduled times remain unchanged.');}
+        else if(leg && context.crs===String(payload?.station||'').toUpperCase()){
+          const services=Array.isArray(payload?.services)?payload.services:[];
+          // A station may have multiple trains at the same advertised time.
+          // Do not wrongly attach an unrelated prediction or platform.
+          const matches=services.filter(x=>x.std===leg.departure);
+          if(matches.length===1){
+            const match=matches[0],prediction=String(match.etd||'');
+            const valid=match.cancelled===true || /^\d{1,2}:\d{2}$/.test(prediction) || /^(on time)$/i.test(prediction);
+            if(valid){
+              leg.cancelled=match.cancelled===true;
+              leg.liveDeparture=leg.cancelled?'Cancelled':(/^\d{1,2}:\d{2}$/.test(prediction)?prediction:leg.departure);
+              leg.timeStatus='live';
+              leg.platform=match.platform||'';
+              leg.dataSource='National Rail live departure board';
+              leg.liveNote=leg.cancelled?'Service cancelled':'Last checked against the station departure board';
+              route.clearRouteDataStatus='mixed';
+            }
+          }else leg.liveNote='No unambiguous live match on the current board; scheduled times remain';
+          if(context.routeIndex===selectedRoute && !el('transitDetailSheet')?.classList.contains('hidden'))
+            showTransitDetail(context.routeIndex);
+        }
+      }
       const button=el('checkRailDeparturesBtn'), result=el('railDepartureResults');
       button.disabled=false;
       if(!ok){result.textContent=String(payload||'Rail departures unavailable.');result.classList.add('rail-board-error');return;}
