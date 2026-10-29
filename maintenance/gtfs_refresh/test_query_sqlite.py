@@ -60,6 +60,29 @@ class IndexRoutingTests(unittest.TestCase):
         self.assertEqual(results["results"][0]["departureSec"],5*60)
         self.assertFalse(results["results"][0]["selectable"])
 
+    def test_dense_early_stop_arrivals_do_not_starve_transfer(self):
+        # More than 600 early, irrelevant stop arrivals used to crowd out
+        # the real T1 -> T2 connection when search sorted first legs and
+        # arbitrarily kept only the first 600.
+        import sqlite3
+        with sqlite3.connect(self.db) as db:
+            for n in range(15):
+                trip=f"DENSE{n:02d}"
+                db.execute(
+                    "INSERT INTO trips(trip_id,route_id,service_id,headsign,shape_id) "
+                    "VALUES(?,?,?,?,?)",(trip,"R0","S","Other",""))
+                calls=[(trip,1,"A",9*3600+2*60,9*3600+2*60,0,1)]
+                for ix in range(60):
+                    secs=9*3600+2*60+(ix+1)*3
+                    calls.append((trip,ix+2,f"P{ix}",secs,secs,0,0))
+                db.executemany("INSERT INTO stop_times VALUES(?,?,?,?,?,?,?)",calls)
+        out=timetable_query(self.db,"south_west",(51.4545,-2.5879),
+            (51.46,-2.595),dt.date(2026,10,29),
+            9*3600+60,walk_cap_m=180,budget_secs=4)
+        self.assertEqual(out["outcome"],"OK")
+        self.assertTrue(any(r["trips"]==["T1","T2"] for r in out["results"]))
+        self.assertTrue(all(not r["selectable"] for r in out["results"]))
+
     def test_cancellation_propagated(self):
         with self.assertRaises(SearchCancelled):
             timetable_query(self.db,"south_west",(51.4545,-2.5879),

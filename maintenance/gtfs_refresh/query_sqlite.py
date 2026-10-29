@@ -115,41 +115,69 @@ def _query_one_service_day(index_path,region,from_point,to_point,
                         first_legs.append((end["arrival_sec"],end["stop_id"],
                             board["trip_id"],stop_id,board["departure_sec"],
                             board["short_name"]))
-        # Never equate proximity with a safe walk. Transfer must use the
-        # exact same stop until a separate provenance-checked walk graph exists.
-        for arr,change_stop,first_trip,boarding,departure,line in sorted(first_legs)[:600]:
+        # Search backwards from actual destination arrivals. A global
+        # early-arrival slice of first-leg stops is not representative:
+        # crowded routes can otherwise exclude useful change stops.
+        # Every transfer below remains at the EXACT SAME stop ID; never
+        # infer that two nearby stops have a safe pedestrian connection.
+        from collections import defaultdict
+        first_by_stop=defaultdict(list)
+        for leg in first_legs:
+            if leg[0] >= earliest_secs and leg[0] <= earliest_secs+5*3600:
+                first_by_stop[leg[1]].append(leg)
+        for legs in first_by_stop.values():
+            legs.sort(key=lambda x:(x[0],x[2],x[3]))
+        # Only destination-serving second trips need to be inspected.
+        # Indexed destination-stop queries bound memory and database work.
+        transfer_count=0
+        for dest_walk,dest_stop,_ in destination:
             check()
-            if len(records)>=40:break
-            buses=db.execute(
-              "SELECT s.trip_id,s.seq,s.departure_sec,r.short_name "
+            alights=db.execute(
+              "SELECT s.trip_id,s.seq,s.arrival_sec,r.short_name "
               "FROM stop_times s JOIN trips t ON t.trip_id=s.trip_id "
               "JOIN routes r ON r.route_id=t.route_id "
               "JOIN service_days d ON d.service_id=t.service_id AND d.date=? "
-              "WHERE s.stop_id=? AND s.pickup=0 "
-              "AND s.departure_sec BETWEEN ? AND ? ORDER BY s.departure_sec,t.trip_id,s.seq LIMIT 8",
-              (day,change_stop,arr+180,arr+3600)).fetchall()
-            for board2 in buses:
+              "WHERE s.stop_id=? AND s.dropoff=0 "
+              "AND s.arrival_sec BETWEEN ? AND ? "
+              "ORDER BY s.arrival_sec,s.trip_id,s.seq LIMIT 50",
+              (day,dest_stop,earliest_secs+180,
+               earliest_secs+6*3600)).fetchall()
+            for alight in alights:
                 check()
-                if board2["trip_id"]==first_trip:continue
-                for end in db.execute(
-                       "SELECT stop_id,arrival_sec FROM stop_times "
-                       "WHERE trip_id=? AND seq>? AND dropoff=0 "
-                       "ORDER BY seq LIMIT 60",
-                       (board2["trip_id"],board2["seq"])):
-                    if end["stop_id"] not in eligible:continue
-                    foot=int(math.ceil(eligible[end["stop_id"]]/1.25))
-                    key=(first_trip,board2["trip_id"],boarding,
-                         change_stop,end["stop_id"])
-                    if key in seen:continue
-                    seen.add(key)
-                    records.append({
-                      "trips":[first_trip,board2["trip_id"]],
-                      "boarding":[boarding,change_stop],
-                      "alighting":[change_stop,end["stop_id"]],
-                      "departureSec":departure,
-                      "arrivalLowerBoundSec":end["arrival_sec"]+foot,
-                      "operatorLine":line+" → "+board2["short_name"],
-                    })
+                # A second trip can board only at a preceding stop with
+                # explicit pickup permission, and no later than alighting.
+                previous=db.execute(
+                   "SELECT stop_id,departure_sec FROM stop_times "
+                   "WHERE trip_id=? AND seq<? AND pickup=0 "
+                   "ORDER BY seq DESC LIMIT 70",
+                   (alight["trip_id"],alight["seq"]))
+                for board2 in previous:
+                    change_stop=board2["stop_id"]
+                    if change_stop not in first_by_stop:continue
+                    second_depart=board2["departure_sec"]
+                    if second_depart<earliest_secs+180:continue
+                    for arr,_,first_trip,boarding,departure,line in first_by_stop[change_stop]:
+                        if arr+180>second_depart:break
+                        if second_depart>arr+3600 or first_trip==alight["trip_id"]:
+                            continue
+                        key=(first_trip,alight["trip_id"],boarding,
+                             change_stop,dest_stop)
+                        if key in seen:continue
+                        seen.add(key)
+                        records.append({
+                          "trips":[first_trip,alight["trip_id"]],
+                          "boarding":[boarding,change_stop],
+                          "alighting":[change_stop,dest_stop],
+                          "departureSec":departure,
+                          "arrivalLowerBoundSec":alight["arrival_sec"]+
+                              int(math.ceil(dest_walk/1.25)),
+                          "operatorLine":line+" → "+alight["short_name"],
+                        })
+                        transfer_count+=1
+                        if transfer_count>=5000:break
+                    if transfer_count>=5000:break
+                if transfer_count>=5000:break
+            if transfer_count>=5000:break
         records.sort(key=lambda r:(r["arrivalLowerBoundSec"],r["departureSec"],
                                   len(r["trips"]),tuple(r["trips"]),
                                   tuple(r["boarding"]),tuple(r["alighting"])))
