@@ -24,6 +24,8 @@ jobs:
           set -euo pipefail
           db="$(find "$RUNNER_TEMP/index" -name '*.sqlite' -type f | head -1)"
           test -s "$db"
+          PYTHONPATH=. python3 maintenance/gtfs_refresh/diagnose_index.py \
+            "$db" --region south_west --date 2026-10-29
           PYTHONPATH=. python3 - "$db" <<'PY'
           import datetime as dt,time,sys
           from maintenance.gtfs_refresh.query_sqlite import timetable_query
