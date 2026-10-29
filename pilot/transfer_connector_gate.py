@@ -95,6 +95,11 @@ def independently_reviewed_links(
     Output is research-only; even complete geometrical proof is not a
     guarantee against temporary roadworks or new obstructions.
     """
+    metadata = {
+        "graphSourceSha256": graph.source_sha256,
+        "gtfsSourceSha256": snapshot.source_sha256,
+        "evidenceAsOf": as_of.isoformat(),
+    }
     valid = []
     rejected = 0
     seen = set()
@@ -106,7 +111,7 @@ def independently_reviewed_links(
             # A duplicated stop-side record is ambiguous; fail the batch.
             return {"outcome": "EVIDENCE_CONFLICT",
                     "links": [], "reviewRejected": rejected + 1,
-                    "researchOnly": True, "selectable": False}
+                    "researchOnly": True, "selectable": False, **metadata}
         seen.add(r.stop_id)
         valid.append(StopAnchor(
             stop_id=r.stop_id, node_id=r.osm_node_id,
@@ -117,7 +122,7 @@ def independently_reviewed_links(
     if len(valid) < 2:
         return {"outcome": "ACCESS_EVIDENCE_MISSING",
                 "links": [], "reviewRejected": rejected,
-                "researchOnly": True, "selectable": False}
+                "researchOnly": True, "selectable": False, **metadata}
     links = connected_stop_links(
         graph, snapshot, valid, max_walk_m=max_walk_m,
         max_per_stop=max_links_per_stop, avoid_steps=avoid_steps,
@@ -128,4 +133,4 @@ def independently_reviewed_links(
     return {"outcome": "OK" if passable else "WALK_TOPOLOGY_MISSING",
             "links": passable, "reviewRejected": rejected,
             "researchOnly": True, "selectable": False,
-            "accessibilityClaim": "NONE"}
+            "accessibilityClaim": "NONE", **metadata}
