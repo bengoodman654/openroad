@@ -8,6 +8,12 @@ function or_train_match_live(array $services,string $crs,string $to,int $epoch,s
         is_array($s)&&preg_match('/^\d{1,2}:\d\d$/D',(string)($s['std']??'')) &&
         date('H:i',strtotime((string)$s['std']))===$std
     ));
+    if(count($matches)>1){
+        $byCalling=array_values(array_filter($matches,static fn($x)=>
+            (string)($x['destinationCrs']??'')===$to ||
+            in_array($to,(array)($x['callingCrs']??[]),true)));
+        if(count($byCalling)===1)$matches=$byCalling;
+    }
     $normalise=static fn($x)=>preg_replace('/[^a-z0-9]/','',strtolower((string)$x));
     if(count($matches)>1&&$headsign!==''){
         $aim=$normalise($headsign);
