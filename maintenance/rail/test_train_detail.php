@@ -10,7 +10,7 @@ while($row=$q->fetch(PDO::FETCH_ASSOC)){
     try{
         $detail=or_train_detail($root,(int)$row['trip'],$row['o'],$row['d'],(int)$row['dep']);
         if(count($detail['calls'])<2)continue;
-        if($detail['geometryStatus']==='schematic' && count($detail['routePoints'])>=2){$ok=true;break;}
+        if(in_array($detail['geometryStatus'],['schematic','track_aligned','partly_track_aligned'],true) && count($detail['routePoints'])>=2){$ok=true;break;}
     }catch(Throwable $e){continue;}
 }
 if(!$ok)throw new RuntimeException('Could not find a scheduled Bristol train with usable shape and calling points');
