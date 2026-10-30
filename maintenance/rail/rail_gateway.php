@@ -55,12 +55,25 @@ function openroad_rail_response(string $crs, array $raw): ?array {
         $first=is_array($destinations) ? (isset($destinations[0])?($destinations[0]??[]):$destinations) : [];
         $destination=is_array($first)?(string)($first['locationName']??'Unknown destination'):'Unknown destination';
         $etd=substr((string)($service['etd']??''),0,50);
+        // Some licensed live-board responses include calling-point lists.
+        // They are optional: never infer missing stops from an unrelated train.
+        $calling=[];
+        $visit=static function($value)use (&$calling,&$visit):void{
+            if(!is_array($value)||count($calling)>=48)return;
+            if(isset($value['crs'])&&preg_match('/^[A-Z]{3}$/D',(string)$value['crs']))
+                $calling[]=(string)$value['crs'];
+            foreach($value as $key=>$member){
+                if(is_array($member)&&count($calling)<48)$visit($member);
+            }
+        };
+        if(isset($service['subsequentCallingPoints']))$visit($service['subsequentCallingPoints']);
         $rows[]=['std'=>substr((string)($service['std']??''),0,12),
                  'etd'=>$etd,
                  'platform'=>substr((string)($service['platform']??''),0,16),
                  'destination'=>openroad_rail_truncate($destination,100),
                  'destinationCrs'=>is_array($first)?substr((string)($first['crs']??''),0,3):'',
                  'serviceID'=>substr((string)($service['serviceID']??''),0,128),
+                 'callingCrs'=>array_values(array_unique($calling)),
                  'operator'=>openroad_rail_truncate((string)($service['operator']??''),90),
                  'cancelled'=>!empty($service['isCancelled'])||strtolower($etd)==='cancelled'];
     }
