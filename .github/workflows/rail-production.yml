@@ -107,11 +107,11 @@ jobs:
           # 2005–2022 open-licensed reference centrelines, so results are
           # track-aligned but do not claim the train's exact junction or platform.
           timeout 270 python3 maintenance/rail/build_track_shapes.py \
-            "$RUNNER_TEMP/rail-index/events.sqlite" \
+            /tmp/rail-index/events.sqlite \
             "$RUNNER_TEMP/network-rail-track/NetworkLinks.shp" --deadline 210
           python3 - <<'PY'
           import sqlite3,os
-          f=os.environ['RUNNER_TEMP']+'/rail-index/events.sqlite'
+          f='/tmp/rail-index/events.sqlite'
           db=sqlite3.connect('file:'+f+'?mode=ro',uri=True)
           n=db.execute("SELECT COUNT(*) FROM rail_shapes WHERE quality IN ('track-aligned','partly-track-aligned')").fetchone()[0]
           if n<5000:raise SystemExit('Too few track-aligned train shapes for a national release')
@@ -120,8 +120,8 @@ jobs:
           print('OPENROAD_TRACK_ALIGNED='+str(n)+' SQLITE_MB='+str(round(mb,1)))
           if mb>91:raise SystemExit('Track index exceeds safe shared-host capacity')
           PY
-          php -d memory_limit=64M maintenance/rail/test_train_detail.php "$RUNNER_TEMP/rail-index"
-          php -d memory_limit=64M maintenance/rail/test_real_smoke.php "$RUNNER_TEMP/rail-index"
+          php -d memory_limit=64M maintenance/rail/test_train_detail.php /tmp/rail-index
+          php -d memory_limit=64M maintenance/rail/test_real_smoke.php /tmp/rail-index
           echo 'OPENROAD_TRACK_ALIGNMENT_READY'
       - name: Deploy proven source and index with pinned SSH, backup and atomic activation
         shell: bash
