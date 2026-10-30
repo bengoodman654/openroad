@@ -1,0 +1,52 @@
+name: OpenRoad mixed bus and train production acceptance (one bounded query)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/multimodal-production-smoke.yml']
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    environment: openroad-production
+    steps:
+      - name: Run one read-only Bristol to Coventry mixed-route probe
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CPANEL_SSH_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          SSH_PORT: ${{ vars.CPANEL_SSH_PORT || '22' }}
+          PRIVATE_DIR: ${{ vars.CPANEL_OPENROAD_PRIVATE_DIR }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" && test -n "$KNOWN_HOSTS" && test -n "$SSH_HOST" && test -n "$SSH_USER"
+          [[ "$PRIVATE_DIR" == /* ]]
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/id_multimodal"
+          printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          timeout 20 ssh -i "$HOME/.ssh/id_multimodal" -p "$SSH_PORT" \
+            -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            "$SSH_USER@$SSH_HOST" bash -s -- "$PRIVATE_DIR" <<'REMOTE'
+          set -euo pipefail
+          priv="$1"
+          test -f "$priv/lib/router.php"
+          test -f "$priv/lib/multimodal_planner.php"
+          timeout 11 php -d memory_limit=96M -r '
+            date_default_timezone_set("Europe/London");
+            require $argv[1];require $argv[2];
+            $db=openroad_db();
+            try{$db->exec("SET SESSION max_statement_time=0.7");}catch(Throwable $e){}
+            $begin=microtime(true);
+            $plan=or_mm_plan($db,51.435,-2.61,52.405,-1.514);
+            $ms=(int)round((microtime(true)-$begin)*1000);
+            $routes=$plan["routes"]??[];
+            $modes=[];
+            foreach($routes as $r){$modes[]=implode("+",array_unique(array_column($r["transitLegs"]??[],"mode"))); }
+            echo "REAL_MULTIMODAL_RESULT count=".count($routes)." ms=".$ms." modes=".implode(",",$modes)."\n";
+            if($ms>10000)exit(4);
+          ' "$priv/lib/router.php" "$priv/lib/multimodal_planner.php"
+          REMOTE
