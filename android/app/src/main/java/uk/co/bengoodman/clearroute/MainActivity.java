@@ -1090,6 +1090,34 @@ public class MainActivity extends Activity implements LocationListener {
             } catch (Exception e) { js("ClearRoute.onTransitCredentialSaved('railData',false)"); }
         }
 
+        @JavascriptInterface public void requestTrainTimetable(long requestId,int tripId,String from,String to,long departureEpoch) {
+            if(requestId<1||tripId<1||departureEpoch<1600000000L||
+                    from==null||to==null||!from.matches("[A-Z]{3}")||!to.matches("[A-Z]{3}"))return;
+            new Thread(() -> {
+                try {
+                    JSONObject result=OpenRoadServerClient.trainTimetable(MainActivity.this,tripId,from,to,
+                            departureEpoch,BuildConfig.BUNDLED_OPENROAD_SERVER_URL);
+                    js("ClearRoute.onTrainTimetableLoaded("+requestId+",true,"+result.toString()+")");
+                } catch(Exception ignored) {
+                    js("ClearRoute.onTrainTimetableLoaded("+requestId+",false,{})");
+                }
+            },"OpenRoadTrainTimetable").start();
+        }
+
+        @JavascriptInterface public void requestTrainLive(long requestId,String from,String to,long departureEpoch,String headsign) {
+            if(requestId<1||departureEpoch<1600000000L||
+                    from==null||to==null||!from.matches("[A-Z]{3}")||!to.matches("[A-Z]{3}"))return;
+            new Thread(() -> {
+                try {
+                    JSONObject result=OpenRoadServerClient.trainLive(MainActivity.this,from,to,
+                            departureEpoch,headsign,BuildConfig.BUNDLED_OPENROAD_SERVER_URL);
+                    js("ClearRoute.onTrainLiveLoaded("+requestId+",true,"+result.toString()+")");
+                } catch(Exception ignored) {
+                    js("ClearRoute.onTrainLiveLoaded("+requestId+",false,{})");
+                }
+            },"OpenRoadTrainLive").start();
+        }
+
         // Live rail board probe: read-only and independent of the bus journey router.
         // Never return, log or embed the consumer key in JavaScript messages.
         @JavascriptInterface public void checkRailDepartures(String stationCode) {
