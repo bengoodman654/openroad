@@ -135,6 +135,21 @@ public final class OpenRoadServerClient {
         return response;
     }
 
+    /** Non-blocking enrichment requests; never part of primary journey calculation. */
+    public static JSONObject trainTimetable(Context context,int tripId,String from,String to,long dep,String baseUrl) throws Exception {
+        String root=requirePaired(context,baseUrl);
+        JSONObject body=new JSONObject().put("tripId",tripId).put("fromCrs",from)
+            .put("toCrs",to).put("departureEpoch",dep);
+        return postSigned(context,root+"/api/v1/train_detail.php",body.toString(),2500,5500);
+    }
+
+    public static JSONObject trainLive(Context context,String from,String to,long dep,String headsign,String baseUrl) throws Exception {
+        String root=requirePaired(context,baseUrl);
+        JSONObject body=new JSONObject().put("fromCrs",from).put("toCrs",to)
+            .put("departureEpoch",dep).put("headsign",headsign==null?"":headsign);
+        return postSigned(context,root+"/api/v1/train_live.php",body.toString(),2500,5500);
+    }
+
     /** Timetable-only national railway planning. Signed like every private OpenRoad request. */
     public static JSONObject railJourneys(Context context, double fromLat, double fromLon,
                                           double toLat, double toLon, String baseUrl) throws Exception {
