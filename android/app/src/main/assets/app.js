@@ -1570,7 +1570,13 @@
       if(route.clearRouteTransit && Array.isArray(route.legs) && route.legs.length){
         const transitLegs=Array.isArray(route.transitLegs)?route.transitLegs:[];
         route.legs.forEach((leg,li)=>{
-          const pts=clipTransitLegGeometry((leg?.points||[]).map(p=>[Number(p.longitude),Number(p.latitude)]).filter(c=>Number.isFinite(c[0])&&Number.isFinite(c[1])),transitLegs[li]);
+          const original=(leg?.points||[]).map(p=>[Number(p.longitude),Number(p.latitude)]).filter(c=>Number.isFinite(c[0])&&Number.isFinite(c[1]));
+          const alignedTrain=normaliseTransitMode(transitLegs[li]?.mode)==='train'&&
+              ['track_aligned','partly_track_aligned'].includes(transitLegs[li]?.geometryStatus);
+          // Rail track detail is already clipped to the boarded section by
+          // the signed backend. Re-snapping it can incorrectly erase an actual
+          // curved track segment when the platform is offset from its centreline.
+          const pts=alignedTrain?original:clipTransitLegGeometry(original,transitLegs[li]);
           if(pts.length<2)return;
           const modeName=transitLegs[li]?.mode||'transit';
           const source=`route-src-${i}-${li}`, casing=`route-case-${i}-${li}`, line=`route-line-${i}-${li}`, hit=`route-hit-${i}-${li}`;
