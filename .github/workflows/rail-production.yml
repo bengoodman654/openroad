@@ -93,6 +93,36 @@ jobs:
           test "$(stat -c %s /tmp/rail-index.tar)" -lt 95000000
           echo 'RAIL_BUILD_AND_BRISTOL_COVENTRY_SMOKE_PASSED'
 
+      - name: Align published railway paths to actual Network Rail track centrelines off-host
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet pyshp pyproj scipy numpy shapely
+          mkdir -p "$RUNNER_TEMP/network-rail-track"
+          base='https://raw.githubusercontent.com/openraildata/network-rail-gis/master/network-model/VectorLinks/NetworkLinks'
+          for ext in shp shx dbf prj; do
+            curl --fail --silent --show-error --location --retry 2 --max-time 90 \
+              "$base.$ext" -o "$RUNNER_TEMP/network-rail-track/NetworkLinks.$ext"
+          done
+          # 2005–2022 open-licensed reference centrelines, so results are
+          # track-aligned but do not claim the train's exact junction or platform.
+          timeout 270 python3 maintenance/rail/build_track_shapes.py \
+            "$RUNNER_TEMP/rail-index/events.sqlite" \
+            "$RUNNER_TEMP/network-rail-track/NetworkLinks.shp" --deadline 210
+          python3 - <<'PY'
+          import sqlite3,os
+          f=os.environ['RUNNER_TEMP']+'/rail-index/events.sqlite'
+          db=sqlite3.connect('file:'+f+'?mode=ro',uri=True)
+          n=db.execute("SELECT COUNT(*) FROM rail_shapes WHERE quality IN ('track-aligned','partly-track-aligned')").fetchone()[0]
+          if n<5000:raise SystemExit('Too few track-aligned train shapes for a national release')
+          if db.execute('PRAGMA quick_check').fetchone()[0]!='ok':raise SystemExit('Track SQLite integrity check failed')
+          mb=os.path.getsize(f)/1048576
+          print('OPENROAD_TRACK_ALIGNED='+str(n)+' SQLITE_MB='+str(round(mb,1)))
+          if mb>91:raise SystemExit('Track index exceeds safe shared-host capacity')
+          PY
+          php -d memory_limit=64M maintenance/rail/test_train_detail.php "$RUNNER_TEMP/rail-index"
+          php -d memory_limit=64M maintenance/rail/test_real_smoke.php "$RUNNER_TEMP/rail-index"
+          echo 'OPENROAD_TRACK_ALIGNMENT_READY'
       - name: Deploy proven source and index with pinned SSH, backup and atomic activation
         shell: bash
         env:
