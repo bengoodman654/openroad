@@ -53,9 +53,9 @@ secure=open(os.path.join(root,'app/src/main/java/uk/co/bengoodman/clearroute/Sec
 gradle=open(os.path.join(root,'app/build.gradle'),encoding='utf-8').read()
 
 checks={
- 'OpenRoad visible identity': '<string name="app_name">OpenRoad</string>' in open(os.path.join(root,'app/src/main/res/values/strings.xml'),encoding='utf-8').read() and '<title>OpenRoad</title>' in html and 'OpenRoad 0.6.40' in html,
+ 'OpenRoad visible identity': '<string name="app_name">OpenRoad</string>' in open(os.path.join(root,'app/src/main/res/values/strings.xml'),encoding='utf-8').read() and '<title>OpenRoad</title>' in html and 'OpenRoad 0.6.41' in html,
  'bundled personal TomTom key field': 'BUNDLED_TOMTOM_API_KEY' in gradle and 'SecureStore.saveApiKey' in main,
- 'v0.6.40 version': "versionName '0.6.40'" in gradle and 'versionCode 100' in gradle and 'OpenRoad-Android-Build/0.6.40' in gradle,
+ 'v0.6.41 version': "versionName '0.6.41'" in gradle and 'versionCode 101' in gradle and 'OpenRoad-Android-Build/0.6.41' in gradle,
  'bearing forwarded': 'o.put("hasBearing"' in main,
  'maneuver forwarded': 'o.put("maneuver"' in main,
  'route segment projection': 'RouteMath.project(route' in nav,
@@ -72,7 +72,7 @@ checks={
  '2d 3d toggle': 'toggleMapView' in js and 'angledView' in js,
  'tts init guard': 'ttsReady' in nav and 'speakNavigation(' in nav,
  'navigation audio usage': 'USAGE_ASSISTANCE_NAVIGATION_GUIDANCE' in nav,
- 'updated API user agent': 'OpenRoad/0.6.40' in api,
+ 'updated API user agent': 'OpenRoad/0.6.41' in api,
  'speed limit forwarding': 'speedLimitKmh' in main and 'speedLimitKmhAt' in nav,
  'manual reroute controls': 'ACTION_AVOID_AHEAD' in nav and 'avoidRoadAhead' in main and 'avoidAheadBtn' in html,
  'rural GPS filtering': 'isPlausibleLocation' in nav and 'pointAtOffset(route, progress)' in nav,
