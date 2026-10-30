@@ -41,7 +41,7 @@
         if(Array.isArray(detail.routePoints)&&detail.routePoints.length>=2){
           const geom=route.legs[li];
           if(geom)geom.points=detail.routePoints;
-          leg.geometryStatus='schematic';
+          leg.geometryStatus=detail.geometryStatus||'schematic';
         }else leg.geometryStatus='stations_only';
       }
       if(live?.matched===true){
@@ -1673,7 +1673,7 @@
       const main=document.createElement('div');main.className='transit-detail-main';const heading=document.createElement('strong');
       if((modeKey==='bus'||modeKey==='coach')&&leg.line){const link=document.createElement('button');link.type='button';link.className='transit-service-link';link.textContent=`${transitModeLabel(modeKey)} ${leg.line}`;link.onclick=()=>openBusService(leg);heading.appendChild(link);}else heading.textContent=modeKey==='foot'?'Walk':`${transitModeLabel(modeKey)}${leg.line?` ${leg.line}`:''}`;
       const detail=document.createElement('small');const bits=[];if(leg.from)bits.push(leg.from);if(leg.to)bits.push(`→ ${leg.to}`);if(leg.stopCount)bits.push(`${leg.stopCount} stops`);if(leg.platform)bits.push(`Platform ${leg.platform}`);if(leg.cancelled)bits.push('Cancelled');detail.textContent=bits.join(' · ');
-      const quality=document.createElement('small');quality.textContent=`${leg.timeStatus==='live'?'Live':'Scheduled'}${leg.dataSource?` · ${leg.dataSource}`:''}${leg.liveNote?` · ${leg.liveNote}`:''}`;main.append(heading,detail,quality);
+      const quality=document.createElement('small');quality.textContent=`${leg.timeStatus==='live'?'Live':'Scheduled'}${leg.dataSource?` · ${leg.dataSource}`:''}${leg.liveNote?` · ${leg.liveNote}`:''}${leg.railGeometryNote?` · ${leg.railGeometryNote}`:''}`;main.append(heading,detail,quality);
       if(modeKey==='train' && isIndexedTrain(leg)){
         const key=trainKey(leg),actions=document.createElement('div');actions.className='rail-leg-actions';
         const button=document.createElement('button');button.type='button';button.className='rail-live-check';
