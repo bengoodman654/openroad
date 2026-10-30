@@ -1634,7 +1634,16 @@
     const icon=document.createElement('span');icon.className='stage-icon';icon.textContent=transitModeIcon(modeKey);
     if(['bus','coach'].includes(modeKey))node.style.background=transitLegColour(route,index);
     const copy=document.createElement('span');copy.className='stage-copy';const title=document.createElement('span');title.textContent=modeKey==='foot'?'Walk':`${transitModeLabel(modeKey)}${leg?.line?` ${leg.line}`:''}`;copy.appendChild(title);
-    const mins=transitLegMinutes(leg);if(mins){const small=document.createElement('small');small.textContent=`${mins} min`;copy.appendChild(small);}node.append(icon,copy);
+    const mins=transitLegMinutes(leg);if(mins){const small=document.createElement('small');small.textContent=`${mins} min`;copy.appendChild(small);}
+    if(modeKey==='train'){
+      const extra=document.createElement('small');extra.className='rail-stage-live';
+      if(leg.cancelled)extra.textContent='Cancelled';
+      else if(leg.platform)extra.textContent='Platform '+leg.platform+(leg.liveDeparture&&leg.liveDeparture!==leg.departure?' · '+leg.liveDeparture:'');
+      else if(leg.liveDeparture&&leg.liveDeparture!==leg.departure)extra.textContent='Expected '+leg.liveDeparture;
+      else if(isIndexedTrain(leg))extra.textContent='Scheduled · updating';
+      if(extra.textContent)copy.appendChild(extra);
+    }
+    node.append(icon,copy);
     if(linked)node.onclick=e=>{e.stopPropagation();openBusService(leg);};return node;
   }
 
@@ -1663,8 +1672,9 @@
         const status=trainLiveCache.get(key);
         if(status?.matched){
           live.textContent=status.cancelled?'Cancelled':
-              (status.delayMinutes>0?'Delayed '+status.delayMinutes+' min':'On time')+
-              (status.platform?' · Platform '+status.platform:'');
+            (Number(status.delayMinutes)>0?'Delayed '+status.delayMinutes+' min':
+            (status.delayMinutes===0?'On time':'Live: '+(status.expected||'Checked'))) +
+            (status.platform?' · Platform '+status.platform:'');
         }else if(trainLivePending.size&&[...trainLivePending.values()].some(x=>x.key===key)){
           const spinner=document.createElement('span');spinner.className='rail-inline-spinner';live.appendChild(spinner);
           live.appendChild(document.createTextNode('Checking live train…'));
@@ -2212,6 +2222,41 @@ ${leg.arrival}`:''}`;row.append(icon,main,time);box.appendChild(row);
     onTransitCredentialSaved(provider,ok){
       if(ok){refreshProviderSettings();toast(`${provider==='bods'?'BODS':provider==='tfl'?'TfL':'National Rail'} credentials saved securely.`);}
       else toast('Could not save those public-transport credentials.');
+    },
+    onTrainTimetableLoaded(requestId,ok,payload){
+      const pending=trainDetailsPending.get(requestId);
+      if(!pending)return;
+      trainDetailsPending.delete(requestId);
+      const valid=ok&&payload?.ok===true&&trainKey(payload)===pending.key;
+      const detail=valid?payload:{failed:true};
+      trainDetailsCache.set(pending.key,detail);
+      let hasGeometry=false;
+      routeResponse?.routes?.forEach(route=>{
+        const prev=(route?.transitLegs||[]).map(leg=>leg?.geometryStatus).join('|');
+        applyTrainDetailsFromCache(route);
+        if((route?.transitLegs||[]).map(leg=>leg?.geometryStatus).join('|')!==prev)hasGeometry=true;
+      });
+      if(hasGeometry&&routeResponse&&map&&!map.isMoving?.())
+        drawRoutes(navigating,false);
+      if(routeResponse&&mode==='transit'){
+        populateRouteOptions();
+        if(!el('transitDetailSheet')?.classList.contains('hidden'))showTransitDetail(selectedRoute);
+      }
+      const train=routeResponse?.routes?.flatMap(route=>route.transitLegs||[])
+        .find(leg=>trainKey(leg)===pending.key);
+      if(train)requestSelectedTrainLive(train);
+    },
+    onTrainLiveLoaded(requestId,ok,payload){
+      const pending=trainLivePending.get(requestId);
+      if(!pending)return;
+      trainLivePending.delete(requestId);
+      trainLiveCache.set(pending.key,ok&&payload?.ok===true?payload:
+        {matched:false,status:'unavailable',message:'Live information unavailable; scheduled times remain'});
+      routeResponse?.routes?.forEach(applyTrainDetailsFromCache);
+      if(routeResponse&&mode==='transit'){
+        populateRouteOptions();
+        if(!el('transitDetailSheet')?.classList.contains('hidden'))showTransitDetail(selectedRoute);
+      }
     },
     onRailDepartures(ok,payload){
       const context=railBoardContext;railBoardContext=null;
