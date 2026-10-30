@@ -394,6 +394,21 @@ public final class TransitClient {
             boolean pairedForRail=OpenRoadServerClient.configured(context,BuildConfig.BUNDLED_OPENROAD_SERVER_URL);
             double directMetres=distanceMetres(originLat,originLon,destLat,destLon);
             JSONObject scheduledRail=null;
+            JSONObject verifiedMixed=null;
+            if(busEnabled && railEnabled && pairedForRail && directMetres>=8500){
+                try {
+                    verifiedMixed=OpenRoadServerClient.multimodalJourneys(context,originLat,originLon,
+                            destLat,destLon,safeSettings,BuildConfig.BUNDLED_OPENROAD_SERVER_URL);
+                    // Already includes every valid, time-ordered bus and rail leg.
+                    // Avoid starting a second regional/rail network search and
+                    // breaching the public-transport search deadline.
+                    return verifiedMixed;
+                } catch(Exception mixedUnavailable) {
+                    // Empty, expired or missing regional bus schedules are not an
+                    // excuse to suppress otherwise valid rail-only journeys.
+                    Log.i(TIMING_TAG,"provider=multimodal outcome=unavailable");
+                }
+            }
             if(railEnabled && pairedForRail && (directMetres>=6500 || !busEnabled)){
                 try{
                     scheduledRail=OpenRoadServerClient.railJourneys(context,originLat,originLon,destLat,destLon,
