@@ -98,7 +98,6 @@ def build(source,dest,today=None):
                 (sid,zlib.compress(json.dumps(coords,separators=(",",":")).encode(),6)))
         shapes_count=len(by_shape)
         del by_shape
-        conn.execute("BEGIN")
         for trip,call in calls.items():
             call.sort()
             ds,line,head,shape_id=trips[trip]
