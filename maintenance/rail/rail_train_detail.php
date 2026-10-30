@@ -57,19 +57,24 @@ function or_train_detail(string $root,int $tripId,string $from,string $to,int $d
             $points=json_decode((string)@gzuncompress($blob),true,24);
             if(is_array($points)&&count($points)>=2&&count($points)<=2400){
                 $fromStation=$stations[$from];$toStation=$stations[$to];
-                $snap=static function(array $target,array $poly,int $offset):array{
-                    $best=-1;$distance=1e9;
-                    for($i=$offset;$i<count($poly);$i++){
-                        $p=$poly[$i];
-                        if(!is_array($p)||count($p)<2)continue;
-                        $d=or_rail_km((float)$target[1],(float)$target[2],(float)$p[0],(float)$p[1]);
-                        if($d<$distance){$distance=$d;$best=$i;}
+                // Find the best ordered boarding/alighting pair in one scan.
+                // Selecting the globally nearest boarding vertex first can
+                // pick the wrong visit on circular or duplicated railway lines.
+                $bestBoard=-1;$minFrom=INF;$bestPair=null;$bestCost=INF;
+                foreach($points as $pos=>$p){
+                    if(!is_array($p)||count($p)<2)continue;
+                    $distFrom=or_rail_km((float)$fromStation[1],(float)$fromStation[2],(float)$p[0],(float)$p[1]);
+                    if($pos>0 && $bestBoard>=0){
+                        $distTo=or_rail_km((float)$toStation[1],(float)$toStation[2],(float)$p[0],(float)$p[1]);
+                        $cost=$minFrom+$distTo;
+                        if($minFrom<2.0 && $distTo<2.0 && $cost<$bestCost){
+                            $bestCost=$cost;$bestPair=[$bestBoard,$pos];
+                        }
                     }
-                    return [$best,$distance];
-                };
-                [$i,$distA]=$snap($fromStation,$points,0);
-                [$j,$distB]=$i>=0?$snap($toStation,$points,$i+1):[-1,INF];
-                if($j>$i && $distA<2 && $distB<2){
+                    if($distFrom<$minFrom){$minFrom=$distFrom;$bestBoard=$pos;}
+                }
+                if($bestPair!==null){
+                    [$i,$j]=$bestPair;
                     $slice=array_slice($points,$i,$j-$i+1);
                     foreach($slice as $p)$routePoints[]=['latitude'=>(float)$p[0],'longitude'=>(float)$p[1]];
                     if(count($routePoints)<2)$routePoints=[];
