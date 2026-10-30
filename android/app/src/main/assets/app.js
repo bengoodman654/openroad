@@ -1667,7 +1667,8 @@
     const route=routeResponse?.routes?.[index];if(!route)return;selectRoute(index,false);
     const s=route.summary||{};el('transitDetailTitle').textContent=`${route.clearRouteDeparture||''}${route.clearRouteArrival?` → ${route.clearRouteArrival}`:''}`.trim()||'Journey details';
     el('transitDetailMeta').textContent=`${formatTime(Number(s.travelTimeInSeconds)||0)} · ${transitChanges(route)} ${transitChanges(route)===1?'change':'changes'} · ${route.clearRouteDataStatus==='live'?'Live':route.clearRouteDataStatus==='mixed'?'Mixed live/scheduled':'Scheduled'}`;
-    const box=el('transitDetailLegs');box.textContent='';(route.transitLegs||[]).forEach((leg,li)=>{
+    const box=el('transitDetailLegs'),previousScroll=box.scrollTop;
+    box.textContent='';(route.transitLegs||[]).forEach((leg,li)=>{
       const modeKey=normaliseTransitMode(leg.mode),row=document.createElement('div');row.className='transit-detail-leg';
       const icon=document.createElement('div');icon.className=`transit-detail-mode mode-${modeKey}`;icon.style.background=transitLegColour(route,li);icon.textContent=transitModeIcon(modeKey);
       const main=document.createElement('div');main.className='transit-detail-main';const heading=document.createElement('strong');
@@ -1706,6 +1707,7 @@ ${leg.arrival}`:''}`;row.append(icon,main,time);box.appendChild(row);
     });
     show('routeCard',false);show('busServiceSheet',false);show('busStopSheet',false);
     show('transitDetailSheet');el('transitDetailSheet').classList.remove('minimised');
+    box.scrollTop=previousScroll;
     // Transport results are already displayed; enrichment is independent.
     requestSelectedTrainDetails(index);
   }
