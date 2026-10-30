@@ -10,7 +10,7 @@ function or_rail_index(string $root):array{
     if(filesize($root.'/stations.json')>800000||filesize($root.'/manifest.json')>10000)throw new RuntimeException('Invalid rail index');
     $meta=json_decode((string)file_get_contents($root.'/manifest.json'),true);
     $stations=json_decode((string)file_get_contents($root.'/stations.json'),true);
-    if(!is_array($meta)||($meta['version']??null)!==2||!is_array($stations)||count($stations)<1000||!is_file($root.'/events.sqlite'))throw new RuntimeException('Invalid rail timetable');
+    if(!is_array($meta)||($meta['version']??null)!==3||!is_array($stations)||count($stations)<1000||!is_file($root.'/events.sqlite'))throw new RuntimeException('Invalid rail timetable');
     $day=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d');
     if(($meta['from']??'~')>$day||($meta['through']??'')<$day)throw new RuntimeException('Rail timetable expired');
     return [$meta,$stations];
@@ -59,6 +59,7 @@ function or_rail_format(array $edges,array $stations,float $a,float $b,float $c,
                           'line'=>$e[5],'stops'=>[$e[2],$e[3]]];
     }
     $legs=[['mode'=>'foot','from'=>'My location','to'=>$from[0],'durationSeconds'=>$walkIn,
+            'fromLat'=>$a,'fromLon'=>$b,'toLat'=>(float)$from[1],'toLon'=>(float)$from[2],
             'departure'=>date('H:i',$now),'arrival'=>date('H:i',$now+$walkIn),
             'departureEpoch'=>$now,'arrivalEpoch'=>$now+$walkIn,
             'timeStatus'=>'scheduled','geometryStatus'=>'loading']];
@@ -71,6 +72,7 @@ function or_rail_format(array $edges,array $stations,float $a,float $b,float $c,
         }
         $u=$stations[$g['from']];$v=$stations[$g['to']];
         $legs[]=['mode'=>'train','line'=>$g['line']==='Train'?'':$g['line'],
+                 'railTripId'=>(int)$g['trip'],'geometryStatus'=>'loading',
                  'from'=>$u[0],'to'=>$v[0],'fromCrs'=>$g['from'],'toCrs'=>$g['to'],
                  'fromLat'=>(float)$u[1],'fromLon'=>(float)$u[2],'toLat'=>(float)$v[1],'toLon'=>(float)$v[2],
                  'departure'=>date('H:i',$g['dep']),'arrival'=>date('H:i',$g['arr']),
@@ -80,6 +82,7 @@ function or_rail_format(array $edges,array $stations,float $a,float $b,float $c,
         $geom[]=['points'=>$coords];
     }
     $legs[]=['mode'=>'foot','from'=>$to[0],'to'=>'Destination','durationSeconds'=>$walkOut,
+             'fromLat'=>(float)$to[1],'fromLon'=>(float)$to[2],'toLat'=>$c,'toLon'=>$d,
              'departure'=>date('H:i',$last[1]),'arrival'=>date('H:i',$last[1]+$walkOut),
              'departureEpoch'=>(int)$last[1],'arrivalEpoch'=>(int)$last[1]+$walkOut,
              'timeStatus'=>'scheduled','geometryStatus'=>'loading'];
