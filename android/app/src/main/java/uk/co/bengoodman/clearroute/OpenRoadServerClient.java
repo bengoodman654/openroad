@@ -91,6 +91,50 @@ public final class OpenRoadServerClient {
         return json;
     }
 
+    private static String lastMixedKey="";
+    private static String lastMixedResponse="";
+    private static long lastMixedAt=0L;
+
+    /**
+     * Timetable-verified bus → train → bus itineraries are assembled server-side.
+     * Signed API, bounded geocoding-free requests. Cache only within this process
+     * to avoid duplicate fast/full calls, never persist someone's journey.
+     */
+    public static JSONObject multimodalJourneys(Context context,double a,double b,double c,double d,
+                                                JSONObject settings,String baseUrl) throws Exception {
+        String root=requirePaired(context,baseUrl);
+        JSONObject safe=settings==null?new JSONObject():settings;
+        String walking=safe.optString("walkSpeed","normal");
+        String transfer=safe.optString("transferBuffer","normal");
+        String key=Math.round(a*100000)+":"+Math.round(b*100000)+":"+
+                   Math.round(c*100000)+":"+Math.round(d*100000)+":"+walking+":"+transfer;
+        long now=android.os.SystemClock.elapsedRealtime();
+        synchronized(OpenRoadServerClient.class){
+            if(key.equals(lastMixedKey)&&now-lastMixedAt>=0&&now-lastMixedAt<45000&&!lastMixedResponse.isEmpty())
+                return new JSONObject(lastMixedResponse);
+        }
+        JSONObject body=new JSONObject()
+            .put("from",new JSONObject().put("lat",a).put("lon",b))
+            .put("to",new JSONObject().put("lat",c).put("lon",d))
+            .put("settings",new JSONObject().put("walkSpeed",walking).put("transferBuffer",transfer)
+                     .put("maxWalkMeters",1600));
+        JSONObject response=postSigned(context,root+"/api/v1/multimodal.php",body.toString(),2500,9500);
+        JSONArray routes=response.optJSONArray("routes");
+        if(routes==null||routes.length()==0)throw new Exception("No verified bus-and-train connections");
+        for(int i=0;i<routes.length();i++){
+            JSONObject route=routes.optJSONObject(i);
+            if(route==null||!route.optBoolean("clearRouteMultimodal",false))
+                throw new Exception("Invalid multimodal response");
+            JSONArray legs=route.optJSONArray("transitLegs"),geometry=route.optJSONArray("legs");
+            if(legs==null||geometry==null||legs.length()!=geometry.length())
+                throw new Exception("Multimodal geometry mismatch");
+        }
+        synchronized(OpenRoadServerClient.class){
+            lastMixedKey=key;lastMixedResponse=response.toString();lastMixedAt=now;
+        }
+        return response;
+    }
+
     /** Timetable-only national railway planning. Signed like every private OpenRoad request. */
     public static JSONObject railJourneys(Context context, double fromLat, double fromLon,
                                           double toLat, double toLon, String baseUrl) throws Exception {
