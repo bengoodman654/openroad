@@ -52,6 +52,7 @@ jobs:
           node android-src/tests/public_transport_navigation_test.cjs
           node android-src/tests/transit_map_readability_test.cjs
           node android-src/tests/rail_integration_test.cjs
+          node android-src/tests/multimodal_integration_test.cjs
           node android-src/tests/navigation_resilience_test.cjs
           name="$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" android-src/app/build.gradle | head -1)"
           [[ "$name" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Invalid Android version'; exit 1; }
