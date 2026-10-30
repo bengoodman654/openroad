@@ -22,6 +22,8 @@ const visible=new Set(['busServiceSheet']);
 const events=[];
 const context={
   busLiveRequestId:4,busRouteRequestId:8,busStopRequestId:12,
+  expandedTrainTimetable:'',selectedRoute:0,
+  showTransitDetail(){events.push(['showTransitDetail']);},
   busServiceReturnSheet:'busStopSheet',busStopReturnSheet:'transitDetailSheet',
   busServiceTargetStop:{id:'stop-id'},routeResponse:{routes:[{}]},transitNavigation:null,
   show(id,on=true){events.push([id,on]);if(on)visible.add(id);else visible.delete(id);},
