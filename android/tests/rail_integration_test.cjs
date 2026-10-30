@@ -16,10 +16,11 @@ for(const text of ['boolean railEnabled','scheduledRail=OpenRoadServerClient.rai
                     'if(!busEnabled)','insideGreaterLondon'])
   assert.ok(broker.includes(text),'Rail-and-bus fallback logic: '+text);
 assert.ok(broker.includes('!busEnabled')&&broker.includes('railEnabled'),'Rail-only selection');
-assert.ok(js.includes('Check live departures')&&js.includes('railBoardContext'),'User controls live-board queries');
-assert.ok(js.includes('matches.length===1'),'Never attach ambiguous live train information');
+assert.ok(js.includes("button.textContent=expandedTrainTimetable===key?'Hide timetable':'Timetable'"),'Timetable is available next to each train');
+assert.ok(js.includes('requestSelectedTrainLive')&&js.includes('requestTrainLive'),'Live checks never block the initial journey');
 assert.ok(js.includes("route.clearRouteDataStatus='mixed'"),'Scheduled and live data labelled independently');
-assert.ok(js.includes("leg.cancelled=match.cancelled===true"),'Cancellation propagation');
+assert.ok(js.includes("leg.cancelled=live.cancelled===true"),'Cancellation propagation');
+assert.ok(js.includes('railInline')||js.includes('rail-live-inline'),'Staged train loading status is visible');
 for(const sheet of ['transitDetailSheet','busServiceSheet','busStopSheet'])
   assert.ok(html.includes('id="'+sheet+'"'),'Each transport panel has a window');
 for(const nav of ['backTransitDetailBtn','closeTransitDetailBtn','backBusServiceBtn',
