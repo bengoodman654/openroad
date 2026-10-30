@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """OpenRoad: compile compact, indexed and read-only rail SQLite timetable off-host."""
-import argparse,csv,datetime as dt,io,json,collections,hashlib,sqlite3
+import argparse,csv,datetime as dt,io,json,collections,hashlib,sqlite3,zlib
 from pathlib import Path
 from zipfile import ZipFile
 from zoneinfo import ZoneInfo
@@ -48,7 +48,8 @@ def build(source,dest,today=None):
         trips={}
         for r in rows(z,"trips.txt"):
             if active.get(r["service_id"]):
-                trips[r["trip_id"]]=(active[r["service_id"]],routes.get(r["route_id"],"Train"),(r.get("trip_headsign") or "")[:64])
+                trips[r["trip_id"]]=(active[r["service_id"]],routes.get(r["route_id"],"Train"),
+                    (r.get("trip_headsign") or "")[:64],(r.get("shape_id") or "")[:96])
         calls=collections.defaultdict(list)
         for r in rows(z,"stop_times.txt"):
             trip=r.get("trip_id");code=names.get(r.get("stop_id"))
@@ -63,13 +64,44 @@ def build(source,dest,today=None):
         conn.execute("PRAGMA cache_size=-16000")
         conn.execute("PRAGMA temp_store=FILE")
         conn.execute("CREATE TABLE events (o TEXT NOT NULL, dep INTEGER NOT NULL, trip INTEGER NOT NULL, d TEXT NOT NULL, arr INTEGER NOT NULL, line TEXT NOT NULL, PRIMARY KEY (o,dep,trip,d,arr)) WITHOUT ROWID")
+        conn.execute("CREATE TABLE train_info (trip INTEGER PRIMARY KEY, gtfs_id TEXT NOT NULL, headsign TEXT NOT NULL, shape_id TEXT, calls BLOB NOT NULL)")
+        conn.execute("CREATE TABLE rail_shapes (shape_id TEXT PRIMARY KEY, points BLOB NOT NULL)")
         ids={trip:i+1 for i,trip in enumerate(calls)}
         total=0
-        batch=[]
+        batch=[]; trip_info=[]
+        for trip,seq in calls.items():
+            if len(seq)<2:continue
+            seq.sort()
+            meta=trips[trip]
+            compact=[[p[1],p[2],p[3]] for p in seq]
+            trip_info.append((ids[trip],trip[:120],meta[2],meta[3],
+                zlib.compress(json.dumps(compact,separators=(",",":")).encode(),6)))
+        conn.executemany("INSERT INTO train_info VALUES (?,?,?,?,?)",trip_info)
+        del trip_info
+        # The feed's shapes contain passing stations, not an exact railway-track
+        # survey. We still retain them for truthful, higher-resolution geometry.
+        by_shape=collections.defaultdict(list)
+        for r in rows(z,"shapes.txt"):
+            sid=r.get("shape_id")
+            if not sid or len(sid)>96:continue
+            try:
+                sequence=int(r["shape_pt_sequence"])
+                lat=round(float(r["shape_pt_lat"]),5)
+                lon=round(float(r["shape_pt_lon"]),5)
+            except (KeyError,ValueError):continue
+            if 49<=lat<=61 and -9<=lon<=3 and len(by_shape[sid])<2400:
+                by_shape[sid].append((sequence,lat,lon))
+        for sid,pts in by_shape.items():
+            pts.sort()
+            coords=[[p[1],p[2]] for p in pts]
+            conn.execute("INSERT INTO rail_shapes VALUES (?,?)",
+                (sid,zlib.compress(json.dumps(coords,separators=(",",":")).encode(),6)))
+        shapes_count=len(by_shape)
+        del by_shape
         conn.execute("BEGIN")
         for trip,call in calls.items():
             call.sort()
-            ds,line,head=trips[trip]
+            ds,line,head,shape_id=trips[trip]
             for day in ds:
                 def epoch(sec):
                     d2=day+dt.timedelta(days=sec//86400)
@@ -89,8 +121,8 @@ def build(source,dest,today=None):
         conn.close()
         if total<30000:raise ValueError("Rail timetable missing active connections")
         (dest/"stations.json").write_text(json.dumps(stations,separators=(",",":"),ensure_ascii=False))
-        manifest={"version":2,"from":days[0].isoformat(),"through":days[-1].isoformat(),
-                  "stations":len(stations),"connections":total,
+        manifest={"version":3,"from":days[0].isoformat(),"through":days[-1].isoformat(),
+                  "stations":len(stations),"connections":total,"railShapes":shapes_count,
                   "source":"GB Transit / Rail Delivery Group timetable",
                   "built_at":dt.datetime.now(dt.timezone.utc).isoformat(),
                   "source_sha256":hashlib.sha256(Path(source).read_bytes()).hexdigest()}
