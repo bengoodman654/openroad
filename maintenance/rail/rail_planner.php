@@ -90,19 +90,27 @@ function or_rail_format(array $edges,array $stations,float $a,float $b,float $c,
             'transitLegs'=>$legs,'legs'=>$geom,'guidance'=>['instructions'=>[]]];
 }
 /** Bounded earliest-arrival search: same train has no transfer penalty; changes require 7 minutes. */
-function or_rail_plan(float $a,float $b,float $c,float $d,?string $root=null,?int $now=null):array{
+function or_rail_plan(float $a,float $b,float $c,float $d,?string $root=null,?int $now=null,array $options=[]):array{
     $root=$root??dirname(__DIR__).'/cache/rail-routing/current';
     [$meta,$stations]=or_rail_index($root);
     $now=$now??time();
-    $start=or_rail_near($stations,$a,$b,5);$end=or_rail_near($stations,$c,$d,6);
+    $start=$options['starts']??or_rail_near($stations,$a,$b,5);
+    $end=$options['ends']??or_rail_near($stations,$c,$d,6);
+    $resultLimit=max(1,min(20,(int)($options['limit']??3)));
     if(!$start||!$end)return ['routes'=>[],'source'=>'rail','coverage'=>'no_nearby_station'];
-    $targets=[];foreach($end as $e)$targets[$e['station']]=$e;
+    $targets=[];foreach($end as $e){
+        if(isset($e['station'],$stations[$e['station']])&&isset($e['walk'])&&is_numeric($e['walk']))$targets[$e['station']]=$e;
+    }
+    if(!$targets)return ['routes'=>[],'source'=>'rail','coverage'=>'no_destination_station'];
     $queue=new SplPriorityQueue();$queue->setExtractFlags(SplPriorityQueue::EXTR_DATA);
     foreach($start as $s){
-        $ready=$now+$s['walk'];
+        if(!isset($s['station'],$stations[$s['station']])||!isset($s['walk'])||!is_numeric($s['walk']))continue;
+        $ready=(int)($s['ready']??($now+$s['walk']));
+        if($ready<$now || $ready>$now+7200)continue;
         $queue->insert(['at'=>$ready,'code'=>$s['station'],'trip'=>'','changes'=>-1,
                         'edges'=>[],'walk'=>$s['walk']],-($ready+(int)(or_rail_km((float)$stations[$s['station']][1],(float)$stations[$s['station']][2],$c,$d)*32)));
     }
+    if($queue->isEmpty())return ['routes'=>[],'source'=>'rail','coverage'=>'no_reachable_origin_station'];
     $best=[];$routes=[];$expanded=0;$deadline=microtime(true)+4.0;
     $goalCost=static function(string $station)use($stations,$c,$d):int{
         $p=$stations[$station];
@@ -115,7 +123,7 @@ function or_rail_plan(float $a,float $b,float $c,float $d,?string $root=null,?in
         if(isset($targets[$s['code']])&&$s['edges']){
             $r=or_rail_format($s['edges'],$stations,$a,$b,$c,$d,$now,$s['walk'],$targets[$s['code']]['walk']);
             $routes[$r['clearRouteId']]=$r;
-            if(count($routes)>=10)break;
+            if(count($routes)>=max(10,$resultLimit))break;
         }
         foreach(or_rail_departures($root,$s['code'],$s['at'],$now+6*3600) as $e){
             [$dep,$arr,$dest,$trip,$line,$head]=$e;
@@ -138,6 +146,6 @@ function or_rail_plan(float $a,float $b,float $c,float $d,?string $root=null,?in
         fwrite(STDERR,"RAIL_DEBUG expanded=$expanded candidates=".count($routes)."\n");
     $items=array_values($routes);
     usort($items,static fn($a,$b)=>$a['summary']['travelTimeInSeconds']<=>$b['summary']['travelTimeInSeconds']);
-    return ['routes'=>array_slice($items,0,3),'source'=>'rail','coverage'=>'scheduled',
+    return ['routes'=>array_slice($items,0,$resultLimit),'source'=>'rail','coverage'=>'scheduled',
             'calendarThrough'=>$meta['through']];
 }
