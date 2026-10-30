@@ -13,6 +13,11 @@ ensure($m['matched']===true,'Could not match unique scheduled departure');
 ensure($m['delayMinutes']===10,'Delay arithmetic wrong');
 ensure($m['platform']==='4','Platform lost');
 ensure(or_train_match_live([$mock[0],$mock[0]],'BRI','BHM',$epoch)['status']==='ambiguous','Collision must be rejected');
+$similar=$mock[0];$similar['destination']='London Paddington';$similar['callingCrs']=['RDG','PAD'];
+$mock[0]['callingCrs']=['BTH','BHM'];
+$reliable=or_train_match_live([$mock[0],$similar],'BRI','BHM',$epoch);
+ensure($reliable['matched']===true && $reliable['platform']==='4',
+    'Calling points should distinguish same-minute departures without guessing');
 ensure(or_train_match_live([], 'BRI','BHM',$epoch)['status']==='not_listed','Missing train must not be fabricated');
 $blocked=or_train_live_lookup('BRI','BHM',$epoch,'',static function(){throw new RuntimeException('Must not fetch');},$epoch-15000);
 ensure($blocked['status']==='not_yet','Too-early live lookup must not consume provider quota');
