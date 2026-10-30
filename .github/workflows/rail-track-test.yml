@@ -1,0 +1,56 @@
+name: OpenRoad surveyed railway track alignment acceptance
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'maintenance/rail/build_track_shapes.py'
+      - '.github/workflows/rail-track-test.yml'
+permissions:
+  contents: read
+jobs:
+  align:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare clean geometry tools on the GitHub runner
+        run: |
+          python3 -m pip install --quiet pyshp pyproj scipy numpy shapely
+          python3 -m py_compile maintenance/rail/build_track_shapes.py
+      - name: Download validated timetable and Network Rail OGL centreline source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/track"
+          curl --fail --silent --show-error --location --retry 2 --max-time 20 \
+            'https://api.github.com/repos/planarnetwork/gb-transit/releases/latest' > "$RUNNER_TEMP/feed.json"
+          python3 - <<'PY' > "$RUNNER_TEMP/url"
+          import json
+          a=json.load(open(__import__('os').environ['RUNNER_TEMP']+'/feed.json'))['assets']
+          print(next(x['browser_download_url'] for x in a if x['name']=='gtfs-national-rail-only.zip'))
+          PY
+          curl --fail --silent --show-error --location --max-time 180 --retry 2 \
+            "$(cat "$RUNNER_TEMP/url")" -o "$RUNNER_TEMP/gtfs.zip"
+          base='https://raw.githubusercontent.com/openraildata/network-rail-gis/master/network-model/VectorLinks/NetworkLinks'
+          for ext in shp shx dbf prj; do
+            curl --fail --silent --show-error --location --retry 2 --max-time 90 \
+              "$base.$ext" -o "$RUNNER_TEMP/track/NetworkLinks.$ext"
+          done
+      - name: Build and independently verify path alignment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 maintenance/rail/build_rail_index.py "$RUNNER_TEMP/gtfs.zip" "$RUNNER_TEMP/rail-index"
+          timeout 450 python3 maintenance/rail/build_track_shapes.py \
+            "$RUNNER_TEMP/rail-index/events.sqlite" \
+            "$RUNNER_TEMP/track/NetworkLinks.shp" --deadline 230
+          python3 - <<'PY'
+          import os,sqlite3
+          f=os.environ['RUNNER_TEMP']+'/rail-index/events.sqlite'
+          db=sqlite3.connect('file:'+f+'?mode=ro',uri=True)
+          for row in db.execute('SELECT quality,COUNT(*) FROM rail_shapes GROUP BY quality'):
+              print('TRACK_QUALITY',*row)
+          print('TRACK_DB_MB',round(os.path.getsize(f)/1048576,1))
+          if db.execute("SELECT COUNT(*) FROM rail_shapes WHERE quality LIKE '%track-aligned%'").fetchone()[0]<500:
+              raise SystemExit('Too few track-aligned rail services')
+          PY
