@@ -122,6 +122,7 @@ jobs:
           PY
           php -d memory_limit=64M maintenance/rail/test_train_detail.php /tmp/rail-index
           php -d memory_limit=64M maintenance/rail/test_real_smoke.php /tmp/rail-index
+          echo 'OPENROAD_TRACK_POSTPROCESS_VERIFIED'
           echo 'OPENROAD_TRACK_ALIGNMENT_READY'
       - name: Deploy proven source and index with pinned SSH, backup and atomic activation
         shell: bash
