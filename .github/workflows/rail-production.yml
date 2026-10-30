@@ -25,6 +25,9 @@ jobs:
           python3 -m py_compile maintenance/rail/build_rail_index.py
           php -l maintenance/rail/rail_planner.php
           php -l maintenance/rail/rail_journeys.php
+          php -l maintenance/rail/multimodal_planner.php
+          php -l maintenance/rail/multimodal.php
+          php -l maintenance/rail/test_multimodal.php
           php -l maintenance/rail/test_real_smoke.php
       - name: Identify approved current GB rail GTFS release
         shell: bash
@@ -76,6 +79,7 @@ jobs:
           db.close()
           PY
           php -d memory_limit=64M maintenance/rail/test_real_smoke.php /tmp/rail-index
+          php -d memory_limit=64M maintenance/rail/test_multimodal.php /tmp/rail-index
           tar -czf /tmp/rail-index.tar -C /tmp rail-index
           test "$(stat -c %s /tmp/rail-index.tar)" -lt 95000000
           echo 'RAIL_BUILD_AND_BRISTOL_COVENTRY_SMOKE_PASSED'
