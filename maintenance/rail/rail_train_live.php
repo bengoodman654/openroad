@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__.'/rail_gateway.php';
+if(!defined('OPENROAD_TRAIN_LIVE_TEST'))require_once __DIR__.'/rail_gateway.php';
 /** Live data is only available in a short window around departure. */
 function or_train_match_live(array $services,string $crs,string $to,int $epoch,string $headsign=''):array {
     $std=(new DateTimeImmutable('@'.$epoch))->setTimezone(new DateTimeZone('Europe/London'))->format('H:i');
