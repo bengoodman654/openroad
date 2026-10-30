@@ -22,7 +22,7 @@
   let contactsEnabled = false;
   let railBoardContext = null;
   const lastRailBoardLookup = new Map();
-  const trainDetailsCache=new Map(),trainDetailsPending=new Map(),trainLiveCache=new Map(),trainLivePending=new Map();
+  const trainDetailsCache=new Map(),trainDetailsPending=new Map(),trainLiveCache=new Map(),trainLivePending=new Map(),lastTrainLiveFetch=new Map();
   let trainRequestSeq=0,expandedTrainTimetable='';
   const trainKey=leg=>[leg?.railTripId??leg?.tripId,leg?.fromCrs,leg?.toCrs,leg?.departureEpoch].join(':');
   const isIndexedTrain=leg=>Number.isInteger(Number(leg?.railTripId))&&Number(leg.railTripId)>0&&
@@ -72,6 +72,11 @@
     const key=trainKey(leg);
     if(!force&&(trainLiveCache.has(key)||[...trainLivePending.values()].some(x=>x.key===key)))return;
     if([...trainLivePending.values()].some(x=>x.key===key))return;
+    if(force && Date.now()-(lastTrainLiveFetch.get(key)||0)<120000){
+      toast('Live Rail Data can be refreshed every two minutes.');return;
+    }
+    lastTrainLiveFetch.set(key,Date.now());
+    if(force)trainLiveCache.delete(key);
     const id=++trainRequestSeq;trainLivePending.set(id,{key});
     native()?.requestTrainLive?.(id,leg.fromCrs,leg.toCrs,Number(leg.departureEpoch),
       String(trainDetailsCache.get(key)?.headsign||''));
@@ -88,6 +93,14 @@
     caption.textContent='This train’s scheduled calls · '+(info.headsign||'National Rail')+
       ' · Platforms and delays are only shown when reliably matched with live Rail Data.';
     list.appendChild(caption);
+    const live=trainLiveCache.get(trainKey(leg));
+    if(live?.matched){
+      const status=document.createElement('div');status.className='rail-timetable-live';
+      status.textContent='Boarding: '+(live.cancelled?'Cancelled':
+        (live.expected||'Scheduled'))+(live.platform?' · Platform '+live.platform:'')+
+        (live.delayMinutes>0?' · '+live.delayMinutes+' min late':'');
+      list.appendChild(status);
+    }
     (info.calls||[]).forEach(call=>{
       const item=document.createElement('div');item.className='rail-timetable-stop'+
        (call.boarding?' boarding':'')+(call.alighting?' alighting':'')+
@@ -1635,6 +1648,9 @@
     if(['bus','coach'].includes(modeKey))node.style.background=transitLegColour(route,index);
     const copy=document.createElement('span');copy.className='stage-copy';const title=document.createElement('span');title.textContent=modeKey==='foot'?'Walk':`${transitModeLabel(modeKey)}${leg?.line?` ${leg.line}`:''}`;copy.appendChild(title);
     const mins=transitLegMinutes(leg);if(mins){const small=document.createElement('small');small.textContent=`${mins} min`;copy.appendChild(small);}
+    if(modeKey==='train' && [...trainDetailsPending.values()].some(x=>x.key===trainKey(leg))){
+      const spinner=document.createElement('span');spinner.className='rail-inline-spinner';copy.appendChild(spinner);
+    }
     if(modeKey==='train'){
       const extra=document.createElement('small');extra.className='rail-stage-live';
       if(leg.cancelled)extra.textContent='Cancelled';
@@ -1668,6 +1684,9 @@
           showTransitDetail(index);
         };
         actions.appendChild(button);
+        const refresh=document.createElement('button');refresh.type='button';refresh.className='rail-live-check';
+        refresh.textContent='Refresh live';refresh.onclick=()=>{requestSelectedTrainLive(leg,true);showTransitDetail(index);};
+        actions.appendChild(refresh);
         const live=document.createElement('span');live.className='rail-live-inline';
         const status=trainLiveCache.get(key);
         if(status?.matched){
