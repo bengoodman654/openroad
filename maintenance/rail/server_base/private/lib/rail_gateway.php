@@ -49,7 +49,7 @@ function openroad_rail_response(string $crs, array $raw): ?array {
     $services=$board['trainServices']??null;
     if(!is_array($services))return null;
     $rows=[];
-    foreach(array_slice($services,0,8) as $service){
+    foreach(array_slice($services,0,40) as $service){
         if(!is_array($service))continue;
         $destinations=$service['destination']??[];
         $first=is_array($destinations) ? (isset($destinations[0])?($destinations[0]??[]):$destinations) : [];
@@ -59,6 +59,9 @@ function openroad_rail_response(string $crs, array $raw): ?array {
                  'etd'=>$etd,
                  'platform'=>substr((string)($service['platform']??''),0,16),
                  'destination'=>openroad_rail_truncate($destination,100),
+                 'destinationCrs'=>is_array($first)?substr((string)($first['crs']??''),0,3):'',
+                 'serviceID'=>substr((string)($service['serviceID']??''),0,128),
+                 'operator'=>openroad_rail_truncate((string)($service['operator']??''),90),
                  'cancelled'=>!empty($service['isCancelled'])||strtolower($etd)==='cancelled'];
     }
     return ['station'=>$crs,'stationName'=>openroad_rail_truncate((string)($board['locationName']??$crs),100),
@@ -81,15 +84,18 @@ function openroad_rail_cache_write(string $path,array $payload,int $expiry): voi
 }
 
 /** Return HTTP status and safe response. $fetch is optional test injection, never client-controlled. */
-function openroad_rail_board(string $crs,?callable $fetch=null,?string $cacheDir=null,?int $now=null,?string $keyOverride=null): array {
+function openroad_rail_board(string $crs,?callable $fetch=null,?string $cacheDir=null,?int $now=null,?string $keyOverride=null,?int $timeOffset=null,int $numRows=8): array {
     $crs=strtoupper(trim($crs));
     if(!preg_match('/^[A-Z]{3}$/D',$crs))return [400,['ok'=>false,'error'=>'Invalid station code']];
     $key=$keyOverride??openroad_rail_key();
     if($key==='')return [503,['ok'=>false,'error'=>'Rail Data is not configured on the OpenRoad server']];
     $now=$now??time();
+    if($timeOffset!==null && ($timeOffset < -119 || $timeOffset > 119))return [400,['ok'=>false,'error'=>'Invalid train time']];
+    if($numRows<1||$numRows>40)return [400,['ok'=>false,'error'=>'Invalid requested board size']];
+    $offset=$timeOffset??0;
     $dir=$cacheDir??openroad_private_root().'/cache/rail-v1';
     if(!is_dir($dir) && !@mkdir($dir,0700,true) && !is_dir($dir))return [503,['ok'=>false,'error'=>'Rail departure service is unavailable']];
-    $path=$dir.'/'.$crs.'.json';
+    $path=$dir.'/'.$crs.($timeOffset===null?'':'-'.($offset<0?'m'.abs($offset):'p'.$offset).'-'.$numRows).'.json';
     $cache=openroad_rail_cache_read($path,$now);
     if($cache!==null)return [($cache['ok']??false)?200:503,$cache+['cache'=>'hit']];
     $lock=@fopen($dir.'/rail.lock','c');
@@ -128,7 +134,7 @@ function openroad_rail_board(string $crs,?callable $fetch=null,?string $cacheDir
             @unlink($tmp);
             return [503,['ok'=>false,'error'=>'Rail departure service is unavailable']];
         }
-        $url='https://api1.raildata.org.uk/1010-live-departure-board-dep1_2/LDBWS/api/20220120/GetDepartureBoard/'.$crs.'?numRows=8&timeOffset=0&timeWindow=120';
+        $url='https://api1.raildata.org.uk/1010-live-departure-board-dep1_2/LDBWS/api/20220120/GetDepartureBoard/'.$crs.'?numRows='.$numRows.'&timeOffset='.$offset.'&timeWindow=120';
         try{[$status,$body]=($fetch??'openroad_rail_fetch')($url,$key);}catch(Throwable $ignored){$status=0;$body='';}
         if($status!==200 || !is_string($body) || strlen($body)>65536){
             openroad_rail_cache_write($path,['ok'=>false,'error'=>'Rail Data is temporarily unavailable'], $now+45);
