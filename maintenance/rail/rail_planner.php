@@ -60,6 +60,7 @@ function or_rail_format(array $edges,array $stations,float $a,float $b,float $c,
     }
     $legs=[['mode'=>'foot','from'=>'My location','to'=>$from[0],'durationSeconds'=>$walkIn,
             'departure'=>date('H:i',$now),'arrival'=>date('H:i',$now+$walkIn),
+            'departureEpoch'=>$now,'arrivalEpoch'=>$now+$walkIn,
             'timeStatus'=>'scheduled','geometryStatus'=>'loading']];
     $geom = [ ['points' => [ ['latitude'=>$a,'longitude'=>$b], ['latitude'=>(float)$from[1],'longitude'=>(float)$from[2]] ] ] ];
     foreach($groups as $g){
@@ -73,12 +74,14 @@ function or_rail_format(array $edges,array $stations,float $a,float $b,float $c,
                  'from'=>$u[0],'to'=>$v[0],'fromCrs'=>$g['from'],'toCrs'=>$g['to'],
                  'fromLat'=>(float)$u[1],'fromLon'=>(float)$u[2],'toLat'=>(float)$v[1],'toLon'=>(float)$v[2],
                  'departure'=>date('H:i',$g['dep']),'arrival'=>date('H:i',$g['arr']),
+                 'departureEpoch'=>(int)$g['dep'],'arrivalEpoch'=>(int)$g['arr'],
                  'durationSeconds'=>$g['arr']-$g['dep'],'timeStatus'=>'scheduled',
                  'dataSource'=>'GB Transit scheduled rail timetable','stops'=>$stops,'stopCount'=>count($stops)-2];
         $geom[]=['points'=>$coords];
     }
     $legs[]=['mode'=>'foot','from'=>$to[0],'to'=>'Destination','durationSeconds'=>$walkOut,
              'departure'=>date('H:i',$last[1]),'arrival'=>date('H:i',$last[1]+$walkOut),
+             'departureEpoch'=>(int)$last[1],'arrivalEpoch'=>(int)$last[1]+$walkOut,
              'timeStatus'=>'scheduled','geometryStatus'=>'loading'];
     $geom[]=['points'=>[['latitude'=>(float)$to[1],'longitude'=>(float)$to[2]],['latitude'=>$c,'longitude'=>$d]]];
     $id=substr(hash('sha256',implode('|',array_map(static fn($g)=>$g['trip'],$groups)).'|'.$first[0]),0,24);
