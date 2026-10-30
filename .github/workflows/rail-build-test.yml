@@ -21,6 +21,10 @@ jobs:
           set -euo pipefail
           python3 -m py_compile maintenance/rail/build_rail_index.py
           php -l maintenance/rail/rail_planner.php
+          php -l maintenance/rail/rail_gateway.php
+          php -l maintenance/rail/rail_train_live.php
+          php -l maintenance/rail/train_live.php
+          php -l maintenance/rail/test_train_live.php
           php -l maintenance/rail/rail_train_detail.php
           php -l maintenance/rail/train_detail.php
           php -l maintenance/rail/test_train_detail.php
@@ -80,6 +84,7 @@ jobs:
           PY
           php -d memory_limit=64M maintenance/rail/test_real_smoke.php /tmp/rail-index
           php -d memory_limit=64M maintenance/rail/test_train_detail.php /tmp/rail-index
+          php -d memory_limit=64M maintenance/rail/test_train_live.php
           php -d memory_limit=64M maintenance/rail/test_multimodal.php /tmp/rail-index
           tar -czf /tmp/rail-index.tar.gz -C /tmp rail-index
           test "$(stat -c %s /tmp/rail-index.tar.gz)" -lt 95000000
