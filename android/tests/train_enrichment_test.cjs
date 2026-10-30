@@ -15,6 +15,8 @@ for(const name of timetables)assert.ok(ui.includes(name),'Missing staged rail UI
 assert.ok(styles.includes('max-height: min(50dvh, 50vh) !important'),'Journey panel must remain half height');
 assert.ok(styles.includes('rail-inline-spinner'),'Show enrichment activity');
 assert.ok(ui.includes('drawRoutes(navigating,false)'),'Enrichment must not reset map camera');
+assert.ok(ui.includes('alignedTrain?original:clipTransitLegGeometry(original,transitLegs[li])'),
+  'Track-aligned rail routes must not be re-clipped into straight lines');
 assert.ok(ui.includes("onRoute(data, requestedIndex=0, restored=false"),'Initial result must be independent');
 assert.ok(ui.includes('requestSelectedTrainDetails(selectedRoute)'),'Request late enrichment after results');
 assert.ok(ui.includes('if(requestId && requestId!==routeRequestId)'), 'Discard stale journey responses');
