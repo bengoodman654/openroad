@@ -48,9 +48,11 @@ function or_train_detail(string $root,int $tripId,string $from,string $to,int $d
     // This feed's shapes trace passing stations, not exact track centrelines.
     // Display as such. Never claim this geometry is surveyed railway track.
     if(!empty($info['shape_id'])){
-        $q=$db->prepare('SELECT points FROM rail_shapes WHERE shape_id=? LIMIT 1');
+        $q=$db->prepare('SELECT * FROM rail_shapes WHERE shape_id=? LIMIT 1');
         $q->execute([$info['shape_id']]);
-        $blob=$q->fetchColumn();
+        $shapeRow=$q->fetch(PDO::FETCH_ASSOC);
+        $blob=$shapeRow['points']??null;
+        $quality=(string)($shapeRow['quality']??'schematic');
         if(is_string($blob)){
             $points=json_decode((string)@gzuncompress($blob),true,24);
             if(is_array($points)&&count($points)>=2&&count($points)<=2400){
@@ -75,11 +77,18 @@ function or_train_detail(string $root,int $tripId,string $from,string $to,int $d
             }
         }
     }
+    $track=$routePoints && $quality==='track-aligned';
+    $partial=$routePoints && $quality==='partly-track-aligned';
+    $status=$track?'track_aligned':($partial?'partly_track_aligned':($routePoints?'schematic':'stations_only'));
     return ['ok'=>true,'tripId'=>$tripId,'fromCrs'=>$from,'toCrs'=>$to,
         'departureEpoch'=>$departureEpoch,'headsign'=>(string)$info['headsign'],
         'calls'=>$stops,'routePoints'=>$routePoints,
-        'geometryStatus'=>$routePoints?'schematic':'stations_only',
-        'geometryMessage'=>$routePoints?'Published railway timetable shape through passing stations; not exact track geometry':'Passing-point shape unavailable; only station positions are shown',
+        'geometryStatus'=>$status,
+        'geometryMessage'=>$track?'Track-aligned railway route from Network Rail GIS (2022 reference). The train’s actual platform track may differ.':
+          ($partial?'Partly aligned with surveyed railway track; remaining sections use timetable passing points.':
+          ($routePoints?'Published railway timetable shape through passing stations; not exact track geometry':
+           'Passing-point shape unavailable; only station positions are shown')),
+        'geometrySource'=>$track||$partial?'Network Rail Open Government Licence track centrelines (historic baseline)':'GB Transit scheduled railway schematic',
         'source'=>'GB Transit / RDG scheduled railway timetable',
         'calendarThrough'=>$meta['through']];
 }
