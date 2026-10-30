@@ -1,0 +1,37 @@
+name: OpenRoad railway track geometry feasibility probe
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/rail-track-probe.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect open licensed Network Rail geometry and link topology
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet pyshp pyproj
+          mkdir -p "$RUNNER_TEMP/track"
+          base='https://raw.githubusercontent.com/openraildata/network-rail-gis/master/network-model/VectorLinks/NetworkLinks'
+          for ext in shp shx dbf prj; do
+             curl --fail --location --silent --show-error --retry 2 --max-time 90 \
+                 --output "$RUNNER_TEMP/track/NetworkLinks.$ext" "$base.$ext"
+          done
+          python3 - <<'PY'
+          import os,shapefile,collections
+          source=os.path.join(os.environ['RUNNER_TEMP'],'track','NetworkLinks.shp')
+          r=shapefile.Reader(source)
+          print('RAIL_TRACK_LINKS',len(r))
+          print('RAIL_TRACK_FIELDS',[f[0] for f in r.fields[1:]])
+          counts=collections.Counter()
+          for i,sr in enumerate(r.iterShapeRecords()):
+              if i<3:
+                 print('RAIL_TRACK_EXAMPLE',sr.record.as_dict(),len(sr.shape.points),sr.shape.points[:2],sr.shape.points[-2:])
+              counts[sr.shape.shapeType]+=1
+          print('RAIL_TRACK_GEOMETRY_TYPES',counts)
+          PY
