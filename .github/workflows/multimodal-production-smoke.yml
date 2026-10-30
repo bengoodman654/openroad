@@ -53,6 +53,13 @@ jobs:
                 echo "REGION_READY_".strtoupper($region["region_key"])."=".((int)$region["dataset_id"]>0?"YES":"NO")."\n";
             }
             echo "WEST_MIDLANDS_REGION_CONFIGURED=".(openroad_region_config("west_midlands")?"YES":"NO")."\n";
+            $bath=or_mm_plan($db,51.435,-2.61,51.378,-2.327);
+            $n=0;$bestBusCount=0;
+            foreach($bath["routes"]??[] as $r){
+              $buses=count(array_filter($r["transitLegs"]??[],static fn($leg)=>($leg["mode"]??"")==="bus"));
+              $bestBusCount=max($bestBusCount,$buses);$n++;
+            }
+            echo "REAL_BUS_TRAIN_BUS_BATH routes=$n max_bus_legs=$bestBusCount\n";
             if($ms>10000)exit(4);
           ' "$priv/lib/router.php" "$priv/lib/multimodal_planner.php"
           REMOTE
