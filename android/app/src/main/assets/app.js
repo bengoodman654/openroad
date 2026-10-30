@@ -22,6 +22,86 @@
   let contactsEnabled = false;
   let railBoardContext = null;
   const lastRailBoardLookup = new Map();
+  const trainDetailsCache=new Map(),trainDetailsPending=new Map(),trainLiveCache=new Map(),trainLivePending=new Map();
+  let trainRequestSeq=0,expandedTrainTimetable='';
+  const trainKey=leg=>[leg?.railTripId,leg?.fromCrs,leg?.toCrs,leg?.departureEpoch].join(':');
+  const isIndexedTrain=leg=>Number.isInteger(Number(leg?.railTripId))&&Number(leg.railTripId)>0&&
+    /^[A-Z]{3}$/.test(String(leg?.fromCrs||''))&&/^[A-Z]{3}$/.test(String(leg?.toCrs||''))&&
+    Number(leg?.departureEpoch)>1600000000;
+
+  function applyTrainDetailsFromCache(route){
+    if(!route?.transitLegs||!route?.legs)return;
+    route.transitLegs.forEach((leg,li)=>{
+      if(!isIndexedTrain(leg))return;
+      const key=trainKey(leg),detail=trainDetailsCache.get(key),live=trainLiveCache.get(key);
+      if(detail?.ok){
+        leg.railTimetable=detail.calls;
+        leg.railHeadSign=detail.headsign||'';
+        leg.railGeometryNote=detail.geometryMessage||'';
+        if(Array.isArray(detail.routePoints)&&detail.routePoints.length>=2){
+          const geom=route.legs[li];
+          if(geom)geom.points=detail.routePoints;
+          leg.geometryStatus='schematic';
+        }else leg.geometryStatus='stations_only';
+      }
+      if(live?.matched===true){
+        leg.platform=live.platform||'';
+        leg.cancelled=live.cancelled===true;
+        leg.liveDeparture=leg.cancelled?'Cancelled':(live.expected||leg.departure);
+        leg.timeStatus='live';
+        leg.liveNote=live.message||'Live information checked';
+        leg.railLiveCheckedAt=live.checkedAt||'';
+        route.clearRouteDataStatus='mixed';
+      }else if(live?.status){leg.liveNote=live.message||'Live data unavailable';}
+    });
+  }
+  function requestSelectedTrainDetails(routeIndex,onlyLeg=null){
+    const route=routeResponse?.routes?.[routeIndex];if(!route)return;
+    route.transitLegs?.forEach((leg,i)=>{
+      if(onlyLeg!==null&&i!==onlyLeg)return;
+      if(!isIndexedTrain(leg))return;
+      const key=trainKey(leg);
+      if(!trainDetailsCache.has(key)&&![...trainDetailsPending.values()].some(v=>v.key===key)){
+        const id=++trainRequestSeq;trainDetailsPending.set(id,{key});
+        native()?.requestTrainTimetable?.(id,Number(leg.railTripId),leg.fromCrs,leg.toCrs,Number(leg.departureEpoch));
+      }else if(trainDetailsCache.has(key))requestSelectedTrainLive(leg);
+    });
+  }
+  function requestSelectedTrainLive(leg,force=false){
+    if(!isIndexedTrain(leg))return;
+    const key=trainKey(leg);
+    if(!force&&(trainLiveCache.has(key)||[...trainLivePending.values()].some(x=>x.key===key)))return;
+    if([...trainLivePending.values()].some(x=>x.key===key))return;
+    const id=++trainRequestSeq;trainLivePending.set(id,{key});
+    native()?.requestTrainLive?.(id,leg.fromCrs,leg.toCrs,Number(leg.departureEpoch),
+      String(trainDetailsCache.get(key)?.headsign||''));
+  }
+  function showTrainTimetableList(host,leg){
+    const info=trainDetailsCache.get(trainKey(leg));
+    const list=document.createElement('div');list.className='rail-timetable-list';
+    if(!info?.ok){
+      list.textContent=info?.failed?'Full train timetable unavailable.':'Loading scheduled calling points…';
+      if(!info?.failed){const spin=document.createElement('span');spin.className='rail-inline-spinner';list.prepend(spin);}
+      host.appendChild(list);return;
+    }
+    const caption=document.createElement('div');caption.className='rail-timetable-caption';
+    caption.textContent='This train’s scheduled calls · '+(info.headsign||'National Rail')+
+      ' · Platforms and delays are only shown when reliably matched with live Rail Data.';
+    list.appendChild(caption);
+    (info.calls||[]).forEach(call=>{
+      const item=document.createElement('div');item.className='rail-timetable-stop'+
+       (call.boarding?' boarding':'')+(call.alighting?' alighting':'')+
+       (!call.withinJourney?' outside-journey':'');
+      const name=document.createElement('strong');name.textContent=call.name||call.crs;
+      const time=document.createElement('span');time.textContent=(call.scheduledArrival||call.scheduledDeparture||'—')+
+          (call.boarding?' · Board':call.alighting?' · Alight':'');
+      item.append(name,time);list.appendChild(item);
+    });
+    const disclaimer=document.createElement('small');disclaimer.textContent='Scheduled times for this service day; other platforms and delays cannot be verified from a departure board.';
+    list.appendChild(disclaimer);host.appendChild(list);
+  }
+
+
   let savedReturnToSettings = false;
   let transitPreference = 'balanced', transitViaStops = [], pendingTransitStop = false, pendingOriginSelection = false, pendingDestinationSelection = false, pendingViaEditIndex = -1;
   const TRANSIT_RESULT_LIMIT = 3;
@@ -1569,24 +1649,36 @@
       if((modeKey==='bus'||modeKey==='coach')&&leg.line){const link=document.createElement('button');link.type='button';link.className='transit-service-link';link.textContent=`${transitModeLabel(modeKey)} ${leg.line}`;link.onclick=()=>openBusService(leg);heading.appendChild(link);}else heading.textContent=modeKey==='foot'?'Walk':`${transitModeLabel(modeKey)}${leg.line?` ${leg.line}`:''}`;
       const detail=document.createElement('small');const bits=[];if(leg.from)bits.push(leg.from);if(leg.to)bits.push(`→ ${leg.to}`);if(leg.stopCount)bits.push(`${leg.stopCount} stops`);if(leg.platform)bits.push(`Platform ${leg.platform}`);if(leg.cancelled)bits.push('Cancelled');detail.textContent=bits.join(' · ');
       const quality=document.createElement('small');quality.textContent=`${leg.timeStatus==='live'?'Live':'Scheduled'}${leg.dataSource?` · ${leg.dataSource}`:''}${leg.liveNote?` · ${leg.liveNote}`:''}`;main.append(heading,detail,quality);
-      if(modeKey==='train' && /^[A-Z]{3}$/.test(String(leg.fromCrs||''))){
-        const live=document.createElement('button');live.type='button';live.className='rail-live-check';
-        live.textContent='Check live departures';
-        live.onclick=()=>{
-          const crs=String(leg.fromCrs).toUpperCase(),now=Date.now();
-          if(now-(lastRailBoardLookup.get(crs)||0)<120000){toast('Recently checked this station. Try again shortly.');return;}
-          lastRailBoardLookup.set(crs,now);
-          railBoardContext={routeIndex:index,legIndex:li,crs};
-          live.disabled=true;live.textContent='Checking live board…';
-          native()?.checkRailDepartures?.(crs);
+      if(modeKey==='train' && isIndexedTrain(leg)){
+        const key=trainKey(leg),actions=document.createElement('div');actions.className='rail-leg-actions';
+        const button=document.createElement('button');button.type='button';button.className='rail-live-check';
+        button.textContent=expandedTrainTimetable===key?'Hide timetable':'Timetable';
+        button.onclick=()=>{
+          expandedTrainTimetable=expandedTrainTimetable===key?'':key;
+          if(expandedTrainTimetable)requestSelectedTrainDetails(index,li);
+          showTransitDetail(index);
         };
-        main.appendChild(live);
+        actions.appendChild(button);
+        const live=document.createElement('span');live.className='rail-live-inline';
+        const status=trainLiveCache.get(key);
+        if(status?.matched){
+          live.textContent=status.cancelled?'Cancelled':
+              (status.delayMinutes>0?'Delayed '+status.delayMinutes+' min':'On time')+
+              (status.platform?' · Platform '+status.platform:'');
+        }else if(trainLivePending.size&&[...trainLivePending.values()].some(x=>x.key===key)){
+          const spinner=document.createElement('span');spinner.className='rail-inline-spinner';live.appendChild(spinner);
+          live.appendChild(document.createTextNode('Checking live train…'));
+        }else live.textContent=status?.message||'Scheduled · live info loading separately';
+        actions.appendChild(live);main.appendChild(actions);
+        if(expandedTrainTimetable===key)showTrainTimetableList(main,leg);
       }
       const time=document.createElement('div');time.className='transit-detail-time';time.textContent=`${leg.liveDeparture||leg.departure||''}${leg.arrival?`
 ${leg.arrival}`:''}`;row.append(icon,main,time);box.appendChild(row);
     });
     show('routeCard',false);show('busServiceSheet',false);show('busStopSheet',false);
     show('transitDetailSheet');el('transitDetailSheet').classList.remove('minimised');
+    // Transport results are already displayed; enrichment is independent.
+    requestSelectedTrainDetails(index);
   }
 
   function populateRouteOptions() {
@@ -1979,6 +2071,7 @@ ${leg.arrival}`:''}`;row.append(icon,main,time);box.appendChild(row);
       closeRoutePlanner();show('transitResultsToolbar',mode==='transit'&&!navigating);
       el('routeCard')?.classList.toggle('transit-active',mode==='transit');renderRoutePlanner();setRoutePlanningActive(!navigating);
       if(restored) { setNavigationChrome(true); updateNavSoundButton(); }
+      if(mode==='transit'&&!restored)requestSelectedTrainDetails(selectedRoute);
     },
     onRouteLiveUpdate(data, requestId=0){
       if(requestId && requestId!==routeRequestId) return;
@@ -1987,6 +2080,7 @@ ${leg.arrival}`:''}`;row.append(icon,main,time);box.appendChild(row);
       // Never silently switch journeys when late data arrives.
       if(previousId&&!data.routes.some(r=>r?.clearRouteId===previousId))return;
       routeResponse=data;
+      routeResponse.routes?.forEach(applyTrainDetailsFromCache);
       let keep=-1;if(previousId)keep=data.routes.findIndex(r=>r?.clearRouteId===previousId);if(keep<0)keep=Math.min(selectedRoute,Math.max(0,data.routes.length-1));selectedRoute=keep;selectedRouteId=data.routes?.[selectedRoute]?.clearRouteId||previousId;
       const allowed=transitDisplayIndices();if(allowed.length&&!allowed.includes(selectedRoute)){selectedRoute=allowed[0];selectedRouteId=data.routes?.[selectedRoute]?.clearRouteId||'';}
       if(transitNavigation)transitNavigation.routeIndex=selectedRoute;populateRouteOptions();updateRoutePlannerSummary();
@@ -2314,7 +2408,7 @@ ${leg.arrival}`:''}`;row.append(icon,main,time);box.appendChild(row);
   el('closeTransitPreferencesBtn').onclick=()=>{show('transitPreferences',false);if(transitPrefsReturnToSettings){transitPrefsReturnToSettings=false;showSettingsPage('home');show('settings');}};
   el('applyTransitPreferencesBtn').onclick=applyTransitPreferences;
   el('transitPreloadAreaBtn').onclick=()=>{const q=el('transitPreloadAreaInput').value.trim();if(q.length<2)return toast('Enter a town or postcode.');const id=++transitPreloadAreaRequestId;el('transitPreloadAreaBtn').disabled=true;native()?.preloadTransitArea?.(q,id);};
-  function backFromTransitDetail(){show('transitDetailSheet',false);if(routeResponse&&!transitNavigation)show('routeCard');}
+  function backFromTransitDetail(){if(expandedTrainTimetable){expandedTrainTimetable='';showTransitDetail(selectedRoute);return;}show('transitDetailSheet',false);if(routeResponse&&!transitNavigation)show('routeCard');}
   function backFromBusService(){++busLiveRequestId;++busRouteRequestId;show('busServiceSheet',false);clearBusRouteMarkers();busServiceTargetStop=null;closeRoutePlanner();if(busServiceReturnSheet==='busStopSheet')show('busStopSheet');else if(busServiceReturnSheet==='transitDetailSheet')show('transitDetailSheet');else if(busServiceReturnSheet==='routeCard'&&routeResponse)show('routeCard');if(routeResponse)drawRoutes(false);}
   function backFromBusStop(){++busStopRequestId;show('busStopSheet',false);if(busStopReturnSheet==='busServiceSheet')show('busServiceSheet');else if(busStopReturnSheet==='transitDetailSheet')show('transitDetailSheet');else if(busStopReturnSheet==='routeCard'&&routeResponse)show('routeCard');}
   function closeTransitSheet(sheet){
