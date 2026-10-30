@@ -513,3 +513,20 @@ svg{display:block}
 /* Rail Data checks are user-initiated and stay within the existing journey sheet. */
 .rail-live-check{display:inline-flex;align-items:center;align-self:flex-start;margin-top:7px;padding:7px 10px;border:1px solid #b7ccdf;border-radius:9px;background:#eff6fd;color:#155e95;font-size:12px;font-weight:700}
 .rail-live-check:disabled{opacity:.55}
+
+/* Staged railway information: compact within the existing half-height sheet. */
+.rail-leg-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px;}
+.rail-leg-actions .rail-live-check{margin-top:0}
+.rail-live-inline{font-size:12px;line-height:1.4;color:var(--muted);display:inline-flex;align-items:center;gap:6px;}
+.rail-inline-spinner{display:inline-block;flex:0 0 auto;width:13px;height:13px;border:2px solid #cbd9ea;border-top-color:#1d4f91;border-radius:50%;vertical-align:middle;animation:openroad-rail-spin 750ms linear infinite;}
+@keyframes openroad-rail-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.rail-inline-spinner{animation:none;border-style:dotted}}
+.rail-timetable-list{display:flex;flex-direction:column;gap:0;max-width:100%;margin-top:10px;padding:6px;border:1px solid #d7e1ee;border-radius:10px;background:var(--surface,#fff);}
+.rail-timetable-caption{font-size:12px;line-height:1.45;padding:7px;color:var(--muted);}
+.rail-timetable-stop{display:flex;justify-content:space-between;gap:8px;padding:8px 6px;border-top:1px solid #e7edf3;font-size:12px;align-items:center;}
+.rail-timetable-stop strong{font-size:12px;font-weight:650;min-width:0;overflow-wrap:anywhere;}
+.rail-timetable-stop span{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;color:var(--muted);}
+.rail-timetable-stop.boarding,.rail-timetable-stop.alighting{background:#eaf3fb;border-radius:6px;}
+.rail-timetable-stop.outside-journey{opacity:.66;}
+.rail-timetable-list>small{display:block;font-size:11px;color:var(--muted);padding:7px;line-height:1.45;}
+.rail-stage-live{max-width:110px;overflow-wrap:anywhere;font-size:11px;line-height:1.3;}
