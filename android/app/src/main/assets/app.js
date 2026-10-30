@@ -24,7 +24,7 @@
   const lastRailBoardLookup = new Map();
   const trainDetailsCache=new Map(),trainDetailsPending=new Map(),trainLiveCache=new Map(),trainLivePending=new Map();
   let trainRequestSeq=0,expandedTrainTimetable='';
-  const trainKey=leg=>[leg?.railTripId,leg?.fromCrs,leg?.toCrs,leg?.departureEpoch].join(':');
+  const trainKey=leg=>[leg?.railTripId??leg?.tripId,leg?.fromCrs,leg?.toCrs,leg?.departureEpoch].join(':');
   const isIndexedTrain=leg=>Number.isInteger(Number(leg?.railTripId))&&Number(leg.railTripId)>0&&
     /^[A-Z]{3}$/.test(String(leg?.fromCrs||''))&&/^[A-Z]{3}$/.test(String(leg?.toCrs||''))&&
     Number(leg?.departureEpoch)>1600000000;
