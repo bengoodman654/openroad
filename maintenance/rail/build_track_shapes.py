@@ -180,18 +180,18 @@ def build(index,links_path,deadline_seconds=220):
                 route.extend(xy if not route else xy[1:])
         if not route or matched<1:continue
         line=np.asarray(route,dtype=np.float64)
-        if len(line)>2400:
-            # Ramer–Douglas–Peucker in metres, preserving genuinely curved
-            # surveyed links instead of replacing them with straight hops.
+        if len(line)>2:
+            # Ramer–Douglas–Peucker in metres preserves track curvature while
+            # substantially reducing storage on the owner's shared server.
             from shapely.geometry import LineString
-            geom=LineString(line).simplify(8,preserve_topology=False)
+            geom=LineString(line).simplify(13,preserve_topology=False)
             line=np.asarray(geom.coords)
         if len(line)>2200:
             ix=np.round(np.linspace(0,len(line)-1,2200)).astype(int);line=line[ix]
         longitude,latitude=inverse.transform(line[:,0].tolist(),line[:,1].tolist())
         output=[[round(float(lat),5),round(float(lon),5)] for lat,lon in zip(latitude,longitude)]
         quality="track-aligned" if matched==segments else "partly-track-aligned"
-        blob=zlib.compress(json.dumps(output,separators=(",",":")).encode(),6)
+        blob=zlib.compress(json.dumps(output,separators=(",",":")).encode(),8)
         db.execute("UPDATE rail_shapes SET points=?,quality=? WHERE shape_id=?",(blob,quality,sid))
         written+=1
         if quality=="track-aligned":aligned+=1
