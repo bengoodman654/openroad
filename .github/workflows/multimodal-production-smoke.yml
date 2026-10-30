@@ -47,6 +47,11 @@ jobs:
             $modes=[];
             foreach($routes as $r){$modes[]=implode("+",array_unique(array_column($r["transitLegs"]??[],"mode"))); }
             echo "REAL_MULTIMODAL_RESULT count=".count($routes)." ms=".$ms." modes=".implode(",",$modes)."\n";
+            $q=$db->query("SELECT region_key,dataset_id FROM or_regions ORDER BY region_key LIMIT 32");
+            foreach($q as $region){
+              if(in_array($region["region_key"],["south_west","west_midlands"],true))
+                echo "REGION_READY_".strtoupper($region["region_key"])."=".((int)$region["dataset_id"]>0?"YES":"NO")."\n";
+            }
             if($ms>10000)exit(4);
           ' "$priv/lib/router.php" "$priv/lib/multimodal_planner.php"
           REMOTE
