@@ -25,6 +25,10 @@ jobs:
           python3 -m py_compile maintenance/rail/build_rail_index.py
           php -l maintenance/rail/rail_planner.php
           php -l maintenance/rail/rail_train_detail.php
+          php -l maintenance/rail/rail_gateway.php
+          php -l maintenance/rail/rail_train_live.php
+          php -l maintenance/rail/train_live.php
+          php -l maintenance/rail/test_train_live.php
           php -l maintenance/rail/train_detail.php
           php -l maintenance/rail/test_train_detail.php
           php -l maintenance/rail/rail_journeys.php
@@ -83,6 +87,7 @@ jobs:
           PY
           php -d memory_limit=64M maintenance/rail/test_real_smoke.php /tmp/rail-index
           php -d memory_limit=64M maintenance/rail/test_train_detail.php /tmp/rail-index
+          php -d memory_limit=64M maintenance/rail/test_train_live.php
           php -d memory_limit=64M maintenance/rail/test_multimodal.php /tmp/rail-index
           tar -czf /tmp/rail-index.tar -C /tmp rail-index
           test "$(stat -c %s /tmp/rail-index.tar)" -lt 95000000
@@ -137,7 +142,8 @@ jobs:
             maintenance/rail/rail_planner.php maintenance/rail/rail_journeys.php \
             maintenance/rail/multimodal_planner.php maintenance/rail/multimodal.php \
             maintenance/rail/rail_train_detail.php maintenance/rail/train_detail.php \
-            maintenance/rail/test_train_detail.php \
+            maintenance/rail/rail_gateway.php maintenance/rail/rail_train_live.php maintenance/rail/train_live.php \
+            maintenance/rail/test_train_detail.php maintenance/rail/test_train_live.php \
             maintenance/rail/test_real_smoke.php maintenance/rail/test_multimodal.php "rail-production:$stage/"
           echo RAIL_UPLOAD_COMPLETE
           indexsum="$(cd /tmp/rail-index && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)"
@@ -147,10 +153,13 @@ jobs:
           mmapi="$(sha256sum maintenance/rail/multimodal.php | cut -d' ' -f1)"
           tdetail="$(sha256sum maintenance/rail/rail_train_detail.php | cut -d' ' -f1)"
           tdetailapi="$(sha256sum maintenance/rail/train_detail.php | cut -d' ' -f1)"
+          gatewayhash="$(sha256sum maintenance/rail/rail_gateway.php | cut -d' ' -f1)"
+          livehash="$(sha256sum maintenance/rail/rail_train_live.php | cut -d' ' -f1)"
+          liveapi="$(sha256sum maintenance/rail/train_live.php | cut -d' ' -f1)"
           ssh rail-production bash -s -- \
-            "$PRIVATE_DIR" "$PUBLIC_DIR" "$GITHUB_RUN_ID" "$indexsum" "$plannersum" "$endpointsum" "$mmsum" "$mmapi" "$tdetail" "$tdetailapi" <<'REMOTE'
+            "$PRIVATE_DIR" "$PUBLIC_DIR" "$GITHUB_RUN_ID" "$indexsum" "$plannersum" "$endpointsum" "$mmsum" "$mmapi" "$tdetail" "$tdetailapi" "$gatewayhash" "$livehash" "$liveapi" <<'REMOTE'
           set -Eeuo pipefail
-          priv="$1"; pub="$2"; rid="$3"; idxhash="$4"; phash="$5"; ehash="$6"; mhash="$7"; mahash="$8"; tdhash="$9"; tdapihash="${10}"
+          priv="$1"; pub="$2"; rid="$3"; idxhash="$4"; phash="$5"; ehash="$6"; mhash="$7"; mahash="$8"; tdhash="$9"; tdapihash="${10}"; ghash="${11}"; lhash="${12}"; lapi="${13}"
           [[ "$priv" == /* && "$pub" == /* && "$rid" =~ ^[0-9]+$ ]]
           stage="$HOME/openroad-rail-stage-$rid"
           echo RAIL_REMOTE_CHECK_BEGIN
@@ -163,12 +172,19 @@ jobs:
           test "$(sha256sum "$stage/multimodal.php" | cut -d' ' -f1)" = "$mahash"
           test "$(sha256sum "$stage/rail_train_detail.php" | cut -d' ' -f1)" = "$tdhash"
           test "$(sha256sum "$stage/train_detail.php" | cut -d' ' -f1)" = "$tdapihash"
+          test "$(sha256sum "$stage/rail_gateway.php" | cut -d' ' -f1)" = "$ghash"
+          test "$(sha256sum "$stage/rail_train_live.php" | cut -d' ' -f1)" = "$lhash"
+          test "$(sha256sum "$stage/train_live.php" | cut -d' ' -f1)" = "$lapi"
           php -l "$stage/rail_planner.php" >/dev/null
           php -l "$stage/rail_journeys.php" >/dev/null
           php -l "$stage/multimodal_planner.php" >/dev/null
           php -l "$stage/multimodal.php" >/dev/null
           php -l "$stage/rail_train_detail.php" >/dev/null
           php -l "$stage/train_detail.php" >/dev/null
+          php -l "$stage/rail_gateway.php" >/dev/null
+          php -l "$stage/rail_train_live.php" >/dev/null
+          php -l "$stage/train_live.php" >/dev/null
+          php "$stage/test_train_live.php"
           test -f "$stage/rail-index/events.sqlite"
           base="$priv/cache/rail-routing"
           dest="$base/versions/$rid"
@@ -196,6 +212,9 @@ jobs:
           if test -f "$pub/api/v1/multimodal.php"; then cp -p "$pub/api/v1/multimodal.php" "$backup/multimodal.php"; fi
           if test -f "$priv/lib/rail_train_detail.php"; then cp -p "$priv/lib/rail_train_detail.php" "$backup/rail_train_detail.php"; fi
           if test -f "$pub/api/v1/train_detail.php"; then cp -p "$pub/api/v1/train_detail.php" "$backup/train_detail.php"; fi
+          if test -f "$priv/lib/rail_gateway.php"; then cp -p "$priv/lib/rail_gateway.php" "$backup/rail_gateway.php"; fi
+          if test -f "$priv/lib/rail_train_live.php"; then cp -p "$priv/lib/rail_train_live.php" "$backup/rail_train_live.php"; fi
+          if test -f "$pub/api/v1/train_live.php"; then cp -p "$pub/api/v1/train_live.php" "$backup/train_live.php"; fi
           rollback(){
             trap - ERR
             if test -f "$backup/rail_planner.php"; then cp -p "$backup/rail_planner.php" "$priv/lib/rail_planner.php"; else rm -f "$priv/lib/rail_planner.php"; fi
@@ -204,6 +223,9 @@ jobs:
             if test -f "$backup/multimodal.php"; then cp -p "$backup/multimodal.php" "$pub/api/v1/multimodal.php"; else rm -f "$pub/api/v1/multimodal.php"; fi
             if test -f "$backup/rail_train_detail.php"; then cp -p "$backup/rail_train_detail.php" "$priv/lib/rail_train_detail.php"; else rm -f "$priv/lib/rail_train_detail.php"; fi
             if test -f "$backup/train_detail.php"; then cp -p "$backup/train_detail.php" "$pub/api/v1/train_detail.php"; else rm -f "$pub/api/v1/train_detail.php"; fi
+            if test -f "$backup/rail_gateway.php"; then cp -p "$backup/rail_gateway.php" "$priv/lib/rail_gateway.php"; fi
+            if test -f "$backup/rail_train_live.php"; then cp -p "$backup/rail_train_live.php" "$priv/lib/rail_train_live.php"; else rm -f "$priv/lib/rail_train_live.php"; fi
+            if test -f "$backup/train_live.php"; then cp -p "$backup/train_live.php" "$pub/api/v1/train_live.php"; else rm -f "$pub/api/v1/train_live.php"; fi
             echo 'Rail endpoint rollback attempted' >&2
           }
           trap rollback ERR
@@ -219,18 +241,30 @@ jobs:
           chmod 0640 "$priv/lib/rail_train_detail.php.new"
           cp "$stage/train_detail.php" "$pub/api/v1/train_detail.php.new"
           chmod 0644 "$pub/api/v1/train_detail.php.new"
+          cp "$stage/rail_gateway.php" "$priv/lib/rail_gateway.php.new"
+          chmod 0640 "$priv/lib/rail_gateway.php.new"
+          cp "$stage/rail_train_live.php" "$priv/lib/rail_train_live.php.new"
+          chmod 0640 "$priv/lib/rail_train_live.php.new"
+          cp "$stage/train_live.php" "$pub/api/v1/train_live.php.new"
+          chmod 0644 "$pub/api/v1/train_live.php.new"
           mv -f "$priv/lib/rail_planner.php.new" "$priv/lib/rail_planner.php"
           mv -f "$pub/api/v1/rail_journeys.php.new" "$pub/api/v1/rail_journeys.php"
           mv -f "$priv/lib/multimodal_planner.php.new" "$priv/lib/multimodal_planner.php"
           mv -f "$pub/api/v1/multimodal.php.new" "$pub/api/v1/multimodal.php"
           mv -f "$priv/lib/rail_train_detail.php.new" "$priv/lib/rail_train_detail.php"
           mv -f "$pub/api/v1/train_detail.php.new" "$pub/api/v1/train_detail.php"
+          mv -f "$priv/lib/rail_gateway.php.new" "$priv/lib/rail_gateway.php"
+          mv -f "$priv/lib/rail_train_live.php.new" "$priv/lib/rail_train_live.php"
+          mv -f "$pub/api/v1/train_live.php.new" "$pub/api/v1/train_live.php"
           php -l "$priv/lib/rail_planner.php" >/dev/null
           php -l "$pub/api/v1/rail_journeys.php" >/dev/null
           php -l "$priv/lib/multimodal_planner.php" >/dev/null
           php -l "$pub/api/v1/multimodal.php" >/dev/null
           php -l "$priv/lib/rail_train_detail.php" >/dev/null
           php -l "$pub/api/v1/train_detail.php" >/dev/null
+          php -l "$priv/lib/rail_gateway.php" >/dev/null
+          php -l "$priv/lib/rail_train_live.php" >/dev/null
+          php -l "$pub/api/v1/train_live.php" >/dev/null
           ln -s "versions/$rid/rail-index" "$base/current.new"
           mv -Tf "$base/current.new" "$base/current"
           trap - ERR
