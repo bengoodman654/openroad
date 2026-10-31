@@ -1,0 +1,53 @@
+name: OpenRoad pedestrian range diagnostics
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/active-travel-diagnostics.yml']
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - name: Compare short and intercity Valhalla pedestrian requests (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,urllib.request,urllib.error,time
+          root="https://valhalla1.openstreetmap.de/route"
+          origin=(51.4545,-2.5879);end=(52.4068,-1.5197)
+          for name,locations,limit in [
+            ("short",[(51.4545,-2.5879),(51.463,-2.598)],None),
+            ("long-default",[origin,end],None),
+            ("long-increased",[origin,end],250000)]:
+            body={"locations":[{"lat":a,"lon":b} for a,b in locations],
+                  "costing":"pedestrian","units":"kilometers","language":"en-GB",
+                  "directions_type":"instructions","shape_format":"polyline6",
+                  "alternates":0,"date_time":{"type":0},
+                  "costing_options":{"pedestrian":{
+                      "walkway_factor":0.55,"sidewalk_factor":0.72,
+                      "alley_factor":2.5,"driveway_factor":5,
+                      "service_factor":1.6,"use_living_streets":0.9,
+                      "use_hills":0.5,"max_hiking_difficulty":0,"maneuver_penalty":4}}},
+            }
+            if limit:body["costing_options"]["pedestrian"]["max_distance"]=limit
+            req=urllib.request.Request(root,data=json.dumps(body).encode(),
+                headers={"Accept":"application/json","Content-Type":"application/json",
+                  "User-Agent":"OpenRoad-test-personal/0.6.41"},method="POST")
+            try:
+              with urllib.request.urlopen(req,timeout=33) as x:
+                v=json.load(x)
+                print("VALHALLA_PROBE",name,"status",x.status,
+                   "length_km",v.get("trip",{}).get("summary",{}).get("length"))
+            except urllib.error.HTTPError as e:
+              raw=e.read(1000).decode(errors="replace")
+              try:
+                v=json.loads(raw);raw=str({"error_code":v.get("error_code"),
+                     "error":v.get("error"),"status":v.get("status")})
+              except:raw=raw[:140]
+              print("VALHALLA_PROBE",name,"status",e.code,"detail",raw)
+            except Exception as e:print("VALHALLA_PROBE",name,"exception",type(e).__name__)
+            time.sleep(3)
+          PY
