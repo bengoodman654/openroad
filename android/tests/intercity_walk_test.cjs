@@ -8,7 +8,7 @@ for(const key of ['requestSegmentedWalkingRoute','mergeVerifiedWalkingParts','re
   'requestActiveTravelRouteInternal(startLat,startLon,null,null,endLat,endLon,',
   '"cycle",0,avoidAreas','"walk",0,avoidAreas',
   'routePoints(seedRoute)','leg.optJSONArray("points")',
-  'distanceMetres(points.get(0)[0]','Disconnected section',
+  'distanceMetres(points.get(0)[0]','disconnected section',
   'Math.ceil(length/38000.0)','if(count>9)',
   'Thread.currentThread().isInterrupted()','previousTotalPoints',
   'clearRouteWalkSegments','routeOffsetInMeters']){
