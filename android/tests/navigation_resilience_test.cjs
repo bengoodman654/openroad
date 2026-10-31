@@ -48,4 +48,4 @@ assert.equal(projected[0][0],0,'boarding point projected onto segment');
 assert.equal(projected.at(-1)[0],2,'alighting point projected onto segment');
 const reversed=clip(p,{stops:[{lat:0,lon:2},{lat:0,lon:0}]});
 assert.equal(reversed[0][0],2,'reversed service geometry cannot include before-boarding section');
-console.log('OpenRoad 0.6.41 navigation resilience: 29 source and route-geometry assertions passed.');
+console.log('OpenRoad 0.6.42 navigation resilience: 29 source and route-geometry assertions passed.');

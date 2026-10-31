@@ -878,7 +878,7 @@ public final class ApiClient {
         connection.setDoOutput(true);
         connection.setRequestProperty("Accept", "application/json,*/*");
         connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-        connection.setRequestProperty("User-Agent", "OpenRoad/0.6.41 personal-android-app");
+        connection.setRequestProperty("User-Agent", "OpenRoad/0.6.42 personal-android-app");
         if (headers != null) {
             for (int i = 0; i + 1 < headers.length; i += 2) {
                 if (headers[i] != null && headers[i + 1] != null) connection.setRequestProperty(headers[i], headers[i + 1]);
@@ -912,7 +912,7 @@ public final class ApiClient {
         connection.setReadTimeout(18000);
         connection.setRequestMethod("GET");
         connection.setRequestProperty("Accept", "application/json,*/*");
-        connection.setRequestProperty("User-Agent", "OpenRoad/0.6.41 personal-android-app");
+        connection.setRequestProperty("User-Agent", "OpenRoad/0.6.42 personal-android-app");
         if (headers != null) {
             for (int i = 0; i + 1 < headers.length; i += 2) {
                 if (headers[i] != null && headers[i + 1] != null) connection.setRequestProperty(headers[i], headers[i + 1]);

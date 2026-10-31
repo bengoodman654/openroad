@@ -10,8 +10,8 @@ android {
         applicationId 'uk.co.bengoodman.clearroute'
         minSdk 26
         targetSdk 35
-        versionCode 101
-        versionName '0.6.41'
+        versionCode 102
+        versionName '0.6.42'
         // Personal build credentials are read from local.properties (git-ignored) rather than
         // committed to build.gradle. They are still embedded in a personal APK where required,
         // so provider-side restrictions remain important.
@@ -105,7 +105,7 @@ tasks.register('prepareMapLibreAssets') {
                     def connection = new java.net.URL(sourceUrl).openConnection()
                     connection.setConnectTimeout(15000)
                     connection.setReadTimeout(30000)
-                    connection.setRequestProperty('User-Agent', 'OpenRoad-Android-Build/0.6.41')
+                    connection.setRequestProperty('User-Agent', 'OpenRoad-Android-Build/0.6.42')
                     connection.inputStream.withCloseable { input ->
                         destination.withOutputStream { output -> output << input }
                     }
