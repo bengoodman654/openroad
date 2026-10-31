@@ -51,3 +51,63 @@ jobs:
             except Exception as e:print("VALHALLA_PROBE",name,"exception",type(e).__name__)
             time.sleep(3)
           PY
+      - name: Verify bicycle-guided pedestrian-only intercity sections
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,urllib.request,urllib.error,math,time
+          root='https://valhalla1.openstreetmap.de/route'
+          origin=(51.4545,-2.5879);destination=(52.4068,-1.5197)
+          def fetch(a,b,cost):
+              payload={'locations':[{'lat':a[0],'lon':a[1]},{'lat':b[0],'lon':b[1]}],
+                  'costing':cost,'units':'kilometers','language':'en-GB',
+                  'directions_type':'instructions','shape_format':'polyline6','alternates':0,
+                  'date_time':{'type':0}}
+              request=urllib.request.Request(root,data=json.dumps(payload).encode(),method='POST',
+                  headers={'Content-Type':'application/json','User-Agent':'OpenRoad-intercity-diagnostics/0.6.42'})
+              with urllib.request.urlopen(request,timeout=37) as f:return json.load(f)
+          def decode(encoded):
+              p=[];lat=lon=0;i=0
+              def value():
+                  nonlocal i
+                  shift=0;v=0
+                  while True:
+                    b=ord(encoded[i])-63;i+=1
+                    v|=(b&31)<<shift;shift+=5
+                    if not b&32:break
+                  return ~(v>>1) if v&1 else v>>1
+              while i<len(encoded):
+                lat+=value();lon+=value();p.append((lat/1e6,lon/1e6))
+              return p
+          def dist(a,b):
+              r=6371000;la,lb=math.radians(a[0]),math.radians(b[0])
+              dlat=lb-la;dlon=math.radians(b[1]-a[1])
+              q=math.sin(dlat/2)**2+math.cos(la)*math.cos(lb)*math.sin(dlon/2)**2
+              return r*2*math.atan2(math.sqrt(q),math.sqrt(1-q))
+          try:
+              guide=fetch(origin,destination,'bicycle')
+              pts=[v for leg in guide['trip']['legs'] for v in decode(leg['shape'])]
+              cum=[0.]
+              for i in range(1,len(pts)):cum.append(cum[-1]+dist(pts[i-1],pts[i]))
+              count=max(2,math.ceil(cum[-1]/38000))
+              anchors=[origin];idx=1
+              for i in range(1,count):
+                  while idx<len(pts)-1 and cum[idx]<cum[-1]*i/count:idx+=1
+                  anchors.append(pts[idx])
+              anchors.append(destination)
+              print('WALK_SEGMENT_GUIDE',round(cum[-1]/1000),count,flush=True)
+              if count>9:raise ValueError('Too many segments')
+              lengths=[]
+              for i,(a,b) in enumerate(zip(anchors,anchors[1:])):
+                  time.sleep(2)
+                  result=fetch(a,b,'pedestrian')
+                  km=result['trip']['summary']['length']
+                  lengths.append(km)
+                  print('WALK_SEGMENT_PASS',i+1,'km',km,flush=True)
+              if len(lengths)!=count:raise ValueError('Not all walk segments succeeded')
+              print('WALK_INTERCITY_VERIFIED_TOTAL_KM',round(sum(lengths),1))
+          except Exception as exc:
+              print('WALK_INTERCITY_DIAGNOSTIC_FAILED',type(exc).__name__,str(exc)[:120])
+              raise
+          PY
