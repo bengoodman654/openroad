@@ -62,7 +62,7 @@ jobs:
             echo "REAL_BUS_TRAIN_BUS_BATH routes=$n max_bus_legs=$bestBusCount\n";
             // Check the actual failure case: from south of Bristol to Coventry
             // without requiring local bus data in two separate regions.
-            $railRoot=$priv."/cache/rail-routing/current";
+            $railRoot=dirname(dirname($argv[1]))."/cache/rail-routing/current";
             echo "RAIL_LINK_PRESENT=".(is_link($railRoot)?"YES":"NO").
                  " RAIL_INDEX_MANIFEST=".(is_file($railRoot."/manifest.json")?"YES":"NO").
                  " RAIL_INDEX_STATIONS=".(is_file($railRoot."/stations.json")?"YES":"NO").
