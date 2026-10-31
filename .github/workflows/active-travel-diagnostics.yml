@@ -30,7 +30,7 @@ jobs:
                       "walkway_factor":0.55,"sidewalk_factor":0.72,
                       "alley_factor":2.5,"driveway_factor":5,
                       "service_factor":1.6,"use_living_streets":0.9,
-                      "use_hills":0.5,"max_hiking_difficulty":0,"maneuver_penalty":4}}},
+                      "use_hills":0.5,"max_hiking_difficulty":0,"maneuver_penalty":4}},
             }
             if limit:body["costing_options"]["pedestrian"]["max_distance"]=limit
             req=urllib.request.Request(root,data=json.dumps(body).encode(),
