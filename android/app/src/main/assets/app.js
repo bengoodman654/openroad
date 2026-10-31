@@ -1000,6 +1000,15 @@
     mode = ['drive','cycle','walk','transit'].includes(next) ? next : 'drive';
     native()?.setTravelMode?.(mode);
     if(mode==='transit'){const origin=routeOrigin();if(origin)native()?.prepareTransitData?.(origin.lat,origin.lon);}
+    // A new travel mode must never display a previous driving/cycling line
+    // or make an obsolete route appear startable while the new search runs.
+    if(previousMode!==mode&&!navigating){
+      stopTransitSearchWatchdog();
+      routeResponse=null;selectedRoute=0;selectedRouteId='';routeSelectionUserMade=false;
+      clearRouteLayers();
+      show('transitDetailSheet',false);show('busServiceSheet',false);show('busStopSheet',false);
+      show('transitResultsToolbar',false);
+    }
     ['drive','cycle','walk','transit'].forEach(m=>el(`${m}Btn`)?.classList.toggle('active',mode===m));
     show('routePreferencesBtn', mode==='drive');
     closeRoutePlanner();
@@ -1440,6 +1449,10 @@
     el('startNavBtn').disabled = true;
     el('startNavBtn').textContent = 'Updating…';
     const id=++routeRequestId;native()?.cancelRouteRequests?.(id);
+    // Never leave the old mode's polyline visible beneath a pending request.
+    // A failed search may preserve its own previous mode's result, but never
+    // a different travel mode or destination.
+    if(!routeResponse?.routes?.length)clearRouteLayers();
     stopTransitSearchWatchdog();
     if(mode==='transit')armTransitSearchWatchdog(id);
     closeRoutePlanner();
