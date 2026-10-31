@@ -67,6 +67,17 @@ jobs:
                  " RAIL_INDEX_MANIFEST=".(is_file($railRoot."/manifest.json")?"YES":"NO").
                  " RAIL_INDEX_STATIONS=".(is_file($railRoot."/stations.json")?"YES":"NO").
                  " RAIL_REALPATH_OK=".(realpath($railRoot)!==false?"YES":"NO")."\n";
+
+            $timeNow=time();
+            foreach([0,3600,7200,86400] as $delta){
+              $t=$timeNow+$delta;
+              $departures=or_rail_departures($railRoot,"BRI",$t,$t+6*3600);
+              echo "RAIL_DEPARTURES_OFFSET_$delta=".count($departures)." day=".
+                   (new DateTimeImmutable("@".$t))->setTimezone(new DateTimeZone("Europe/London"))->format("D H:i")."\n";
+            }
+            $testTime=(new DateTimeImmutable("tomorrow 08:00",new DateTimeZone("Europe/London")))->getTimestamp();
+            $tomorrow=or_rail_plan(51.449,-2.58,52.4,-1.514,$railRoot,$testTime);
+            echo "RAIL_CONTROL_TOMORROW_ROUTES=".count($tomorrow["routes"]??[])."\n";
             foreach([[51.435,-2.61,52.405,-1.514],[51.415,-2.61,52.406,-1.514],
                      [51.425,-2.625,52.409,-1.515]] as $k=>$pts){
               try{
