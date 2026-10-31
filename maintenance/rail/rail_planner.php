@@ -123,7 +123,7 @@ function or_rail_plan(float $a,float $b,float $c,float $d,?string $root=null,?in
         // Geographic guidance only: queue priority, not the journey's actual score.
         return (int)round(or_rail_km((float)$p[1],(float)$p[2],$c,$d)*32);
     };
-    while(!$queue->isEmpty()&&$expanded++<650&&microtime(true)<$deadline){
+    while(!$queue->isEmpty()&&$expanded++<5000&&microtime(true)<$deadline){
         $s=$queue->extract();
         if($s['at']>$now+8*3600)continue;
         if(isset($targets[$s['code']])&&$s['edges']){
