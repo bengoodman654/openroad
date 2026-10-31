@@ -28,3 +28,6 @@ $ms=round((microtime(true)-$start)*1000);
 if(empty($todayRoutes['routes']))throw new RuntimeException('Busy-day Bristol to Coventry rail search returned no valid route');
 if($ms>5000)throw new RuntimeException('Busy-day railway planner exceeded time budget');
 echo "RAIL_BUSY_DAY_BRISTOL_COVENTRY_OK ms=$ms routes=".count($todayRoutes['routes'])."\n";
+$south=or_rail_plan(51.415,-2.61,52.406,-1.514,$index,$today);
+if(empty($south['routes']))throw new RuntimeException('South Bristol station access cannot reach Coventry on a busy service day');
+echo "RAIL_BUSY_DAY_SOUTH_BRISTOL_COVENTRY_OK routes=".count($south['routes'])."\n";
