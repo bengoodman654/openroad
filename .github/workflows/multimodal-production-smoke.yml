@@ -60,6 +60,21 @@ jobs:
               $bestBusCount=max($bestBusCount,$buses);$n++;
             }
             echo "REAL_BUS_TRAIN_BUS_BATH routes=$n max_bus_legs=$bestBusCount\n";
+            // Check the actual failure case: from south of Bristol to Coventry
+            // without requiring local bus data in two separate regions.
+            $railRoot=$priv."/cache/rail-routing/current";
+            foreach([[51.435,-2.61,52.405,-1.514],[51.415,-2.61,52.406,-1.514],
+                     [51.425,-2.625,52.409,-1.515]] as $k=>$pts){
+              try{
+                $t=microtime(true);
+                $r=or_rail_plan($pts[0],$pts[1],$pts[2],$pts[3],$railRoot);
+                echo "RAIL_REGION_CASE_$k routes=".count($r["routes"]??[])." ms=".
+                     (int)round((microtime(true)-$t)*1000).
+                     " origin_near=".count(or_rail_near(or_rail_index($railRoot)[1],$pts[0],$pts[1],5)).
+                     " dest_near=".count(or_rail_near(or_rail_index($railRoot)[1],$pts[2],$pts[3],5))."\n";
+              }catch(Throwable $e){echo "RAIL_REGION_CASE_$k error=".get_class($e)."\n";}
+            }
+
             if($ms>10000)exit(4);
           ' "$priv/lib/router.php" "$priv/lib/multimodal_planner.php"
           REMOTE
