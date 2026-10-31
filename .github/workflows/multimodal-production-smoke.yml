@@ -72,7 +72,7 @@ jobs:
                      (int)round((microtime(true)-$t)*1000).
                      " origin_near=".count(or_rail_near(or_rail_index($railRoot)[1],$pts[0],$pts[1],5)).
                      " dest_near=".count(or_rail_near(or_rail_index($railRoot)[1],$pts[2],$pts[3],5))."\n";
-              }catch(Throwable $e){echo "RAIL_REGION_CASE_$k error=".get_class($e)."\n";}
+              }catch(Throwable $e){echo "RAIL_REGION_CASE_$k error=".get_class($e)." diagnostic=".preg_replace("/[^a-zA-Z0-9 ,.:_-]/","",(string)$e->getMessage())."\n";}
             }
 
             if($ms>10000)exit(4);
