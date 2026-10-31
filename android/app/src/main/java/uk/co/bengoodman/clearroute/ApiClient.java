@@ -417,6 +417,25 @@ public final class ApiClient {
                                                    Double viaLat, Double viaLon,
                                                    double destLat, double destLon, String mode,
                                                    int alternates, List<AvoidBox> avoidAreas) throws Exception {
+        // The public Valhalla server hard-limits one pedestrian request to 100 km.
+        // Intercity walking must be checked as multiple real, contiguous foot paths,
+        // not rejected or shown as a straight line.
+        if ("walk".equals(mode) && (distanceMetres(originLat,originLon,destLat,destLon)>80000.0 ||
+             (viaLat!=null && viaLon!=null &&
+                (distanceMetres(originLat,originLon,viaLat,viaLon)>80000.0 ||
+                 distanceMetres(viaLat,viaLon,destLat,destLon)>80000.0)))) {
+            if(viaLat!=null && viaLon!=null){
+                JSONObject first=new JSONObject(requestActiveTravelRouteInternal(originLat,originLon,null,null,
+                    viaLat,viaLon,"walk",0,avoidAreas));
+                JSONObject second=new JSONObject(requestActiveTravelRouteInternal(viaLat,viaLon,null,null,
+                    destLat,destLon,"walk",0,avoidAreas));
+                java.util.ArrayList<JSONObject> parts=new java.util.ArrayList<>();
+                parts.add(first.optJSONArray("routes").getJSONObject(0));
+                parts.add(second.optJSONArray("routes").getJSONObject(0));
+                return mergeVerifiedWalkingParts(parts).toString();
+            }
+            return requestSegmentedWalkingRoute(originLat,originLon,destLat,destLon,avoidAreas);
+        }
         JSONObject body = new JSONObject();
         JSONArray locations = new JSONArray();
         locations.put(new JSONObject().put("lat", originLat).put("lon", originLon));
@@ -487,6 +506,119 @@ public final class ApiClient {
             lastValhallaRequestAt = System.currentTimeMillis();
         }
         return convertValhallaResponse(raw, mode);
+    }
+
+
+    /**
+     * The public walking service rejects paths longer than 100 km (Valhalla 154).
+     * Use an actual cycle-network route ONLY to select intermediate pedestrian
+     * query anchors. It is NEVER rendered as the walking route; every displayed
+     * metre is supplied by the pedestrian router, or the result fails closed.
+     */
+    private static String requestSegmentedWalkingRoute(double startLat,double startLon,
+            double endLat,double endLon,List<AvoidBox> avoidAreas) throws Exception {
+        double direct=distanceMetres(startLat,startLon,endLat,endLon);
+        if(direct>310000)throw new Exception("This walk is too long for the public footpath service. Try a shorter section.");
+        JSONObject cycle;
+        try{
+            cycle=new JSONObject(requestActiveTravelRouteInternal(startLat,startLon,null,null,endLat,endLon,
+                    "cycle",0,avoidAreas));
+        }catch(Exception e){
+            throw new Exception("Long-distance walking directions need a verified route through intermediate places. The route guide is unavailable.");
+        }
+        JSONArray seed=cycle.optJSONArray("routes");
+        JSONObject seedRoute=seed==null?null:seed.optJSONObject(0);
+        java.util.ArrayList<double[]> spine=routePoints(seedRoute);
+        if(spine.size()<3)throw new Exception("No reliable intermediate footpath locations were found for this walk.");
+        double[] cumulative=new double[spine.size()];
+        for(int i=1;i<spine.size();i++)
+            cumulative[i]=cumulative[i-1]+distanceMetres(spine.get(i-1)[0],spine.get(i-1)[1],
+                                                           spine.get(i)[0],spine.get(i)[1]);
+        double length=cumulative[cumulative.length-1];
+        int count=Math.max(2,(int)Math.ceil(length/38000.0));
+        if(count>9)throw new Exception("This walking route is too long for safe segmented pedestrian routing.");
+        java.util.ArrayList<double[]> anchors=new java.util.ArrayList<>();
+        anchors.add(new double[]{startLat,startLon});
+        int cursor=1;
+        for(int i=1;i<count;i++){
+            double target=length*i/count;
+            while(cursor<spine.size()-1 && cumulative[cursor]<target)cursor++;
+            double[] here=spine.get(Math.min(cursor,spine.size()-2));
+            if(distanceMetres(anchors.get(anchors.size()-1)[0],anchors.get(anchors.size()-1)[1],
+                    here[0],here[1])>300.0)anchors.add(here);
+        }
+        anchors.add(new double[]{endLat,endLon});
+        if(anchors.size()>10)throw new Exception("Too many pedestrian sections for one route.");
+        java.util.ArrayList<JSONObject> walked=new java.util.ArrayList<>();
+        for(int i=1;i<anchors.size();i++){
+            if(Thread.currentThread().isInterrupted())throw new java.io.InterruptedIOException("Walking search cancelled");
+            double[] a=anchors.get(i-1),b=anchors.get(i);
+            JSONObject piece;
+            try{
+                piece=new JSONObject(requestActiveTravelRouteInternal(a[0],a[1],null,null,b[0],b[1],
+                        "walk",0,avoidAreas));
+            }catch(Exception e){
+                throw new Exception("Could not verify a continuous walking path through all intermediate places. Try shorter sections.");
+            }
+            JSONArray routes=piece.optJSONArray("routes");
+            JSONObject segment=routes==null?null:routes.optJSONObject(0);
+            java.util.ArrayList<double[]> points=routePoints(segment);
+            if(points.size()<2 ||
+                 distanceMetres(points.get(0)[0],points.get(0)[1],a[0],a[1])>700 ||
+                 distanceMetres(points.get(points.size()-1)[0],points.get(points.size()-1)[1],b[0],b[1])>700)
+                throw new Exception("Walking route has a disconnected section; refusing to show an inaccurate path.");
+            walked.add(segment);
+        }
+        return mergeVerifiedWalkingParts(walked).toString();
+    }
+
+    private static JSONObject mergeVerifiedWalkingParts(java.util.List<JSONObject> parts) throws Exception {
+        if(parts==null||parts.isEmpty())throw new Exception("No verified walking sections");
+        JSONArray legs=new JSONArray(),instructions=new JSONArray();
+        long length=0,time=0;
+        long previousTotalPoints=0;
+        for(JSONObject part:parts){
+            if(part==null)throw new Exception("Missing pedestrian segment");
+            JSONObject summary=part.optJSONObject("summary");
+            JSONArray sectionLegs=part.optJSONArray("legs");
+            if(summary==null||sectionLegs==null||sectionLegs.length()==0)
+                throw new Exception("Incomplete pedestrian route");
+            long segmentMetres=summary.optLong("lengthInMeters",0);
+            long segmentSeconds=summary.optLong("travelTimeInSeconds",0);
+            if(segmentMetres<50||segmentMetres>100000||segmentSeconds<=0)
+                throw new Exception("Pedestrian segment exceeded the service limit");
+            long legPointCount=0;
+            for(int j=0;j<sectionLegs.length();j++){
+                JSONObject leg=sectionLegs.optJSONObject(j);
+                if(leg==null||leg.optJSONArray("points")==null)throw new Exception("Invalid pedestrian geometry");
+                legPointCount+=leg.optJSONArray("points").length();
+                legs.put(leg);
+            }
+            JSONArray commands=part.optJSONObject("guidance")==null?null:
+                    part.optJSONObject("guidance").optJSONArray("instructions");
+            if(commands!=null){
+                for(int j=0;j<commands.length();j++){
+                    JSONObject row=commands.optJSONObject(j);
+                    if(row==null)continue;
+                    JSONObject copy=new JSONObject(row.toString());
+                    copy.put("pointIndex",Math.max(0,previousTotalPoints+row.optLong("pointIndex",0)));
+                    copy.put("routeOffsetInMeters",length+row.optDouble("routeOffsetInMeters",0));
+                    copy.put("travelTimeInSeconds",time+row.optLong("travelTimeInSeconds",0));
+                    instructions.put(copy);
+                }
+            }
+            previousTotalPoints+=legPointCount;
+            length+=segmentMetres;
+            time+=segmentSeconds;
+        }
+        JSONObject route=new JSONObject()
+          .put("summary",new JSONObject().put("lengthInMeters",length).put("travelTimeInSeconds",time))
+          .put("legs",legs).put("guidance",new JSONObject().put("instructions",instructions))
+          .put("clearRouteProvider","Valhalla / OpenStreetMap pedestrian segments")
+          .put("clearRouteLabel","Verified walking route")
+          .put("clearRouteWalkSegments",parts.size())
+          .put("clearRouteLiveTraffic",false);
+        return new JSONObject().put("routes",new JSONArray().put(route));
     }
 
     private static String convertValhallaResponse(String raw, String mode) throws Exception {
