@@ -19,3 +19,12 @@ foreach($trains as $train){
 }
 if($elapsed>6000)throw new RuntimeException('Rail search exceeded safe time');
 echo "RAIL_BRISTOL_COVENTRY_OK ms=$elapsed train_legs=".count($trains)." routes=".count($r['routes'])."\n";
+// A daily on-demand planner must work during actual busy timetables, not
+// only the quieter next-day test used in the initial prototype.
+$today=(new DateTimeImmutable('today 08:00',new DateTimeZone('Europe/London')))->getTimestamp();
+$start=microtime(true);
+$todayRoutes=or_rail_plan(51.435,-2.61,52.405,-1.514,$index,$today);
+$ms=round((microtime(true)-$start)*1000);
+if(empty($todayRoutes['routes']))throw new RuntimeException('Busy-day Bristol to Coventry rail search returned no valid route');
+if($ms>5000)throw new RuntimeException('Busy-day railway planner exceeded time budget');
+echo "RAIL_BUSY_DAY_BRISTOL_COVENTRY_OK ms=$ms routes=".count($todayRoutes['routes'])."\n";
