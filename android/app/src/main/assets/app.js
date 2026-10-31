@@ -1006,6 +1006,7 @@
       stopTransitSearchWatchdog();
       routeResponse=null;selectedRoute=0;selectedRouteId='';routeSelectionUserMade=false;
       clearRouteLayers();
+      if(el('routeOptions'))el('routeOptions').textContent='';
       show('transitDetailSheet',false);show('busServiceSheet',false);show('busStopSheet',false);
       show('transitResultsToolbar',false);
     }
@@ -1462,6 +1463,7 @@
       if(origin.custom&&native()?.calculateTransitRouteWithStopsFrom)native().calculateTransitRouteWithStopsFrom(origin.lat,origin.lon,destination.lat,destination.lon,JSON.stringify(transitViaStops),settings,id);
       else native()?.calculateTransitRouteWithStops?.(destination.lat,destination.lon,JSON.stringify(transitViaStops),settings,id);
     } else if(transitViaStops.length){
+      if(el('routeOptions'))el('routeOptions').textContent='Finding '+mode+' route…';
       if(mode==='drive'&&native()?.calculateRouteWithStops){
         const stops=JSON.stringify(transitViaStops);
         if(origin.custom&&native()?.calculateRouteWithStopsFrom)native().calculateRouteWithStopsFrom(origin.lat,origin.lon,destination.lat,destination.lon,stops,mode,id);
@@ -1471,8 +1473,13 @@
         if(origin.custom&&native()?.calculateRouteViaStopFrom)native().calculateRouteViaStopFrom(origin.lat,origin.lon,destination.lat,destination.lon,Number(via.lat),Number(via.lon),mode,id);
         else native()?.calculateRouteViaStop?.(destination.lat,destination.lon,Number(via.lat),Number(via.lon),mode,id);
       }
-    } else if(origin.custom&&native()?.calculateRouteFrom)native().calculateRouteFrom(origin.lat,origin.lon,destination.lat,destination.lon,mode,id);
-    else native()?.calculateRoute?.(destination.lat,destination.lon,mode,id);
+    } else if(origin.custom&&native()?.calculateRouteFrom){
+      if(el('routeOptions'))el('routeOptions').textContent='Finding '+mode+' route…';
+      native().calculateRouteFrom(origin.lat,origin.lon,destination.lat,destination.lon,mode,id);
+    } else {
+      if(el('routeOptions'))el('routeOptions').textContent='Finding '+mode+' route…';
+      native()?.calculateRoute?.(destination.lat,destination.lon,mode,id);
+    }
   }
 
   function finishRouteCalculationUi() {
@@ -2147,7 +2154,20 @@ ${leg.arrival}`:''}`;row.append(icon,main,time);box.appendChild(row);
       stopTransitSearchWatchdog();
       finishRouteCalculationUi();
       if(mode==='transit')showTransitSearchFailure(message||'No public transport route was found.');
-      else toast(message||'Route calculation failed');
+      else if(!routeResponse?.routes?.length){
+        const holder=el('routeOptions');
+        if(holder){
+          holder.textContent='';
+          const panel=document.createElement('div');panel.className='transit-search-failed';
+          const title=document.createElement('strong');title.textContent='Could not calculate the '+mode+' route';
+          const detail=document.createElement('span');detail.textContent=message||'No usable route was returned.';
+          const retry=document.createElement('button');retry.type='button';retry.className='transit-search-retry';
+          retry.textContent='Try again';retry.onclick=calculateRoute;
+          panel.append(title,detail,retry);holder.appendChild(panel);
+        }
+        el('startNavBtn').disabled=true;
+        show('routeCard',true);show('destinationCard',false);
+      }else toast(message||'Route calculation failed');
     },
     onTransitNavigationRestored(data, requestedIndex=0, legIndex=0){
       routeResponse=data; mode='transit'; selectedRoute=Math.min(requestedIndex,Math.max(0,(data.routes||[]).length-1));selectedRouteId=data.routes?.[selectedRoute]?.clearRouteId||'';
