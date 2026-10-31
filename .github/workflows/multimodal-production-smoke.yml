@@ -63,6 +63,10 @@ jobs:
             // Check the actual failure case: from south of Bristol to Coventry
             // without requiring local bus data in two separate regions.
             $railRoot=$priv."/cache/rail-routing/current";
+            echo "RAIL_LINK_PRESENT=".(is_link($railRoot)?"YES":"NO").
+                 " RAIL_INDEX_MANIFEST=".(is_file($railRoot."/manifest.json")?"YES":"NO").
+                 " RAIL_INDEX_STATIONS=".(is_file($railRoot."/stations.json")?"YES":"NO").
+                 " RAIL_REALPATH_OK=".(realpath($railRoot)!==false?"YES":"NO")."\n";
             foreach([[51.435,-2.61,52.405,-1.514],[51.415,-2.61,52.406,-1.514],
                      [51.425,-2.625,52.409,-1.515]] as $k=>$pts){
               try{
